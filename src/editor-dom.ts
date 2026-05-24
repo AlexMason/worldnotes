@@ -87,6 +87,13 @@ const DEFAULT_CSS = DEFAULT_TOKENS + `
   flex-shrink: 0;
 }
 
+.wn-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .wn-breadcrumb {
   display: flex;
   align-items: center;
@@ -246,6 +253,7 @@ function injectStyles(theme?: string): void {
  * @property container   - The root wn-root element (the original container)
  * @property topbar      - Top bar wrapper containing breadcrumbs
  * @property breadcrumb   - Breadcrumb navigation element
+ * @property toolbar     - Toolbar slot container between topbar and editor area
  * @property editorWrap  - Wrapper around editor and placeholder
  * @property editorDiv   - The contentEditable editor div
  * @property placeholder - Initial placeholder text element
@@ -254,6 +262,7 @@ export interface EditorDOM {
   container: HTMLElement
   topbar: HTMLElement
   breadcrumb: HTMLElement
+  toolbar: HTMLElement
   editorWrap: HTMLElement
   editorDiv: HTMLDivElement
   placeholder: HTMLElement
@@ -281,6 +290,7 @@ export function createEditorDOM(container: HTMLElement, theme?: string): EditorD
 
   const topbar = el('div', 'wn-topbar')
   const breadcrumb = el('div', 'wn-breadcrumb')
+  const toolbar = el('div', 'wn-toolbar')
   const editorWrap = el('div', 'wn-editor-wrap')
   const editorDiv = el('div', 'wn-editor') as HTMLDivElement
   const placeholder = el('div', 'wn-placeholder')
@@ -293,7 +303,8 @@ export function createEditorDOM(container: HTMLElement, theme?: string): EditorD
   editorWrap.appendChild(placeholder)
   editorWrap.appendChild(editorDiv)
   container.appendChild(topbar)
+  container.appendChild(toolbar)
   container.appendChild(editorWrap)
 
-  return { container, topbar, breadcrumb, editorWrap, editorDiv, placeholder }
+  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder }
 }
