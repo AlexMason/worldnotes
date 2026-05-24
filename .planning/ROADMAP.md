@@ -68,7 +68,7 @@ Plans:
 Plans:
 - [x] 02-01-PLAN.md — Extract editor-state.ts (world cache, trail, save timer, context)
 - [x] 02-02-PLAN.md — Extract editor-dom.ts (DOM construction, injectStyles, DEFAULT_CSS)
-- [ ] 02-03-PLAN.md — Extract editor-render.ts (render pipeline, breadcrumb, URL sync)
+- [x] 02-03-PLAN.md — Extract editor-render.ts (render pipeline, breadcrumb, URL sync)
 - [x] 02-04-PLAN.md — Cursor Edge Case Tests (15 new tests: empty docs, multi-byte, line boundaries, data-raw)
 - [ ] 02-05-PLAN.md — Extract editor-navigation.ts + editor-lifecycle.ts + Wire editor.ts (thin orchestrator)
 - [ ] 02-06-PLAN.md — demo.ts Extraction + docs/architecture.md Update
@@ -117,7 +117,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Production Infrastructure & Test Foundation | 6/6 | Complete | 2026-05-24 — All 6 plans completed |
-| 2. Architecture Refactoring | 3/6 | In progress | 2026-05-24 — Plans 02-01, 02-02, 02-04 completed |
+| 2. Architecture Refactoring | 4/6 | In progress | 2026-05-24 — Plans 02-01, 02-02, 02-03, 02-04 completed |
 | 3. Plugin System & Content Extensions | 0/TBD | Not started | - |
 | 4. Theming System | 0/TBD | Not started | - |
 | 5. UI Extension Slots | 0/TBD | Not started | - |
