@@ -1,6 +1,73 @@
+// ─── Design tokens ───────────────────────────────────────────────────────────
+
+const DEFAULT_TOKENS = `
+/* ===== WorldNotes Design Tokens ===== */
+.wn-root {
+  /* Colors */
+  --wn-color-bg: #0e0e10;            /* root background */
+  --wn-color-surface: #0a0a0c;       /* topbar background */
+  --wn-color-fg: #c9c9d0;            /* primary text / chrome foreground */
+  --wn-color-fg-muted: #4a4a5e;      /* secondary text (breadcrumb crumb) */
+  --wn-color-accent: #9b8fe8;        /* accent: links, code, crumb hover, caret */
+  --wn-color-accent-hover: #bbb3f8;  /* accent hover: wiki-link hover, link hover */
+  --wn-color-border: #1f1f23;        /* borders: topbar, blockquote, hr */
+  --wn-color-punct: #2e2e44;         /* punctuation markers */
+  --wn-color-heading-h1: #e2e1f4;    /* H1 text color */
+  --wn-color-heading-h2: #c8c7e2;    /* H2 text color */
+  --wn-color-heading-h3: #a8a8c4;    /* H3 text color */
+  --wn-color-bold: #d4d4ea;          /* bold text color */
+  --wn-color-italic: #7878a0;        /* italic text color */
+  --wn-color-code: #9b8fe8;          /* inline code text color */
+  --wn-color-code-bg: #17171e;       /* inline code background */
+  --wn-color-blockquote: #4a4a66;    /* blockquote text color */
+  --wn-color-hr: #1e1e2c;            /* horizontal rule color */
+  --wn-color-wiki-link: #9b8fe8;     /* wiki link text color */
+  --wn-color-wiki-link-bg: #16142a;  /* wiki link background */
+  --wn-color-wiki-link-border: #332d6a; /* wiki link border */
+  --wn-color-link: #9b8fe8;          /* external link color */
+  --wn-color-wiki-link-hover: #bbb3f8;     /* wiki link hover text color */
+  --wn-color-wiki-link-bg-hover: #221e42;  /* wiki link hover background */
+
+  /* Typography */
+  --wn-font-family: sans-serif;      /* heading font family */
+  --wn-font-mono: monospace;         /* body/code font family */
+  --wn-font-size-body: 14px;         /* editor body text size */
+  --wn-font-size-h1: 22px;           /* H1 text size */
+  --wn-font-size-h2: 17px;           /* H2 text size */
+  --wn-font-size-h3: 14px;           /* H3 text size */
+  --wn-font-size-small: 12px;        /* breadcrumb, code text, wiki link size */
+  --wn-line-height: 1.9;             /* editor line height */
+
+  /* Spacing */
+  --wn-padding-editor-y: 28px;       /* editor vertical padding */
+  --wn-padding-editor-x: 36px;       /* editor horizontal padding */
+  --wn-padding-topbar-y: 10px;       /* topbar vertical padding */
+  --wn-padding-topbar-x: 14px;       /* topbar horizontal padding */
+  --wn-block-padding-left: 10px;     /* blockquote left padding */
+  --wn-gap-breadcrumb: 0;            /* breadcrumb gap */
+
+  /* Radii */
+  --wn-radius-crumb: 4px;           /* breadcrumb crumb border radius */
+  --wn-radius-code: 3px;            /* inline code border radius */
+  --wn-radius-wiki-link: 4px;       /* wiki link border radius */
+
+  /* Shadows */
+  --wn-shadow-wiki-link: none;       /* wiki link shadow (default: no shadow) */
+  --wn-shadow-wiki-link-hover: none; /* wiki link hover shadow (default: no shadow) */
+
+  /* Transitions */
+  --wn-transition-color: color 0.15s;          /* color transition duration */
+  --wn-transition-bg: background 0.12s;        /* background transition duration */
+
+  /* Misc */
+  --wn-caret-color: #9b8fe8;         /* text cursor color */
+  --wn-font-weight-bold: 600;        /* bold text weight */
+}
+`
+
 // ─── Default styles ───────────────────────────────────────────────────────────
 
-const DEFAULT_CSS = `
+const DEFAULT_CSS = DEFAULT_TOKENS + `
 .wn-root {
   display: flex;
   flex-direction: column;
