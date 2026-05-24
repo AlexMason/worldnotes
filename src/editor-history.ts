@@ -8,7 +8,7 @@ export class EditorHistory {
   private maxDepth: number
 
   constructor(options: Partial<EditorHistoryOptions> = {}) {
-    this.maxDepth = options.maxDepth ?? 50
+    this.maxDepth = Math.max(1, options.maxDepth ?? 50)
   }
 
   push(content: string): void {
@@ -25,22 +25,23 @@ export class EditorHistory {
   undo(currentContent: string): string | null {
     if (this.undoStack.length === 0) return null
     this.redoStack.push(currentContent)
-    if (this.undoStack.length === 1) {
-      return this.undoStack.pop()!
-    }
-    this.undoStack.pop()
-    const previous = this.undoStack.pop()!
-    return previous
+    const popped = this.undoStack.pop()!
+    if (this.undoStack.length === 0) return popped
+    return this.undoStack[this.undoStack.length - 1]
   }
 
   redo(currentContent: string): string | null {
     if (this.redoStack.length === 0) return null
     this.undoStack.push(currentContent)
-    return this.redoStack.pop()!
+    const result = this.redoStack.pop()!
+    if (this.redoStack.length > this.maxDepth) {
+      this.redoStack.shift()
+    }
+    return result
   }
 
   canUndo(): boolean {
-    return this.undoStack.length > 0
+    return this.undoStack.length > 1
   }
 
   canRedo(): boolean {

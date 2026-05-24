@@ -13,6 +13,7 @@ describe('EditorHistory', () => {
   describe('push', () => {
     it('adds content to the undo stack', () => {
       history.push('state 1')
+      history.push('state 2')
       expect(history.canUndo()).toBe(true)
     })
 
@@ -94,6 +95,23 @@ describe('EditorHistory', () => {
       expect(undone).toBe('a')
       expect(history.canUndo()).toBe(false)
     })
+
+    it('supports undoing through all pushed states (5+ pushes)', () => {
+      history.push('one')
+      history.push('two')
+      history.push('three')
+      history.push('four')
+      history.push('five')
+      let undone = history.undo('five')
+      expect(undone).toBe('four')
+      undone = history.undo('four')
+      expect(undone).toBe('three')
+      undone = history.undo('three')
+      expect(undone).toBe('two')
+      undone = history.undo('two')
+      expect(undone).toBe('one')
+      expect(history.canUndo()).toBe(false)
+    })
   })
 
   describe('redo', () => {
@@ -106,6 +124,7 @@ describe('EditorHistory', () => {
 
     it('pushes current content to undo stack', () => {
       history.push('a')
+      history.push('b')
       history.undo('b')
       history.redo('a')
       expect(history.canUndo()).toBe(true)
@@ -126,6 +145,27 @@ describe('EditorHistory', () => {
       expect(redone).toBe('b')
       redone = history.redo('b')
       expect(redone).toBe('c')
+      expect(history.canRedo()).toBe(false)
+    })
+
+    it('supports redoing through all undone states (5+ pushes)', () => {
+      history.push('one')
+      history.push('two')
+      history.push('three')
+      history.push('four')
+      history.push('five')
+      history.undo('five')
+      history.undo('four')
+      history.undo('three')
+      history.undo('two')
+      let redone = history.redo('one')
+      expect(redone).toBe('two')
+      redone = history.redo('two')
+      expect(redone).toBe('three')
+      redone = history.redo('three')
+      expect(redone).toBe('four')
+      redone = history.redo('four')
+      expect(redone).toBe('five')
       expect(history.canRedo()).toBe(false)
     })
   })
@@ -153,6 +193,7 @@ describe('EditorHistory', () => {
 
     it('canUndo is true after push', () => {
       history.push('a')
+      history.push('b')
       expect(history.canUndo()).toBe(true)
     })
 
