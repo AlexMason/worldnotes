@@ -132,15 +132,17 @@ describe('createImportExportPlugin', () => {
 
     let fileInput: HTMLInputElement | null = null
     const origCreateElement = document.createElement.bind(document)
-    vi.spyOn(document, 'createElement').mockImplementation(
-      (tag: string, _options?: ElementCreationOptions) => {
-        const el = origCreateElement(tag)
-        if (tag === 'input') {
-          fileInput = el as HTMLInputElement
-        }
-        return el
-      },
-    )
+    const createElementSpy = vi
+      .spyOn(document, 'createElement')
+      .mockImplementation(
+        (tag: string, _options?: ElementCreationOptions) => {
+          const el = origCreateElement(tag)
+          if (tag === 'input') {
+            fileInput = el as HTMLInputElement
+          }
+          return el
+        },
+      )
 
     const plugin = createImportExportPlugin({ storage, onImportComplete })
     plugin.onMount!(slotEl)
@@ -167,6 +169,7 @@ describe('createImportExportPlugin', () => {
 
     expect(onImportComplete).toHaveBeenCalled()
 
+    createElementSpy.mockRestore()
     importSpy.mockRestore()
   })
 
@@ -177,15 +180,17 @@ describe('createImportExportPlugin', () => {
 
     let fileInput: HTMLInputElement | null = null
     const origCreateElement = document.createElement.bind(document)
-    vi.spyOn(document, 'createElement').mockImplementation(
-      (tag: string, _options?: ElementCreationOptions) => {
-        const el = origCreateElement(tag)
-        if (tag === 'input') {
-          fileInput = el as HTMLInputElement
-        }
-        return el
-      },
-    )
+    const createElementSpy = vi
+      .spyOn(document, 'createElement')
+      .mockImplementation(
+        (tag: string, _options?: ElementCreationOptions) => {
+          const el = origCreateElement(tag)
+          if (tag === 'input') {
+            fileInput = el as HTMLInputElement
+          }
+          return el
+        },
+      )
 
     const plugin = createImportExportPlugin({
       storage,
@@ -209,6 +214,7 @@ describe('createImportExportPlugin', () => {
       })
     })
 
+    createElementSpy.mockRestore()
     importSpy.mockRestore()
   })
 
