@@ -1,23 +1,23 @@
-import type { Token, Plugin, EditorContext } from './types'
+import type { Token, ContentPlugin, EditorContext } from './types'
 
 /**
  * Build a decorated DOM fragment for a single line of tokens.
  * Each token is handed to the plugin that owns its type; unrecognised
  * tokens (including the built-in 'text' type) fall back to a plain TextNode.
  *
- * @param tokens   - Ordered token array for one line
- * @param plugins  - All registered Plugin instances
- * @param context  - Live EditorContext passed through to plugin renderers
- * @returns        - DocumentFragment containing the rendered line nodes
+ * @param tokens          - Ordered token array for one line
+ * @param contentPlugins  - All registered ContentPlugin instances
+ * @param context         - Live EditorContext passed through to plugin renderers
+ * @returns               - DocumentFragment containing the rendered line nodes
  */
 export function renderLine(
   tokens: Token[],
-  plugins: Plugin[],
+  contentPlugins: ContentPlugin[],
   context: EditorContext,
   activeOffset = -1,
 ): DocumentFragment {
   const fragment = document.createDocumentFragment()
-  const pluginMap = buildPluginMap(plugins)
+  const pluginMap = buildPluginMap(contentPlugins)
   let offset = 0
 
   for (const token of tokens) {
@@ -68,14 +68,14 @@ export function renderLine(
  * an array of DocumentFragments, one per line. The caller is responsible
  * for joining them with <br> elements or block wrappers.
  *
- * @param lines   - Per-line token arrays from the tokenizer
- * @param plugins - All registered Plugin instances
- * @param context - Live EditorContext
- * @returns       - Array of DocumentFragments, one per source line
+ * @param lines          - Per-line token arrays from the tokenizer
+ * @param contentPlugins - All registered ContentPlugin instances
+ * @param context        - Live EditorContext
+ * @returns              - Array of DocumentFragments, one per source line
  */
 export function renderDocument(
   lines: Token[][],
-  plugins: Plugin[],
+  contentPlugins: ContentPlugin[],
   context: EditorContext,
   activeOffset = -1,
 ): DocumentFragment[] {
@@ -83,21 +83,21 @@ export function renderDocument(
   return lines.map((tokens) => {
     const lineLength = tokens.reduce((sum, token) => sum + token.raw.length, 0)
     const lineOffset = activeOffset - lineStart
-    const fragment = renderLine(tokens, plugins, context, lineOffset)
+    const fragment = renderLine(tokens, contentPlugins, context, lineOffset)
     lineStart += lineLength + 1
     return fragment
   })
 }
 
 /**
- * Build a Map from token type name → Plugin for O(1) lookup during rendering.
+ * Build a Map from token type name → ContentPlugin for O(1) lookup during rendering.
  * Each TokenDef type is mapped to its owning plugin.
  *
- * @param plugins - Registered Plugin instances
- * @returns       - Map<tokenType, Plugin>
+ * @param plugins - Registered ContentPlugin instances
+ * @returns       - Map<tokenType, ContentPlugin>
  */
-function buildPluginMap(plugins: Plugin[]): Map<string, Plugin> {
-  const map = new Map<string, Plugin>()
+function buildPluginMap(plugins: ContentPlugin[]): Map<string, ContentPlugin> {
+  const map = new Map<string, ContentPlugin>()
   for (const plugin of plugins) {
     for (const def of plugin.tokens) {
       map.set(def.type, plugin)
