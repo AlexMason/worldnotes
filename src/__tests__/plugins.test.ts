@@ -27,12 +27,25 @@ function createContext(overrides: Partial<EditorContext> = {}): EditorContext {
   }
 }
 
+/**
+ * Helper: call plugin.render() and cast to HTMLElement.
+ * All built-in plugins return HTMLElement (never Text), but Plugin.render()
+ * is typed as HTMLElement | Text for extensibility.
+ */
+function renderPlugin(
+  plugin: { render: (token: Token, context: EditorContext) => HTMLElement | Text },
+  token: Token,
+  context: EditorContext,
+): HTMLElement {
+  return plugin.render(token, context) as HTMLElement
+}
+
 // ─── Headings Plugin ──────────────────────────────────────────────────────────
 
 describe('headingsPlugin', () => {
   it('renders h1 heading with correct DOM structure', () => {
     const token = createToken('h1', '# Title', ['Title'])
-    const el = headingsPlugin.render(token, createContext())
+    const el = renderPlugin(headingsPlugin, token, createContext())
 
     expect(el.className).toBe('wn-h1')
     expect(el.children).toHaveLength(2)
@@ -48,7 +61,7 @@ describe('headingsPlugin', () => {
 
   it('renders h2 heading with correct DOM structure', () => {
     const token = createToken('h2', '## Section', ['Section'])
-    const el = headingsPlugin.render(token, createContext())
+    const el = renderPlugin(headingsPlugin, token, createContext())
 
     expect(el.className).toBe('wn-h2')
     expect(el.children).toHaveLength(2)
@@ -64,7 +77,7 @@ describe('headingsPlugin', () => {
 
   it('renders h3 heading with correct DOM structure', () => {
     const token = createToken('h3', '### Sub', ['Sub'])
-    const el = headingsPlugin.render(token, createContext())
+    const el = renderPlugin(headingsPlugin, token, createContext())
 
     expect(el.className).toBe('wn-h3')
     expect(el.children).toHaveLength(2)
@@ -80,7 +93,7 @@ describe('headingsPlugin', () => {
 
   it('renders heading with empty content after marker', () => {
     const token = createToken('h1', '# ', [''])
-    const el = headingsPlugin.render(token, createContext())
+    const el = renderPlugin(headingsPlugin, token, createContext())
 
     expect(el.className).toBe('wn-h1')
     expect(el.children).toHaveLength(2)
@@ -90,7 +103,7 @@ describe('headingsPlugin', () => {
 
   it('falls through to default case for unknown token type', () => {
     const token = createToken('unknown', 'some text', ['some text'])
-    const el = headingsPlugin.render(token, createContext())
+    const el = renderPlugin(headingsPlugin, token, createContext())
 
     // Default case renders using renderHeading with levelCls='wn-h1'
     expect(el.className).toBe('wn-h1')
@@ -109,7 +122,7 @@ describe('inline plugins', () => {
   describe('boldPlugin', () => {
     it('renders bold text with punct markers on both sides', () => {
       const token = createToken('bold', '**bold text**', ['bold text'])
-      const el = boldPlugin.render(token, createContext())
+      const el = renderPlugin(boldPlugin, token, createContext())
 
       expect(el.className).toBe('wn-bold')
       expect(el.childNodes).toHaveLength(3)
@@ -131,7 +144,7 @@ describe('inline plugins', () => {
 
     it('handles empty group with fallback to empty string', () => {
       const token = createToken('bold', '****', [''])
-      const el = boldPlugin.render(token, createContext())
+      const el = renderPlugin(boldPlugin, token, createContext())
 
       expect(el.className).toBe('wn-bold')
       expect(el.childNodes[1].textContent).toBe('')
@@ -141,7 +154,7 @@ describe('inline plugins', () => {
   describe('italicPlugin', () => {
     it('renders italic text with punct markers on both sides', () => {
       const token = createToken('italic', '*italic text*', ['italic text'])
-      const el = italicPlugin.render(token, createContext())
+      const el = renderPlugin(italicPlugin, token, createContext())
 
       expect(el.className).toBe('wn-italic')
       expect(el.childNodes).toHaveLength(3)
@@ -154,7 +167,7 @@ describe('inline plugins', () => {
   describe('inlineCodePlugin', () => {
     it('renders inline code with backtick punct and code-text span', () => {
       const token = createToken('inline-code', '`const x = 1`', ['const x = 1'])
-      const el = inlineCodePlugin.render(token, createContext())
+      const el = renderPlugin(inlineCodePlugin, token, createContext())
 
       expect(el.className).toBe('wn-inline-code')
       expect(el.children).toHaveLength(3)
@@ -176,7 +189,7 @@ describe('inline plugins', () => {
   describe('blockquotePlugin', () => {
     it('renders blockquote with punct and content spans', () => {
       const token = createToken('blockquote', '> A wise quote', ['> ', 'A wise quote'])
-      const el = blockquotePlugin.render(token, createContext())
+      const el = renderPlugin(blockquotePlugin, token, createContext())
 
       expect(el.className).toBe('wn-blockquote')
       expect(el.children).toHaveLength(2)
@@ -192,7 +205,7 @@ describe('inline plugins', () => {
 
     it('handles blockquote with empty content', () => {
       const token = createToken('blockquote', '> ', ['> ', ''])
-      const el = blockquotePlugin.render(token, createContext())
+      const el = renderPlugin(blockquotePlugin, token, createContext())
 
       expect(el.className).toBe('wn-blockquote')
       expect(el.children[1].textContent).toBe('')
@@ -202,7 +215,7 @@ describe('inline plugins', () => {
   describe('hrPlugin', () => {
     it('renders horizontal rule with hardcoded text', () => {
       const token = createToken('hr', '---', [])
-      const el = hrPlugin.render(token, createContext())
+      const el = renderPlugin(hrPlugin, token, createContext())
 
       expect(el.className).toBe('wn-hr')
       expect(el.textContent).toBe('---')
@@ -215,7 +228,7 @@ describe('inline plugins', () => {
 describe('wikiLinkPlugin', () => {
   it('renders wiki link with page and display attributes', () => {
     const token = createToken('wiki-link', '[[projects/acme]]', ['projects/acme'])
-    const el = wikiLinkPlugin.render(token, createContext())
+    const el = renderPlugin(wikiLinkPlugin, token, createContext())
 
     expect(el.className).toBe('wn-wiki-link')
     expect(el.dataset.page).toBe('projects/acme')
@@ -227,7 +240,7 @@ describe('wikiLinkPlugin', () => {
     const token = createToken('wiki-link', '[[projects/acme|Client Portal]]', [
       'projects/acme|Client Portal',
     ])
-    const el = wikiLinkPlugin.render(token, createContext())
+    const el = renderPlugin(wikiLinkPlugin, token, createContext())
 
     expect(el.className).toBe('wn-wiki-link')
     expect(el.dataset.page).toBe('projects/acme')
