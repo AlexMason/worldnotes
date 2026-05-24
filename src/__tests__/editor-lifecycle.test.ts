@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type {
   ContentPlugin,
   UIPlugin,
@@ -699,5 +699,254 @@ describe('UI plugin lifecycle', () => {
     const instance = lifecycle.mount()
 
     expect(() => instance.destroy()).not.toThrow()
+  })
+})
+
+// ─── EditorInstance Cursor API ─────────────────────────────────────────────────
+
+describe('EditorInstance cursor API', () => {
+  let storage: StorageAdapter
+  let state: EditorStateAPI
+  let dom: EditorDOM
+  let render: EditorRenderAPI
+  let navigation: EditorNavigationAPI
+  let plugins: ContentPlugin[]
+  let options: EditorOptions
+  let editor: ReturnType<ReturnType<typeof createEditorLifecycle>['mount']>
+
+  function mount(): void {
+    const lifecycle = createEditorLifecycle(
+      dom,
+      plugins,
+      [],
+      state,
+      render,
+      navigation,
+      storage,
+      options,
+    )
+    editor = lifecycle.mount()
+  }
+
+  function setCaretAt(textNode: Node, offset: number): void {
+    const range = document.createRange()
+    range.setStart(textNode, offset)
+    range.collapse(true)
+    const sel = window.getSelection()
+    sel!.removeAllRanges()
+    sel!.addRange(range)
+  }
+
+  function setContentAndFocus(text: string): void {
+    dom.editorDiv.textContent = text
+    dom.editorDiv.focus()
+  }
+
+  beforeEach(() => {
+    storage = mockStorage()
+    state = mockState(['home'])
+    dom = mockDOM()
+    document.body.appendChild(dom.container)
+    render = mockRender()
+    navigation = mockNavigation()
+    plugins = mockPlugins()
+    options = {}
+    mount()
+  })
+
+  afterEach(() => {
+    document.body.removeChild(dom.container)
+  })
+
+  // ── insertText ────────────────────────────────────────────────────────────
+
+  describe('insertText', () => {
+    it('inserts text at caret position when no selection', () => {
+      setContentAndFocus('hello world')
+      const textNode = dom.editorDiv.firstChild!
+      setCaretAt(textNode, 6) // after 'hello '
+
+      editor.insertText('beautiful ')
+
+      const raw = extractText(dom.editorDiv)
+      expect(raw).toBe('hello beautiful world')
+    })
+
+    it('replaces selected text when range is not collapsed', () => {
+      setContentAndFocus('hello world')
+      const textNode = dom.editorDiv.firstChild!
+      const range = document.createRange()
+      range.setStart(textNode, 0)
+      range.setEnd(textNode, 5)
+      const sel = window.getSelection()
+      sel!.removeAllRanges()
+      sel!.addRange(range)
+
+      editor.insertText('goodbye')
+
+      const raw = extractText(dom.editorDiv)
+      expect(raw).toContain('goodbye world')
+    })
+
+    it('is a no-op when there is no selection', () => {
+      setContentAndFocus('hello')
+      const sel = window.getSelection()
+      sel!.removeAllRanges()
+
+      expect(() => editor.insertText('extra')).not.toThrow()
+      const raw = extractText(dom.editorDiv)
+      expect(raw).toBe('hello')
+    })
+  })
+
+  // ── deleteForward ─────────────────────────────────────────────────────────
+
+  describe('deleteForward', () => {
+    it('deletes one character after caret when selection is collapsed', () => {
+      setContentAndFocus('hello')
+      const textNode = dom.editorDiv.firstChild!
+      setCaretAt(textNode, 2) // after 'he'
+
+      editor.deleteForward()
+
+      const raw = extractText(dom.editorDiv)
+      expect(raw).toBe('helo')
+    })
+
+    it('deletes selected text when range is not collapsed', () => {
+      setContentAndFocus('hello world')
+      const textNode = dom.editorDiv.firstChild!
+      const range = document.createRange()
+      range.setStart(textNode, 0)
+      range.setEnd(textNode, 6) // select 'hello '
+      const sel = window.getSelection()
+      sel!.removeAllRanges()
+      sel!.addRange(range)
+
+      editor.deleteForward()
+
+      const raw = extractText(dom.editorDiv)
+      expect(raw).toBe('world')
+    })
+
+    it('is a no-op when there is no selection', () => {
+      setContentAndFocus('hello')
+      const sel = window.getSelection()
+      sel!.removeAllRanges()
+
+      expect(() => editor.deleteForward()).not.toThrow()
+      const raw = extractText(dom.editorDiv)
+      expect(raw).toBe('hello')
+    })
+  })
+
+  // ── deleteBackward ────────────────────────────────────────────────────────
+
+  describe('deleteBackward', () => {
+    it('deletes one character before caret when selection is collapsed', () => {
+      setContentAndFocus('hello')
+      const textNode = dom.editorDiv.firstChild!
+      setCaretAt(textNode, 2) // after 'he'
+
+      editor.deleteBackward()
+
+      const raw = extractText(dom.editorDiv)
+      expect(raw).toBe('hllo')
+    })
+
+    it('deletes selected text when range is not collapsed', () => {
+      setContentAndFocus('hello world')
+      const textNode = dom.editorDiv.firstChild!
+      const range = document.createRange()
+      range.setStart(textNode, 0)
+      range.setEnd(textNode, 6)
+      const sel = window.getSelection()
+      sel!.removeAllRanges()
+      sel!.addRange(range)
+
+      editor.deleteBackward()
+
+      const raw = extractText(dom.editorDiv)
+      expect(raw).toBe('world')
+    })
+
+    it('is a no-op at start of content', () => {
+      setContentAndFocus('hello')
+      const textNode = dom.editorDiv.firstChild!
+      setCaretAt(textNode, 0) // at very start
+
+      editor.deleteBackward()
+
+      const raw = extractText(dom.editorDiv)
+      expect(raw).toHaveLength(5)
+    })
+
+    it('is a no-op when there is no selection', () => {
+      setContentAndFocus('hello')
+      const sel = window.getSelection()
+      sel!.removeAllRanges()
+
+      expect(() => editor.deleteBackward()).not.toThrow()
+      const raw = extractText(dom.editorDiv)
+      expect(raw).toBe('hello')
+    })
+  })
+
+  // ── getSelection ──────────────────────────────────────────────────────────
+
+  describe('getSelection', () => {
+    it('returns null when there is no selection', () => {
+      setContentAndFocus('hello')
+      const sel = window.getSelection()
+      sel!.removeAllRanges()
+
+      const result = editor.getSelection()
+      expect(result).toBeNull()
+    })
+
+    it('reports collapsed caret with empty text and matching start/end', () => {
+      setContentAndFocus('hello')
+      const textNode = dom.editorDiv.firstChild!
+      setCaretAt(textNode, 3) // after 'hel'
+
+      const result = editor.getSelection()
+      expect(result).not.toBeNull()
+      expect(result!.text).toBe('')
+      expect(result!.start).toBe(3)
+      expect(result!.end).toBe(3)
+    })
+
+    it('reports selected text with correct start/end offsets', () => {
+      setContentAndFocus('hello world')
+      const textNode = dom.editorDiv.firstChild!
+      const range = document.createRange()
+      range.setStart(textNode, 6)
+      range.setEnd(textNode, 11) // select 'world'
+      const sel = window.getSelection()
+      sel!.removeAllRanges()
+      sel!.addRange(range)
+
+      const result = editor.getSelection()
+      expect(result).not.toBeNull()
+      expect(result!.text).toBe('world')
+      expect(result!.start).toBe(6)
+      expect(result!.end).toBe(11)
+    })
+
+    it('always returns start <= end (min/max logic)', () => {
+      setContentAndFocus('hello world')
+      const textNode = dom.editorDiv.firstChild!
+      const range = document.createRange()
+      range.setStart(textNode, 1)
+      range.setEnd(textNode, 10)
+      const sel = window.getSelection()
+      sel!.removeAllRanges()
+      sel!.addRange(range)
+
+      const result = editor.getSelection()
+      expect(result).not.toBeNull()
+      expect(result!.start).toBeLessThanOrEqual(result!.end)
+      expect(result!.text.length).toBe(9) // 'ello worl'
+    })
   })
 })

@@ -219,4 +219,28 @@ export interface EditorInstance {
   canUndo(): boolean
   /** Returns true if there is at least one redoable state */
   canRedo(): boolean
+  /**
+   * Insert plain text at the current cursor position, replacing any selection.
+   * Dispatches an 'input' event so the render pipeline and history tracking fire.
+   *
+   * @param text - Plain text to insert at the caret position
+   */
+  insertText(text: string): void
+  /**
+   * Delete one character after the cursor, or delete the current selection
+   * if one exists. Behaves like the Delete key. Dispatches 'input' event.
+   */
+  deleteForward(): void
+  /**
+   * Delete one character before the cursor, or delete the current selection
+   * if one exists. Behaves like the Backspace key. Dispatches 'input' event.
+   */
+  deleteBackward(): void
+  /**
+   * Get the current selection range as raw-text offsets and selected text.
+   * Offsets are in the same coordinate space as getContent().
+   *
+   * @returns Selection info, or null if there is no selection/caret
+   */
+  getSelection(): { text: string; start: number; end: number } | null
 }

@@ -68,6 +68,10 @@ editor.destroy()
 | `canUndo()` | Returns `true` if there is at least one undoable state. |
 | `canRedo()` | Returns `true` if there is at least one redoable state. |
 | `destroy()` | Clears the mounted container and pending save timer. |
+| `insertText(text)` | Insert plain text at the cursor, replacing any selection. Dispatches `input` for re-render + history. |
+| `deleteForward()` | Delete one character after the cursor (like Delete key). Deletes current selection if one exists. |
+| `deleteBackward()` | Delete one character before the cursor (like Backspace key). Deletes current selection if one exists. |
+| `getSelection()` | Returns `{ text, start, end }` with selected text and raw-text character offsets, or `null` if no selection. |
 
 ## Keyboard Shortcuts
 

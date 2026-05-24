@@ -100,6 +100,9 @@ export function createEditorRender(
 
     editorDiv.innerHTML = ''
     frags.forEach((frag, i) => {
+      if (frag.childNodes.length === 0) {
+        frag.appendChild(document.createElement('br'))
+      }
       editorDiv.appendChild(frag)
       if (i < frags.length - 1) editorDiv.appendChild(document.createTextNode('\n'))
     })

@@ -11,7 +11,7 @@ import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
 import type { EditorRenderAPI } from './editor-render'
 import type { EditorNavigationAPI } from './editor-navigation'
-import { extractText, setCaretOffset } from './cursor'
+import { extractText, setCaretOffset, getTextOffset } from './cursor'
 
 /**
  * Public API returned by {@link createEditorLifecycle}.
@@ -301,6 +301,99 @@ export function createEditorLifecycle(
 
       canRedo(): boolean {
         return state.history.canRedo()
+      },
+
+      insertText(text: string): void {
+        insertTextAtSelection(text)
+      },
+
+      deleteForward(): void {
+        const sel = window.getSelection()
+        if (!sel || !sel.rangeCount) return
+
+        if (sel.isCollapsed) {
+          try {
+            sel.modify('extend', 'forward', 'character')
+          } catch {
+            /* modify not available — fall back to content-level */
+            const raw = extractText(dom.editorDiv)
+            const offset = getTextOffset(
+              dom.editorDiv,
+              sel.getRangeAt(0).startContainer,
+              sel.getRangeAt(0).startOffset,
+            ).offset
+            if (offset >= raw.length) return
+            const next = raw.slice(0, offset) + raw.slice(offset + 1)
+            dom.editorDiv.textContent = next
+            render.render()
+            try {
+              setCaretOffset(dom.editorDiv, offset)
+            } catch {
+              /* best-effort */
+            }
+            return
+          }
+        }
+
+        const range = sel.getRangeAt(0)
+        range.deleteContents()
+
+        sel.removeAllRanges()
+        sel.addRange(range)
+
+        dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
+      },
+
+      deleteBackward(): void {
+        const sel = window.getSelection()
+        if (!sel || !sel.rangeCount) return
+
+        if (sel.isCollapsed) {
+          try {
+            sel.modify('extend', 'backward', 'character')
+          } catch {
+            /* modify not available — fall back to content-level */
+            const raw = extractText(dom.editorDiv)
+            const offset = getTextOffset(
+              dom.editorDiv,
+              sel.getRangeAt(0).startContainer,
+              sel.getRangeAt(0).startOffset,
+            ).offset
+            if (offset <= 0) return
+            const next = raw.slice(0, offset - 1) + raw.slice(offset)
+            dom.editorDiv.textContent = next
+            render.render()
+            try {
+              setCaretOffset(dom.editorDiv, offset - 1)
+            } catch {
+              /* best-effort */
+            }
+            return
+          }
+        }
+
+        const range = sel.getRangeAt(0)
+        range.deleteContents()
+
+        sel.removeAllRanges()
+        sel.addRange(range)
+
+        dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
+      },
+
+      getSelection(): { text: string; start: number; end: number } | null {
+        const sel = window.getSelection()
+        if (!sel || !sel.rangeCount) return null
+
+        const range = sel.getRangeAt(0)
+        const text = sel.toString()
+
+        const anchorResult = getTextOffset(dom.editorDiv, range.startContainer, range.startOffset)
+        const focusResult = getTextOffset(dom.editorDiv, range.endContainer, range.endOffset)
+        const start = Math.min(anchorResult.offset, focusResult.offset)
+        const end = Math.max(anchorResult.offset, focusResult.offset)
+
+        return { text, start, end }
       },
     }
   }
