@@ -212,3 +212,62 @@ describe('DEFAULT_CSS (var(--wn-*) references)', () => {
     expect(text).toContain('.wn-link')
   })
 })
+
+// ─── Theme option (Plan 04-02) ────────────────────────────────────────────────
+
+describe('createEditorDOM theme option', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    const existing = document.getElementById('worldnotes-styles')
+    if (existing) existing.remove()
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+  })
+
+  it('uses DEFAULT_CSS when theme is not provided (backward compatible)', () => {
+    createEditorDOM(container)
+    const text = getStyleText()
+
+    expect(text).toContain('.wn-root')
+    expect(text).toContain('var(--wn-color-bg')
+  })
+
+  it('uses provided theme CSS instead of DEFAULT_CSS when theme is passed', () => {
+    const customTheme = '.my-custom-class { color: red; background: blue; }'
+    createEditorDOM(container, customTheme)
+    const text = getStyleText()
+
+    expect(text).toBe(customTheme)
+    expect(text).not.toContain('.wn-root')
+    expect(text).not.toContain('var(--wn-color-bg')
+  })
+
+  it('replaces existing style content when theme is provided and style already injected', () => {
+    // First call without theme — injects DEFAULT_CSS
+    createEditorDOM(container)
+    const firstText = getStyleText()
+    expect(firstText).toContain('.wn-root')
+
+    // Second call with theme — should replace existing style
+    const customTheme = '.overridden { color: green; }'
+    createEditorDOM(container, customTheme)
+    const secondText = getStyleText()
+
+    expect(secondText).toBe(customTheme)
+    expect(secondText).not.toContain('.wn-root')
+  })
+
+  it('does NOT replace style content when no theme is provided and style already exists', () => {
+    createEditorDOM(container)
+    const firstText = getStyleText()
+
+    // Second call without theme — should leave DEFAULT_CSS intact
+    createEditorDOM(container)
+    const secondText = getStyleText()
+
+    expect(secondText).toBe(firstText)
+    expect(secondText).toContain('.wn-root')
+  })
+})
