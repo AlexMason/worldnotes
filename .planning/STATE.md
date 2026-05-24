@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-05-23)
 ## Current Position
 
 Phase: 3 of 5 (Plugin System & Content Extensions) — IN PROGRESS
-Plan: 01 of 04 (PluginManifest Types + PluginRegistry) — COMPLETED
-Status: In Progress (1 of 4 plans complete)
-Last activity: 2026-05-24 — Plan 03-01 completed: defined PluginManifest discriminated union types (ContentPlugin, UIPlugin, StoragePlugin), built PluginRegistry class with Map-based O(1) conflict detection, semver validation, and lifecycle hooks — 36 unit tests passing, 209 total tests, zero existing-code changes
+Plan: 03 of 04 (Wire EditorBuilder + Pipeline to PluginRegistry) — NEXT
+Status: In Progress (2 of 4 plans complete)
+Last activity: 2026-05-24 — Plan 03-02 completed: migrated all 7 existing plugins to ContentPlugin (kind + version fields added in-place), updated defaults.ts to ContentPlugin[], all 209 tests passing with zero render/token/logic changes
 
-Progress: [█████░░░░░░░░░░░░░░░░░] 25% (1 of 4 plans)
+Progress: [██████████░░░░░░░░░░░░] 50% (2 of 4 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 13
-- Average duration: 5m 41s
-- Total execution time: 1h 17m
+- Total plans completed: 14
+- Average duration: 5m 26s
+- Total execution time: 1h 19m
 
 **By Phase:**
 
@@ -29,7 +29,7 @@ Progress: [█████░░░░░░░░░░░░░░░░░] 2
 |-------|-------|-------|----------|
 | 1. Production Infra & Test | 6 | 41m 26s | 6m 55s |
 | 2. Architecture Refactoring | 6 | 35m 16s | 5m 53s |
-| 3. Plugin System & Content Extensions | 1 | ~7m | ~7m |
+| 3. Plugin System & Content Extensions | 2 | ~9m 30s | ~4m 45s |
 
 **Recent Trend:**
 - 01-01: 5m 55s — Toolchain installation, Vite upgrade, config creation
@@ -45,6 +45,7 @@ Progress: [█████░░░░░░░░░░░░░░░░░] 2
 - 02-05: 9m 14s — Extracted editor-navigation.ts (12 tests) + editor-lifecycle.ts (14 tests), rewrote editor.ts as thin orchestrator delegating to 5 sub-modules — all 173 tests pass, public API unchanged
 - 02-06: 2m 45s — Moved demo.ts to demo/ directory (excluded from build, no demo.d.ts leak), updated docs/architecture.md with 5-module DAG, construction order, circular dependency prevention, and API surfaces — Phase 2 complete
 - 03-01: ~7m — Defined PluginManifest discriminated union types (ContentPlugin, UIPlugin, StoragePlugin), built PluginRegistry class with Map-based O(1) conflict detection, semver validation, lifecycle hooks — 36 new unit tests, 209 total tests passing, zero existing-code changes
+- 03-02: ~2m 30s — Migrated all 7 existing plugins to ContentPlugin (kind: 'content', version: '1.0.0'), updated defaults.ts to ContentPlugin[], all 209 tests pass — pure type migration with zero logic changes
 
 *Updated after each plan completion*
 
@@ -84,6 +85,7 @@ Recent decisions affecting current work:
 - [02-05]: Two-phase construction pattern (setRenderAPI) avoids circular dependency between navigation and render. insertTextAtSelection dispatches 'input' on same editorDiv used for addEventListener — preserving direct feedback loop. DAG-ordered construction in mountEditor (state → dom → navigation → render → lifecycle → mount). DEFAULT_HOME kept in editor.ts per plan spec despite now being unused (nav has its own copy). EditorBuilder line-count constraint (max_lines: 100) not achievable due to 56-line class body required to remain unchanged; achieved 121 lines (76% reduction).
 - [02-06]: demo.ts moved to top-level demo/ directory (outside src/) to leverage existing tsconfig include: ["src"] exclusion — simpler than Vite config exclusion. Vite dev server resolves relative imports (../src/index → /src/index.ts) automatically. Architecture docs structured with DAG diagram showing strict 6-tier dependency flow from state root to orchestrator, with import type and setRenderAPI() documented as circular dependency prevention strategies.
 - [03-01]: PluginRegistry uses 5 internal Maps (contentPlugins, uiPlugins, storagePlugins, tokenTypeOwners, slotAssignments) for O(1) conflict detection. onInit rollback: if a plugin's onInit throws, the plugin is fully removed from all Maps (atomic registration). clear() does NOT call onDestroy — caller manages lifecycle teardown separately. Content plugin self-overlap (same name, same token types) is allowed — only cross-plugin conflicts throw. Legacy Plugin interface retained with @deprecated notice for migration compatibility.
+- [03-02]: All 7 plugins migrated in-place (per D-07) with kind: 'content' as const and version: '1.0.0'. No wrapper or adapter pattern. Plugins.test.ts unchanged — the ContentPlugin type import would be unused since renderPlugin helper uses inline type. Default plugins array ordering preserved per D-09.
 
 ### Pending Todos
 
@@ -104,6 +106,6 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-05-24
-Stopped at: Completed 03-01-PLAN.md — PluginManifest types + PluginRegistry class complete. Phase 3 in progress (1/4 plans).
-Resume file: .planning/phases/03-plugin-system/03-02-PLAN.md
-Next: Plan 03-02 — Migrate Existing 7 Plugins to ContentPlugin
+Stopped at: Completed 03-02-PLAN.md — All 7 plugins migrated to ContentPlugin format. Phase 3 in progress (2/4 plans).
+Resume file: .planning/phases/03-plugin-system/03-03-PLAN.md
+Next: Plan 03-03 — Wire EditorBuilder + Pipeline to PluginRegistry

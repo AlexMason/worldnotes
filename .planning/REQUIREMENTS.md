@@ -29,7 +29,7 @@ Requirements for first production milestone. Each maps to roadmap phases.
 - [x] **PLUG-01**: Plugin authors declare capabilities via a `PluginManifest` interface with explicit `kind` (block, ui, storage)
 - [ ] **PLUG-02**: Plugins have lifecycle hooks — `onInit`, `onMount`, `onUpdate`, `onDestroy`
 - [x] **PLUG-03**: Plugin conflict detection at registration time — two plugins claiming the same slot/pattern error at registration, not at runtime
-- [ ] **PLUG-04**: Existing built-in plugins (headings, bold, italic, code, wiki links, hr, blockquote, strikethrough, url-links) migrated to the new manifest format
+- [x] **PLUG-04**: Existing built-in plugins (headings, bold, italic, code, wiki links, hr, blockquote) migrated to the new manifest format
 - [ ] **PLUG-05**: Plugin API types exported from `src/index.ts` and documented in `docs/api.md`
 - [x] **PLUG-06**: Plugin manifest includes a `version` field with semver, validated at registration
 
@@ -121,7 +121,7 @@ Deferred to subsequent milestone. Tracked but not in current roadmap.
 | PLUG-01 | Phase 3 | Complete |
 | PLUG-02 | Phase 3 | Pending |
 | PLUG-03 | Phase 3 | Complete |
-| PLUG-04 | Phase 3 | Pending |
+| PLUG-04 | Phase 3 | Complete |
 | PLUG-05 | Phase 3 | Pending |
 | PLUG-06 | Phase 3 | Complete |
 | THEME-01 | Phase 4 | Pending |
