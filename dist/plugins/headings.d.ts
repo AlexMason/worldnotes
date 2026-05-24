@@ -1,0 +1,12 @@
+import { Plugin } from '../types';
+
+/**
+ * Built-in plugin: markdown headings (h1, h2, h3).
+ *
+ * Line-level patterns (anchored with ^) match the whole line.
+ * Renders the marker as dimmed punctuation and the text at heading scale.
+ *
+ * Renders:
+ *   # Title  → <span class="wn-h1"><span class="wn-punct"># </span><span>Title</span></span>
+ */
+export declare const headingsPlugin: Plugin;
