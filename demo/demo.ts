@@ -72,7 +72,11 @@ const editor = createEditor(app, {
   .use(mentionPlugin) // add @mention on top of defaults
   .use(createImportExportPlugin({
     storage,
-    onImportComplete: () => editor.navigate(editor.getCurrentPage()),
+    onImportComplete: async () => {
+      const current = editor.getCurrentPage()
+      const content = await storage.get(current)
+      if (content !== null) editor.setContent(content)
+    },
   }))
   .mount()
 
