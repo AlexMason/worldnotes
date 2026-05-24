@@ -139,7 +139,9 @@ describe('createEditorState', () => {
     const state = createEditorState(storage, {})
 
     // Set a valid timer
-    const timer = setTimeout(() => { /* empty */ }, 100000)
+    const timer = setTimeout(() => {
+      /* empty */
+    }, 100000)
     state.setSaveTimer(timer)
     expect(state.isNavigating()).toBeDefined() // sanity check
 

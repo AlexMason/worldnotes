@@ -49,10 +49,9 @@ export interface EditorStateAPI {
  * navigation-flag.  Returns an API object whose methods are the only
  * way to read or mutate that state — no global or module-level variables.
  *
- * @param storage - Storage adapter (used for save-debounce configuration only
- *                  in this module; actual reads/writes happen elsewhere)
- * @param options - EditorOptions that influence initial trail, initial page,
- *                  and save debounce duration
+ * @param storage - Storage adapter reference (used by downstream modules;
+ *                  this module accepts it for signature consistency)
+ * @param options - EditorOptions that influence initial trail and initial page
  *
  * @example
  * const state = createEditorState(mockStorage(), { initialPage: "home" })

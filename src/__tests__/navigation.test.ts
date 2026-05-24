@@ -76,9 +76,10 @@ describe('encodePathSearch', () => {
 
 describe('decodePathSearch', () => {
   it('restores breadcrumb trail while preserving slashes inside page names', () => {
-    expect(
-      decodePathSearch('?theme=dark&path=home/projects%2Facme'),
-    ).toEqual(['home', 'projects/acme'])
+    expect(decodePathSearch('?theme=dark&path=home/projects%2Facme')).toEqual([
+      'home',
+      'projects/acme',
+    ])
   })
 
   it('returns empty array when no path parameter exists', () => {

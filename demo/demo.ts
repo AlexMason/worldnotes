@@ -1,14 +1,15 @@
 import { createEditor } from '../src/index'
-import type { Plugin, Token, EditorContext } from '../src/types'
+import type { Token, EditorContext, ContentPlugin } from '../src/types'
 
 // ─── Example custom plugin: @mentions ─────────────────────────────────────────
 //
 // Demonstrates how to add a new token type without touching the library.
 // @username renders as a styled highlight; clicking fires a custom handler.
 
-const mentionPlugin: Plugin = {
+const mentionPlugin: ContentPlugin = {
   name: 'mention',
-
+  version: "0.0.1",
+  kind: "content",
   tokens: [
     {
       type: 'mention',
