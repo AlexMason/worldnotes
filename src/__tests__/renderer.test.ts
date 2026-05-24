@@ -89,7 +89,11 @@ describe('renderLine', () => {
     }
 
     const linkTokens: Token[] = [
-      { type: 'link', raw: '[Example](https://example.com)', groups: ['Example', 'https://example.com'] },
+      {
+        type: 'link',
+        raw: '[Example](https://example.com)',
+        groups: ['Example', 'https://example.com'],
+      },
     ]
 
     const result = renderLine(linkTokens, [linkContentPlugin], {} as EditorContext, -1)

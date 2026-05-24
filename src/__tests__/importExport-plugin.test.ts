@@ -51,13 +51,9 @@ describe('createImportExportPlugin', () => {
 
   it('clicking Export calls exportWorld and triggers download', async () => {
     const exportBlob = new Blob(['test'], { type: 'application/zip' })
-    const exportSpy = vi
-      .spyOn(exportImport, 'exportWorld')
-      .mockResolvedValue(exportBlob)
+    const exportSpy = vi.spyOn(exportImport, 'exportWorld').mockResolvedValue(exportBlob)
 
-    const createObjectURLSpy = vi
-      .spyOn(URL, 'createObjectURL')
-      .mockReturnValue('blob:test')
+    const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:test')
     const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL')
 
     const clickSpy = vi.fn()
@@ -91,9 +87,7 @@ describe('createImportExportPlugin', () => {
 
   it('clicking Export passes filename option when provided', async () => {
     const exportBlob = new Blob(['test'], { type: 'application/zip' })
-    const exportSpy = vi
-      .spyOn(exportImport, 'exportWorld')
-      .mockResolvedValue(exportBlob)
+    const exportSpy = vi.spyOn(exportImport, 'exportWorld').mockResolvedValue(exportBlob)
 
     const plugin = createImportExportPlugin({
       storage,
@@ -121,15 +115,13 @@ describe('createImportExportPlugin', () => {
     const origCreateElement = document.createElement.bind(document)
     const createElementSpy = vi
       .spyOn(document, 'createElement')
-      .mockImplementation(
-        (tag: string, _options?: ElementCreationOptions) => {
-          const el = origCreateElement(tag)
-          if (tag === 'input') {
-            fileInput = el as HTMLInputElement
-          }
-          return el
-        },
-      )
+      .mockImplementation((tag: string, _options?: ElementCreationOptions) => {
+        const el = origCreateElement(tag)
+        if (tag === 'input') {
+          fileInput = el as HTMLInputElement
+        }
+        return el
+      })
 
     const plugin = createImportExportPlugin({ storage, onImportComplete })
     plugin.onMount!(slotEl)
@@ -169,15 +161,13 @@ describe('createImportExportPlugin', () => {
     const origCreateElement = document.createElement.bind(document)
     const createElementSpy = vi
       .spyOn(document, 'createElement')
-      .mockImplementation(
-        (tag: string, _options?: ElementCreationOptions) => {
-          const el = origCreateElement(tag)
-          if (tag === 'input') {
-            fileInput = el as HTMLInputElement
-          }
-          return el
-        },
-      )
+      .mockImplementation((tag: string, _options?: ElementCreationOptions) => {
+        const el = origCreateElement(tag)
+        if (tag === 'input') {
+          fileInput = el as HTMLInputElement
+        }
+        return el
+      })
 
     const plugin = createImportExportPlugin({
       storage,

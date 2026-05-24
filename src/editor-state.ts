@@ -2,6 +2,7 @@
 
 import type { EditorContext, StorageAdapter, EditorOptions } from './types'
 import { decodePathSearch } from './navigation'
+import { EditorHistory } from './editor-history'
 
 /**
  * Full API surface for editor mutable state.
@@ -14,6 +15,8 @@ import { decodePathSearch } from './navigation'
 export interface EditorStateAPI {
   /** Raw mutable page-content cache. Use setWorldPage to write. */
   readonly world: Record<string, string>
+  /** EditorHistory instance for undo/redo support */
+  readonly history: EditorHistory
   /** Return a defensive copy of the breadcrumb trail. */
   getTrail(): string[]
   /** Return a defensive copy of the world cache. */
@@ -72,11 +75,13 @@ export function createEditorState(
   let trail: string[] = initialTrail.length ? [...initialTrail] : [initialPage]
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let isNavigating = false
+  const history = new EditorHistory({ maxDepth: options.historyDepth })
 
   // ── API ────────────────────────────────────────────────────────────────────
 
   return {
     world,
+    history,
 
     getTrail(): string[] {
       return [...trail]

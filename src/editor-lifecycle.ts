@@ -1,11 +1,17 @@
 // ─── Editor Lifecycle ──────────────────────────────────────────────────────────
 
-import type { ContentPlugin, UIPlugin, StorageAdapter, EditorOptions, EditorInstance } from './types'
+import type {
+  ContentPlugin,
+  UIPlugin,
+  StorageAdapter,
+  EditorOptions,
+  EditorInstance,
+} from './types'
 import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
 import type { EditorRenderAPI } from './editor-render'
 import type { EditorNavigationAPI } from './editor-navigation'
-import { extractText } from './cursor'
+import { extractText, setCaretOffset } from './cursor'
 
 /**
  * Public API returned by {@link createEditorLifecycle}.
@@ -87,6 +93,7 @@ export function createEditorLifecycle(
 
     dom.editorDiv.addEventListener('input', () => {
       if (state.isNavigating()) return
+      state.history.push(extractText(dom.editorDiv))
       render.render()
 
       // Call onUpdate on each content plugin after render (D-03)
@@ -118,6 +125,60 @@ export function createEditorLifecycle(
     // ── Keydown handler ────────────────────────────────────────────────────
 
     dom.editorDiv.addEventListener('keydown', (e: KeyboardEvent) => {
+      // Ctrl+Z / Cmd+Z — undo
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') {
+        e.preventDefault()
+        const content = state.history.undo(extractText(dom.editorDiv))
+        if (content !== null) {
+          dom.editorDiv.blur()
+          dom.editorDiv.textContent = content
+          render.render()
+          try {
+            setCaretOffset(dom.editorDiv, content.length)
+          } catch {
+            /* best-effort */
+          }
+          dom.editorDiv.focus()
+        }
+        return
+      }
+
+      // Ctrl+Shift+Z / Cmd+Shift+Z — redo
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') {
+        e.preventDefault()
+        const content = state.history.redo(extractText(dom.editorDiv))
+        if (content !== null) {
+          dom.editorDiv.blur()
+          dom.editorDiv.textContent = content
+          render.render()
+          try {
+            setCaretOffset(dom.editorDiv, content.length)
+          } catch {
+            /* best-effort */
+          }
+          dom.editorDiv.focus()
+        }
+        return
+      }
+
+      // Ctrl+Y — redo (Windows alternative)
+      if (e.ctrlKey && !e.shiftKey && e.key === 'y') {
+        e.preventDefault()
+        const content = state.history.redo(extractText(dom.editorDiv))
+        if (content !== null) {
+          dom.editorDiv.blur()
+          dom.editorDiv.textContent = content
+          render.render()
+          try {
+            setCaretOffset(dom.editorDiv, content.length)
+          } catch {
+            /* best-effort */
+          }
+          dom.editorDiv.focus()
+        }
+        return
+      }
+
       if (e.key === 'Tab') {
         e.preventDefault()
         insertTextAtSelection('  ')
@@ -188,11 +249,41 @@ export function createEditorLifecycle(
       },
 
       setContent(content: string): void {
+        const raw = extractText(dom.editorDiv)
+        state.history.push(raw)
         const trail = state.getTrail()
         const page = trail[trail.length - 1]
         state.setWorldPage(page, content)
         dom.editorDiv.textContent = content
         render.render()
+      },
+
+      undo(): boolean {
+        const content = state.history.undo(extractText(dom.editorDiv))
+        if (content !== null) {
+          dom.editorDiv.textContent = content
+          render.render()
+          return true
+        }
+        return false
+      },
+
+      redo(): boolean {
+        const content = state.history.redo(extractText(dom.editorDiv))
+        if (content !== null) {
+          dom.editorDiv.textContent = content
+          render.render()
+          return true
+        }
+        return false
+      },
+
+      canUndo(): boolean {
+        return state.history.canUndo()
+      },
+
+      canRedo(): boolean {
+        return state.history.canRedo()
       },
     }
   }

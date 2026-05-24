@@ -9,7 +9,9 @@ function mockAdapter(pages: Record<string, string>): StorageAdapter {
   const data = { ...pages }
   return {
     get: vi.fn(async (key: string) => data[key] ?? null),
-    set: vi.fn(async (key: string, value: string) => { data[key] = value }),
+    set: vi.fn(async (key: string, value: string) => {
+      data[key] = value
+    }),
     keys: vi.fn(async () => Object.keys(data)),
   }
 }

@@ -161,6 +161,11 @@ export interface EditorOptions {
   initialPage?: string
   saveDebounceMs?: number
   /**
+   * Maximum number of undo states per page (default 50).
+   * Older states are evicted via FIFO when the limit is reached.
+   */
+  historyDepth?: number
+  /**
    * Optional CSS string that replaces the entire default stylesheet.
    * When provided, the injected <style id="worldnotes-styles"> element
    * contains this CSS instead of the default token-driven stylesheet.
@@ -200,4 +205,18 @@ export interface EditorInstance {
   getTrail(): string[]
   getContent(): string
   setContent(content: string): void
+  /**
+   * Undo the last change and restore the previous content.
+   * @returns true if an undo was performed
+   */
+  undo(): boolean
+  /**
+   * Redo the last undone change.
+   * @returns true if a redo was performed
+   */
+  redo(): boolean
+  /** Returns true if there is at least one undoable state */
+  canUndo(): boolean
+  /** Returns true if there is at least one redoable state */
+  canRedo(): boolean
 }

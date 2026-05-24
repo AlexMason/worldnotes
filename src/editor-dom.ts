@@ -67,7 +67,9 @@ const DEFAULT_TOKENS = `
 
 // ─── Default styles ───────────────────────────────────────────────────────────
 
-const DEFAULT_CSS = DEFAULT_TOKENS + `
+const DEFAULT_CSS =
+  DEFAULT_TOKENS +
+  `
 .wn-root {
   display: flex;
   flex-direction: column;

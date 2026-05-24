@@ -31,9 +31,7 @@ function makeUIPlugin(overrides: Partial<UIPlugin> = {}): UIPlugin {
   }
 }
 
-function makeStoragePlugin(
-  overrides: Partial<StoragePlugin> = {},
-): StoragePlugin {
+function makeStoragePlugin(overrides: Partial<StoragePlugin> = {}): StoragePlugin {
   return {
     name: 'test-storage',
     version: '1.0.0',
@@ -143,10 +141,7 @@ describe('Content Plugin Registration', () => {
     registry.register(italic)
 
     expect(registry.allContentPlugins()).toHaveLength(2)
-    expect(registry.allContentPlugins().map((p) => p.name)).toEqual([
-      'bold',
-      'italic',
-    ])
+    expect(registry.allContentPlugins().map((p) => p.name)).toEqual(['bold', 'italic'])
   })
 
   it('calls onInit when registering a plugin', () => {
@@ -244,27 +239,19 @@ describe('Content Plugin Conflict Detection', () => {
 describe('UI Plugin Conflict Detection', () => {
   it('throws when two UI plugins claim the same slot with the same priority', () => {
     const registry = new PluginRegistry()
-    registry.register(
-      makeUIPlugin({ name: 'ui-a', slots: ['wn-toolbar'], priority: 10 }),
-    )
+    registry.register(makeUIPlugin({ name: 'ui-a', slots: ['wn-toolbar'], priority: 10 }))
 
     expect(() =>
-      registry.register(
-        makeUIPlugin({ name: 'ui-b', slots: ['wn-toolbar'], priority: 10 }),
-      ),
+      registry.register(makeUIPlugin({ name: 'ui-b', slots: ['wn-toolbar'], priority: 10 })),
     ).toThrow(/UI plugin conflict/)
   })
 
   it('error message names both plugins, the slot, and the priority value', () => {
     const registry = new PluginRegistry()
-    registry.register(
-      makeUIPlugin({ name: 'ui-a', slots: ['wn-toolbar'], priority: 10 }),
-    )
+    registry.register(makeUIPlugin({ name: 'ui-a', slots: ['wn-toolbar'], priority: 10 }))
 
     expect(() =>
-      registry.register(
-        makeUIPlugin({ name: 'ui-b', slots: ['wn-toolbar'], priority: 10 }),
-      ),
+      registry.register(makeUIPlugin({ name: 'ui-b', slots: ['wn-toolbar'], priority: 10 })),
     ).toThrow(/ui-b.*slot "wn-toolbar".*priority 10.*ui-a/)
   })
 
@@ -584,9 +571,9 @@ describe('getUIPluginsForSlot', () => {
 
     const result = registry.getUIPluginsForSlot('wn-toolbar')
     expect(result).toHaveLength(3)
-    expect(result[0].name).toBe('low')    // priority 0
-    expect(result[1].name).toBe('mid')    // priority 50
-    expect(result[2].name).toBe('high')   // priority 100
+    expect(result[0].name).toBe('low') // priority 0
+    expect(result[1].name).toBe('mid') // priority 50
+    expect(result[2].name).toBe('high') // priority 100
   })
 
   it('returns only plugins for the requested slot', () => {
@@ -617,7 +604,7 @@ describe('getUIPluginsForSlot', () => {
     registry.register(makeUIPlugin({ name: 'default', slots: ['wn-toolbar'], priority: undefined }))
 
     const result = registry.getUIPluginsForSlot('wn-toolbar')
-    expect(result[0].name).toBe('default')  // priority undefined → 0
+    expect(result[0].name).toBe('default') // priority undefined → 0
     expect(result[1].name).toBe('explicit') // priority 5
   })
 })

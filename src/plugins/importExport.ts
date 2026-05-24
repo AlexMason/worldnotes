@@ -23,9 +23,7 @@ export interface ImportExportPluginOptions {
  *   }))
  *   .mount()
  */
-export function createImportExportPlugin(
-  options: ImportExportPluginOptions,
-): UIPlugin {
+export function createImportExportPlugin(options: ImportExportPluginOptions): UIPlugin {
   const { storage, onImportComplete, exportFilename, importStrategy } = options
 
   let exportBtn: HTMLButtonElement | null = null
@@ -84,7 +82,9 @@ export function createImportExportPlugin(
         exportBtn = null
       }
       if (importBtn) {
-        importBtn.removeEventListener('click', () => { fileInput?.click() })
+        importBtn.removeEventListener('click', () => {
+          fileInput?.click()
+        })
         importBtn.remove()
         importBtn = null
       }

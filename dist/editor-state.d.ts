@@ -1,4 +1,5 @@
 import { EditorContext, StorageAdapter, EditorOptions } from './types';
+import { EditorHistory } from './editor-history';
 /**
  * Full API surface for editor mutable state.
  *
@@ -10,6 +11,8 @@ import { EditorContext, StorageAdapter, EditorOptions } from './types';
 export interface EditorStateAPI {
     /** Raw mutable page-content cache. Use setWorldPage to write. */
     readonly world: Record<string, string>;
+    /** EditorHistory instance for undo/redo support */
+    readonly history: EditorHistory;
     /** Return a defensive copy of the breadcrumb trail. */
     getTrail(): string[];
     /** Return a defensive copy of the world cache. */

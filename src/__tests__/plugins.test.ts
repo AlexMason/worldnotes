@@ -385,7 +385,10 @@ describe('strikethroughPlugin', () => {
 
 describe('linkPlugin', () => {
   it('renders external URL as anchor tag with target _blank', () => {
-    const token = createToken('link', '[Example](https://example.com)', ['Example', 'https://example.com'])
+    const token = createToken('link', '[Example](https://example.com)', [
+      'Example',
+      'https://example.com',
+    ])
     const el = renderPlugin(linkPlugin, token, createContext())
 
     expect(el.tagName).toBe('A')
@@ -423,7 +426,10 @@ describe('linkPlugin', () => {
   it('onNavigate returns false for external URLs', () => {
     const navigate = vi.fn()
     const context = createContext({ navigate })
-    const token = createToken('link', '[Example](https://example.com)', ['Example', 'https://example.com'])
+    const token = createToken('link', '[Example](https://example.com)', [
+      'Example',
+      'https://example.com',
+    ])
 
     const result = linkPlugin.onNavigate!(token, context)
 
@@ -432,7 +438,10 @@ describe('linkPlugin', () => {
   })
 
   it('detects protocol-relative URLs as external', () => {
-    const token = createToken('link', '[CDN](//cdn.example.com/lib.js)', ['CDN', '//cdn.example.com/lib.js'])
+    const token = createToken('link', '[CDN](//cdn.example.com/lib.js)', [
+      'CDN',
+      '//cdn.example.com/lib.js',
+    ])
     const el = renderPlugin(linkPlugin, token, createContext())
 
     expect(el.tagName).toBe('A')

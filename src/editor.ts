@@ -1,4 +1,11 @@
-import type { ContentPlugin, UIPlugin, PluginManifest, StorageAdapter, EditorOptions, EditorInstance } from './types'
+import type {
+  ContentPlugin,
+  UIPlugin,
+  PluginManifest,
+  StorageAdapter,
+  EditorOptions,
+  EditorInstance,
+} from './types'
 import { LocalStorageAdapter } from './storage/localStorage'
 import { defaultPlugins } from './plugins/defaults'
 import { PluginRegistry } from './plugin-registry'
@@ -94,7 +101,8 @@ export class EditorBuilder {
    * Injects required styles, sets up event listeners, and loads the initial page.
    */
   mount(): EditorInstance {
-    const uiPlugins = this.registry.allUIPlugins()
+    const uiPlugins = this.registry
+      .allUIPlugins()
       .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
 
     const instance = mountEditor(
@@ -142,17 +150,28 @@ function mountEditor(
 ): EditorInstance {
   const state = createEditorState(storage, options)
   const dom = createEditorDOM(container, options.theme)
-  const navigation = createEditorNavigation(state, storage, dom, options)
+  const navigation = createEditorNavigation(state, storage, dom, options, state.history)
   const renderOpts: EditorRenderOptions = {
-    navigateFn: (page: string) => { navigation.navigateToPage(page) },
-    onBreadcrumbNavigate: (page: string) => { navigation.loadPage(page) },
+    navigateFn: (page: string) => {
+      navigation.navigateToPage(page)
+    },
+    onBreadcrumbNavigate: (page: string) => {
+      navigation.loadPage(page)
+    },
     onTrailChange: options.onTrailChange,
   }
   const render = createEditorRender(dom, contentPlugins, state, renderOpts)
   navigation.setRenderAPI(render)
 
   const lifecycle = createEditorLifecycle(
-    dom, contentPlugins, allUIPlugins, state, render, navigation, storage, options,
+    dom,
+    contentPlugins,
+    allUIPlugins,
+    state,
+    render,
+    navigation,
+    storage,
+    options,
   )
   return lifecycle.mount()
 }

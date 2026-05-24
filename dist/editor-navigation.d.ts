@@ -2,6 +2,7 @@ import { StorageAdapter, EditorOptions } from './types';
 import { EditorStateAPI } from './editor-state';
 import { EditorDOM } from './editor-dom';
 import { EditorRenderAPI } from './editor-render';
+import { EditorHistory } from './editor-history';
 /**
  * Public API returned by {@link createEditorNavigation}.
  *
@@ -38,4 +39,4 @@ export interface EditorNavigationAPI {
  * navigation.setRenderAPI(render)
  * await navigation.loadPage('home')
  */
-export declare function createEditorNavigation(state: EditorStateAPI, storage: StorageAdapter, dom: EditorDOM, options: EditorOptions): EditorNavigationAPI;
+export declare function createEditorNavigation(state: EditorStateAPI, storage: StorageAdapter, dom: EditorDOM, options: EditorOptions, history: EditorHistory): EditorNavigationAPI;

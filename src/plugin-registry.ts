@@ -5,13 +5,7 @@
 // and renderer with a Map-based registry providing O(1) name lookup and
 // conflict detection at registration time.
 
-import type {
-  PluginManifest,
-  ContentPlugin,
-  UIPlugin,
-  StoragePlugin,
-  TokenDef,
-} from './types'
+import type { PluginManifest, ContentPlugin, UIPlugin, StoragePlugin, TokenDef } from './types'
 
 /**
  * Semver validation regex per D-02.
@@ -238,9 +232,7 @@ export class PluginRegistry {
    */
   getPlugin(name: string): PluginManifest | undefined {
     return (
-      this.contentPlugins.get(name) ??
-      this.uiPlugins.get(name) ??
-      this.storagePlugins.get(name)
+      this.contentPlugins.get(name) ?? this.uiPlugins.get(name) ?? this.storagePlugins.get(name)
     )
   }
 
