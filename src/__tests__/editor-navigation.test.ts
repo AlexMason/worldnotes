@@ -92,7 +92,7 @@ describe('createEditorNavigation', () => {
     dom = mockDOM()
     render = mockRender()
     onPageLoadSpy = vi.fn()
-    options = { onPageLoad: onPageLoadSpy }
+    options = { onPageLoad: onPageLoadSpy as (page: string, content: string) => void }
   })
 
   it('exports createEditorNavigation factory function', () => {
