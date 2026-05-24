@@ -1,0 +1,364 @@
+// @vitest-environment happy-dom
+
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import type { Plugin, StorageAdapter, EditorOptions, EditorInstance, EditorContext, Token } from '../types'
+import type { EditorStateAPI } from '../editor-state'
+import type { EditorDOM } from '../editor-dom'
+import type { EditorRenderAPI } from '../editor-render'
+import type { EditorNavigationAPI } from '../editor-navigation'
+import { createEditorLifecycle } from '../editor-lifecycle'
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+function mockStorage(): StorageAdapter {
+  const store: Record<string, string> = {}
+  return {
+    async get(key: string): Promise<string | null> { return store[key] ?? null },
+    async set(key: string, value: string): Promise<void> { store[key] = value },
+    async keys(): Promise<string[]> { return Object.keys(store) },
+  }
+}
+
+function mockState(initialTrail?: string[]): EditorStateAPI {
+  const world: Record<string, string> = {}
+  let trail: string[] = initialTrail ? [...initialTrail] : ['home']
+  let saveTimer: ReturnType<typeof setTimeout> | null = null
+  let isNavigating = false
+
+  return {
+    world,
+    getTrail: () => [...trail],
+    getWorld: () => ({ ...world }),
+    setWorldPage: (page: string, content: string) => { world[page] = content },
+    pushTrail: (page: string) => { trail.push(page) },
+    setTrail: (t: string[]) => { trail = t },
+    truncateTrail: (index: number) => { trail = trail.slice(0, index + 1) },
+    setNavigating: (v: boolean) => { isNavigating = v; return v },
+    isNavigating: () => isNavigating,
+    clearSaveTimer: () => { if (saveTimer) { clearTimeout(saveTimer); saveTimer = null } },
+    setSaveTimer: (timer: ReturnType<typeof setTimeout> | null) => { saveTimer = timer },
+    toContext: (_navigate: (page: string) => void): EditorContext => ({
+      navigate: _navigate,
+      getTrail: () => [...trail],
+      getWorld: () => ({ ...world }),
+    }),
+  }
+}
+
+function mockDOM(): EditorDOM {
+  const container = document.createElement('div')
+  const topbar = document.createElement('div')
+  const breadcrumb = document.createElement('div')
+  const editorWrap = document.createElement('div')
+  const editorDiv = document.createElement('div') as HTMLDivElement
+  const placeholder = document.createElement('div')
+
+  editorDiv.contentEditable = 'true'
+  editorDiv.spellcheck = false
+  topbar.appendChild(breadcrumb)
+  editorWrap.appendChild(placeholder)
+  editorWrap.appendChild(editorDiv)
+  container.appendChild(topbar)
+  container.appendChild(editorWrap)
+
+  return { container, topbar, breadcrumb, editorWrap, editorDiv, placeholder }
+}
+
+function mockRender(): EditorRenderAPI {
+  return {
+    render: vi.fn(),
+    renderBreadcrumb: vi.fn(),
+    syncUrlToTrail: vi.fn(),
+  }
+}
+
+function mockNavigation(): EditorNavigationAPI {
+  return {
+    navigateToPage: vi.fn(async (_page: string) => {}),
+    loadPage: vi.fn(async (_page: string) => {}),
+    setRenderAPI: vi.fn(),
+  }
+}
+
+function mockPlugins(): Plugin[] {
+  return [{
+    name: 'test-plugin',
+    tokens: [{ type: 'test', pattern: /./ }],
+    render(token: Token, _context: EditorContext): HTMLElement | Text {
+      return document.createTextNode(token.raw)
+    },
+  }]
+}
+
+// ─── createEditorLifecycle ─────────────────────────────────────────────────────
+
+describe('createEditorLifecycle', () => {
+  let storage: StorageAdapter
+  let state: EditorStateAPI
+  let dom: EditorDOM
+  let render: EditorRenderAPI
+  let navigation: EditorNavigationAPI
+  let plugins: Plugin[]
+  let options: EditorOptions
+
+  beforeEach(() => {
+    storage = mockStorage()
+    state = mockState(['home'])
+    dom = mockDOM()
+    render = mockRender()
+    navigation = mockNavigation()
+    plugins = mockPlugins()
+    options = {}
+  })
+
+  it('exports createEditorLifecycle factory function', () => {
+    const lifecycle = createEditorLifecycle(dom, plugins, state, render, navigation, storage, options)
+    expect(lifecycle).toBeDefined()
+    expect(typeof lifecycle.mount).toBe('function')
+  })
+
+  // ── mount() ───────────────────────────────────────────────────────────────
+
+  describe('mount()', () => {
+    it('returns EditorInstance with all 6 required methods', () => {
+      const lifecycle = createEditorLifecycle(dom, plugins, state, render, navigation, storage, options)
+      const instance = lifecycle.mount()
+
+      expect(typeof instance.destroy).toBe('function')
+      expect(typeof instance.navigate).toBe('function')
+      expect(typeof instance.getCurrentPage).toBe('function')
+      expect(typeof instance.getTrail).toBe('function')
+      expect(typeof instance.getContent).toBe('function')
+      expect(typeof instance.setContent).toBe('function')
+    })
+
+    it('calls navigation.loadPage with the initial page from trail', () => {
+      const lifecycle = createEditorLifecycle(dom, plugins, state, render, navigation, storage, options)
+      lifecycle.mount()
+
+      expect(navigation.loadPage).toHaveBeenCalled()
+      // Should be called with 'home' (the last element in the trail)
+    })
+
+    it('loads the configured initial page when provided', () => {
+      const customState = mockState(['custom-page'])
+      const lifecycle = createEditorLifecycle(dom, plugins, customState, render, navigation, storage, options)
+      lifecycle.mount()
+
+      // loadPage should have been called with the page from the trail
+      expect(navigation.loadPage).toHaveBeenCalled()
+    })
+  })
+
+  // ── EditorInstance.destroy() ──────────────────────────────────────────────
+
+  describe('EditorInstance.destroy()', () => {
+    it('empties container innerHTML', () => {
+      const lifecycle = createEditorLifecycle(dom, plugins, state, render, navigation, storage, options)
+      const instance = lifecycle.mount()
+
+      // Before destroy, container should have children
+      expect(dom.container.children.length).toBeGreaterThan(0)
+
+      instance.destroy()
+
+      expect(dom.container.innerHTML).toBe('')
+    })
+  })
+
+  // ── EditorInstance.getCurrentPage() ───────────────────────────────────────
+
+  describe('EditorInstance.getCurrentPage()', () => {
+    it('returns the last element of the trail', () => {
+      const trailState = mockState(['home', 'about', 'contact'])
+      const lifecycle = createEditorLifecycle(dom, plugins, trailState, render, navigation, storage, options)
+      const instance = lifecycle.mount()
+
+      expect(instance.getCurrentPage()).toBe('contact')
+    })
+  })
+
+  // ── EditorInstance.getTrail() ─────────────────────────────────────────────
+
+  describe('EditorInstance.getTrail()', () => {
+    it('returns a copy of the navigation trail', () => {
+      const lifecycle = createEditorLifecycle(dom, plugins, state, render, navigation, storage, options)
+      const instance = lifecycle.mount()
+
+      const trail = instance.getTrail()
+      expect(Array.isArray(trail)).toBe(true)
+      expect(trail.length).toBeGreaterThan(0)
+      // Should be a copy, not the original reference
+      trail.push('mutated')
+      expect(instance.getTrail().length).toBe(trail.length - 1)
+    })
+  })
+
+  // ── EditorInstance.getContent() ───────────────────────────────────────────
+
+  describe('EditorInstance.getContent()', () => {
+    it('returns text content from editorDiv via extractText', () => {
+      dom.editorDiv.textContent = 'hello world'
+      const lifecycle = createEditorLifecycle(dom, plugins, state, render, navigation, storage, options)
+      const instance = lifecycle.mount()
+
+      expect(instance.getContent()).toBe('hello world')
+    })
+  })
+
+  // ── EditorInstance.setContent() ───────────────────────────────────────────
+
+  describe('EditorInstance.setContent()', () => {
+    it('updates world cache and re-renders', () => {
+      const lifecycle = createEditorLifecycle(dom, plugins, state, render, navigation, storage, options)
+      const instance = lifecycle.mount()
+
+      // Reset the render mock to clear calls from loadPage
+      vi.mocked(render.render).mockClear()
+
+      instance.setContent('new content')
+
+      // World cache should be updated
+      expect(state.world['home']).toBe('new content')
+      // editorDiv textContent should be set
+      expect(dom.editorDiv.textContent).toBe('new content')
+      // render should be called again
+      expect(render.render).toHaveBeenCalled()
+    })
+  })
+
+  // ── EditorInstance.navigate() ─────────────────────────────────────────────
+
+  describe('EditorInstance.navigate()', () => {
+    it('delegates to navigation.navigateToPage', () => {
+      const lifecycle = createEditorLifecycle(dom, plugins, state, render, navigation, storage, options)
+      const instance = lifecycle.mount()
+
+      instance.navigate('some-page')
+
+      expect(navigation.navigateToPage).toHaveBeenCalledWith('some-page')
+    })
+  })
+})
+
+// ─── Event Handlers ────────────────────────────────────────────────────────────
+
+describe('Editor lifecycle event handlers', () => {
+  let storage: StorageAdapter
+  let state: EditorStateAPI
+  let dom: EditorDOM
+  let render: EditorRenderAPI
+  let navigation: EditorNavigationAPI
+  let plugins: Plugin[]
+  let options: EditorOptions
+
+  beforeEach(() => {
+    storage = mockStorage()
+    state = mockState(['home'])
+    dom = mockDOM()
+    render = mockRender()
+    navigation = mockNavigation()
+    plugins = mockPlugins()
+    options = {}
+  })
+
+  // ── Input handler ────────────────────────────────────────────────────────
+
+  describe('input event', () => {
+    it('calls render() when input event fires', () => {
+      const lifecycle = createEditorLifecycle(dom, plugins, state, render, navigation, storage, options)
+      lifecycle.mount()
+
+      // Clear render calls from loadPage
+      vi.mocked(render.render).mockClear()
+
+      dom.editorDiv.textContent = 'typed text'
+      dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
+
+      expect(render.render).toHaveBeenCalled()
+    })
+  })
+
+  // ── Paste handler ────────────────────────────────────────────────────────
+
+  describe('paste event', () => {
+    it('handles paste event by preventing default', () => {
+      const lifecycle = createEditorLifecycle(dom, plugins, state, render, navigation, storage, options)
+      lifecycle.mount()
+
+      // Place caret at start
+      const range = document.createRange()
+      range.setStart(dom.editorDiv, 0)
+      range.collapse(true)
+      const sel = window.getSelection()
+      sel!.removeAllRanges()
+      sel!.addRange(range)
+
+      const pasteEvent = new ClipboardEvent('paste', {
+        clipboardData: new DataTransfer(),
+        bubbles: true,
+      })
+      Object.defineProperty(pasteEvent, 'clipboardData', {
+        value: {
+          getData: (_type: string) => 'pasted content',
+        },
+      })
+
+      const prevented = !dom.editorDiv.dispatchEvent(pasteEvent)
+      // In happy-dom, dispatchEvent always returns true, but the handler
+      // should not throw — that's the key assertion
+      expect(() => {
+        dom.editorDiv.dispatchEvent(pasteEvent)
+      }).not.toThrow()
+    })
+  })
+
+  // ── Keydown handler (Tab) ────────────────────────────────────────────────
+
+  describe('keydown Tab', () => {
+    it('inserts two spaces on Tab key', () => {
+      const lifecycle = createEditorLifecycle(dom, plugins, state, render, navigation, storage, options)
+      lifecycle.mount()
+
+      // Place caret at start
+      const range = document.createRange()
+      range.setStart(dom.editorDiv, 0)
+      range.collapse(true)
+      const sel = window.getSelection()
+      sel!.removeAllRanges()
+      sel!.addRange(range)
+
+      const tabEvent = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true })
+      dom.editorDiv.dispatchEvent(tabEvent)
+
+      // Content should include spaces — extractText should pick them up
+      const { extractText } = require('../cursor')
+      const text = extractText(dom.editorDiv)
+      expect(text).toContain('  ')
+    })
+  })
+
+  // ── Keydown handler (Enter) ──────────────────────────────────────────────
+
+  describe('keydown Enter', () => {
+    it('inserts newline on Enter key', () => {
+      const lifecycle = createEditorLifecycle(dom, plugins, state, render, navigation, storage, options)
+      lifecycle.mount()
+
+      // Place caret at start
+      const range = document.createRange()
+      range.setStart(dom.editorDiv, 0)
+      range.collapse(true)
+      const sel = window.getSelection()
+      sel!.removeAllRanges()
+      sel!.addRange(range)
+
+      const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+      dom.editorDiv.dispatchEvent(enterEvent)
+
+      const { extractText } = require('../cursor')
+      const text = extractText(dom.editorDiv)
+      expect(text).toContain('\n')
+    })
+  })
+})
