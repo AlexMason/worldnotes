@@ -5,7 +5,10 @@ export { createEditor, EditorBuilder } from './editor'
 export type {
   Token,
   TokenDef,
-  Plugin,
+  PluginManifest,
+  ContentPlugin,
+  UIPlugin,
+  StoragePlugin,
   StorageAdapter,
   EditorContext,
   EditorOptions,
@@ -27,3 +30,5 @@ export {
   blockquotePlugin,
   hrPlugin,
 } from './plugins/inline'
+export { strikethroughPlugin } from './plugins/strikethrough'
+export { linkPlugin } from './plugins/link'

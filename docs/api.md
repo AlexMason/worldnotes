@@ -61,30 +61,67 @@ editor.destroy()
 
 ## Plugins
 
-Plugins define token patterns, render matched tokens, and optionally handle clicks.
+Plugins are declared as `ContentPlugin` manifests with explicit `kind`, `version`, and
+optional lifecycle hooks. The `kind` field discriminates plugin categories: `'content'`
+(token-based rendering), `'ui'` (DOM slot injection), and `'storage'` (persistence adapters).
 
 ```ts
-import type { Plugin, Token, EditorContext } from 'worldnotes'
+import type { ContentPlugin, Token, EditorContext } from 'worldnotes'
 
-const mentionPlugin: Plugin = {
+const mentionPlugin: ContentPlugin = {
   name: 'mention',
+  version: '1.0.0',
+  kind: 'content',
   tokens: [{ type: 'mention', pattern: /@(\w+)/ }],
   render(token: Token, _context: EditorContext): HTMLElement {
     const el = document.createElement('span')
     el.className = 'my-mention'
     el.textContent = `@${token.groups[0]}`
+    el.dataset.raw = token.raw  // required for cursor fidelity
     return el
   },
 }
 ```
 
-Inline token patterns should not use `^` and should not use the `g` flag. Line-level token patterns should anchor with `^`, because they are checked against the whole line before inline scanning.
+Inline token patterns should not use `^` and should not use the `g` flag. Line-level token
+patterns should anchor with `^`, because they are checked against the whole line before
+inline scanning. **Always set `el.dataset.raw = token.raw`** on rendered elements — the
+cursor module relies on this attribute to track caret positions through decorated text.
 
-Built-in plugin exports include `defaultPlugins`, `wikiLinkPlugin`, `headingsPlugin`, `boldPlugin`, `italicPlugin`, `inlineCodePlugin`, `blockquotePlugin`, and `hrPlugin`.
+### Lifecycle Hooks
+
+Content plugins support optional lifecycle hooks:
+
+- `onInit?(): void` — called immediately after plugin registration via `editor.use()`
+- `onUpdate?(): void` — called after each render cycle (every keystroke)
+- `onDestroy?(): void` — called when the plugin is replaced or the editor is destroyed
+
+### Built-in Plugins
+
+Built-in plugin exports include `defaultPlugins`, `wikiLinkPlugin`, `headingsPlugin`,
+`boldPlugin`, `italicPlugin`, `strikethroughPlugin`, `inlineCodePlugin`, `blockquotePlugin`,
+`hrPlugin`, and `linkPlugin`.
+
+### PluginManifest Types
+
+The library exports three plugin interfaces and a union type:
+
+| Type | Description |
+|------|-------------|
+| `ContentPlugin` | Token-based render plugins (`kind: 'content'`) — defines token patterns, renders DOM, optional navigation |
+| `UIPlugin` | DOM slot injection plugins (`kind: 'ui'`) — mounts content in named editor slots |
+| `StoragePlugin` | Storage adapter plugins (`kind: 'storage'`) — provides a custom `StorageAdapter` implementation |
+| `PluginManifest` | Union type: `ContentPlugin \| UIPlugin \| StoragePlugin` — use this for `editor.use()` parameter type |
+
+### Version Validation
+
+The `version` field must match semver format `X.Y.Z` or `X.Y.Z-prerelease` (e.g., `1.0.0`,
+`0.1.0-alpha`, `2.3.1-beta.2.3`). Invalid versions throw at registration time. Build
+metadata (`+build`) is not supported in this version.
 
 ## Storage Adapters
 
-Storage adapters provide async key/value persistence for page content:
+Storage adapters provide async key/value persistence for page content.
 
 ```ts
 import type { StorageAdapter } from 'worldnotes'
@@ -96,8 +133,15 @@ class RemoteStorage implements StorageAdapter {
 }
 ```
 
-`LocalStorageAdapter` is the default and stores namespaced keys in `window.localStorage`. `IndexedDBAdapter` stores pages in an IndexedDB object store and is a better fit for larger worlds.
+`LocalStorageAdapter` is the default and stores namespaced keys in `window.localStorage`.
+`IndexedDBAdapter` stores pages in an IndexedDB object store and is a better fit for larger worlds.
+
+> **Future:** Storage adapters can be wrapped as `StoragePlugin` manifests (`kind: 'storage'`)
+> when the storage-as-plugin feature lands in a future release. For now, use
+> `editor.withStorage(adapter)`.
 
 ## Exported Types
 
-The package exports `Token`, `TokenDef`, `Plugin`, `StorageAdapter`, `EditorContext`, `EditorOptions`, and `EditorInstance` for TypeScript consumers.
+The package exports `Token`, `TokenDef`, `PluginManifest`, `ContentPlugin`, `UIPlugin`,
+`StoragePlugin`, `StorageAdapter`, `EditorContext`, `EditorOptions`, and `EditorInstance`
+for TypeScript consumers.
