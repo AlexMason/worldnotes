@@ -30,7 +30,7 @@ Requirements for first production milestone. Each maps to roadmap phases.
 - [x] **PLUG-02**: Plugins have lifecycle hooks — `onInit`, `onMount`, `onUpdate`, `onDestroy`
 - [x] **PLUG-03**: Plugin conflict detection at registration time — two plugins claiming the same slot/pattern error at registration, not at runtime
 - [x] **PLUG-04**: Existing built-in plugins (headings, bold, italic, code, wiki links, hr, blockquote) migrated to the new manifest format
-- [ ] **PLUG-05**: Plugin API types exported from `src/index.ts` and documented in `docs/api.md`
+- [x] **PLUG-05**: Plugin API types exported from `src/index.ts` and documented in `docs/api.md`
 - [x] **PLUG-06**: Plugin manifest includes a `version` field with semver, validated at registration
 
 ### Theming (THEME)
@@ -43,9 +43,9 @@ Requirements for first production milestone. Each maps to roadmap phases.
 
 ### Formatting (FORMAT)
 
-- [ ] **FORMAT-01**: `~~strikethrough~~` renders as strikethrough text — new plugin in the tokenizer/renderer pipeline
-- [ ] **FORMAT-02**: `[text](url)` renders as a clickable link — new plugin, internal links navigate wiki pages, external links open in new tab
-- [ ] **FORMAT-03**: Strikethrough and URL link plugins follow existing pattern (regex TokenDef, render to DOM, data-raw for cursor fidelity)
+- [x] **FORMAT-01**: `~~strikethrough~~` renders as strikethrough text — new plugin in the tokenizer/renderer pipeline
+- [x] **FORMAT-02**: `[text](url)` renders as a clickable link — new plugin, internal links navigate wiki pages, external links open in new tab
+- [x] **FORMAT-03**: Strikethrough and URL link plugins follow existing pattern (regex TokenDef, render to DOM, data-raw for cursor fidelity)
 
 ### UI Extension (UI)
 
@@ -113,8 +113,8 @@ Deferred to subsequent milestone. Tracked but not in current roadmap.
 | INFRA-04 | Phase 1 | Complete |
 | INFRA-05 | Phase 1 | Complete |
 | INFRA-06 | Phase 1 | Complete |
-| ARCH-01 | Phase 2 | Pending |
-| ARCH-02 | Phase 2 | Pending |
+| ARCH-01 | Phase 2 | Complete |
+| ARCH-02 | Phase 2 | Complete |
 | ARCH-03 | Phase 2 | Complete |
 | ARCH-04 | Phase 2 | Complete |
 | ARCH-05 | Phase 2 | Complete |
@@ -122,16 +122,11 @@ Deferred to subsequent milestone. Tracked but not in current roadmap.
 | PLUG-02 | Phase 3 | Complete |
 | PLUG-03 | Phase 3 | Complete |
 | PLUG-04 | Phase 3 | Complete |
-| PLUG-05 | Phase 3 | Pending |
+| PLUG-05 | Phase 3 | Complete |
 | PLUG-06 | Phase 3 | Complete |
-| THEME-01 | Phase 4 | Pending |
-| THEME-02 | Phase 4 | Pending |
-| THEME-03 | Phase 4 | Pending |
-| THEME-04 | Phase 4 | Pending |
-| THEME-05 | Phase 4 | Pending |
-| FORMAT-01 | Phase 3 | Pending |
-| FORMAT-02 | Phase 3 | Pending |
-| FORMAT-03 | Phase 3 | Pending |
+| FORMAT-01 | Phase 3 | Complete |
+| FORMAT-02 | Phase 3 | Complete |
+| FORMAT-03 | Phase 3 | Complete |
 | UI-01 | Phase 5 | Pending |
 | UI-02 | Phase 5 | Pending |
 | UI-03 | Phase 5 | Pending |
@@ -144,4 +139,4 @@ Deferred to subsequent milestone. Tracked but not in current roadmap.
 
 ---
 *Requirements defined: 2026-05-23*
-*Last updated: 2026-05-24 after Plan 03-03 completion*
+*Last updated: 2026-05-24 after Plan 03-04 completion*

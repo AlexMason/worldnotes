@@ -27,7 +27,7 @@ Phase 4 is parallel-ready (depends only on Phase 2) but sequenced after Phase 3 
 
 - [x] **Phase 1: Production Infrastructure & Test Foundation** - Vitest, ESLint, CI/CD, and baseline test coverage for all existing modules
 - [x] **Phase 2: Architecture Refactoring** - Decompose editor monolith into focused, independently testable modules
-- [ ] **Phase 3: Plugin System & Content Extensions** - Declarative plugin manifests, lifecycle hooks, strikethrough, and URL links
+- [x] **Phase 3: Plugin System & Content Extensions** - Declarative plugin manifests, lifecycle hooks, strikethrough, and URL links
 - [ ] **Phase 4: Theming System** - CSS custom property design tokens with full theme replacement escape hatch
 - [ ] **Phase 5: UI Extension Slots** - Toolbar slot for UI plugin mounting with conflict detection
 
@@ -89,7 +89,7 @@ Plans:
 - [x] 03-01-PLAN.md — PluginManifest Types + PluginRegistry (discriminated union, conflict detection, semver validation)
 - [x] 03-02-PLAN.md — Migrate Existing 7 Plugins to ContentPlugin (in-place rewrite, version + kind fields)
 - [x] 03-03-PLAN.md — Wire EditorBuilder + Pipeline to PluginRegistry (registry integration, lifecycle hooks)
-- [ ] 03-04-PLAN.md — New Formatting Plugins + Public API + Docs (strikethrough, link, type exports)
+- [x] 03-04-PLAN.md — New Formatting Plugins + Public API + Docs (strikethrough, link, type exports)
 
 ### Phase 4: Theming System
 **Goal**: Consumers can customize the editor's appearance by overriding CSS custom properties or replacing the entire stylesheet, and the editor DOM uses only prefixed, token-driven classes.
@@ -124,6 +124,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Production Infrastructure & Test Foundation | 6/6 | Complete | 2026-05-24 — All 6 plans completed |
 | 2. Architecture Refactoring | 6/6 | Complete | 2026-05-24 — All 6 plans completed |
-| 3. Plugin System & Content Extensions | 3/4 | In Progress | 2026-05-24 — 3 of 4 plans completed |
+| 3. Plugin System & Content Extensions | 4/4 | Complete | 2026-05-24 — All 4 plans completed |
 | 4. Theming System | 0/TBD | Not started | - |
 | 5. UI Extension Slots | 0/TBD | Not started | - |
