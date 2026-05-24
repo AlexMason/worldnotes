@@ -10,7 +10,7 @@ Requirements for first production milestone. Each maps to roadmap phases.
 ### Infrastructure (INFRA)
 
 - [x] **INFRA-01**: Test suite runs with a real test framework (Vitest) and happy-dom browser environment, not raw Node assert with manual transpilation
-- [ ] **INFRA-02**: Every existing source module (cursor, tokenizer, renderer, navigation, editor, plugins, storage) has test coverage for its public API surface
+- [x] **INFRA-02**: Every existing source module (cursor, tokenizer, renderer, navigation, editor, plugins, storage) has test coverage for its public API surface
 - [x] **INFRA-03**: ESLint flat config in place with TypeScript rules, error on commit or CI failure
 - [x] **INFRA-04**: CI pipeline (GitHub Actions) runs typecheck, lint, and tests on every push and PR
 - [ ] **INFRA-05**: Coverage thresholds enforced in CI (80%+ branch coverage)
@@ -108,7 +108,7 @@ Deferred to subsequent milestone. Tracked but not in current roadmap.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | INFRA-01 | Phase 1 | Complete |
-| INFRA-02 | Phase 1 | In Progress (cursor, renderer, navigation, tokenizer covered — plugins, storage, editor in plans 01-05 to 01-06) |
+| INFRA-02 | Phase 1 | Complete |
 | INFRA-03 | Phase 1 | Complete |
 | INFRA-04 | Phase 1 | Complete |
 | INFRA-05 | Phase 1 | Pending |

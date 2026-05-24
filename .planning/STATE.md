@@ -10,30 +10,31 @@ See: .planning/PROJECT.md (updated 2026-05-23)
 ## Current Position
 
 Phase: 1 of 5 (Production Infrastructure & Test Foundation)
-Plan: 04 of 06 (Tokenizer Tests) — COMPLETED
+Plan: 05 of 06 (Plugin, Storage & Editor Tests) — COMPLETED
 Status: In progress
-Last activity: 2026-05-24 — Plan 01-04 completed: 20 tokenizer unit tests (tokenizeLine, tokenizeDocument) with line-level, inline, edge case, and document-level coverage
+Last activity: 2026-05-24 — Plan 01-05 completed: 35 new test cases across plugins (16), storage adapters (11), and editor lifecycle (8)
 
-Progress: [███████░░░] 67%
+Progress: [████████░░] 83%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 6m 6s
-- Total execution time: 0h 24m
+- Total plans completed: 5
+- Average duration: 5m 53s
+- Total execution time: 0h 29m
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. Production Infra & Test | 4 | 24m 45s | 6m 6s |
+| 1. Production Infra & Test | 5 | 29m 26s | 5m 53s |
 
 **Recent Trend:**
 - 01-01: 5m 55s — Toolchain installation, Vite upgrade, config creation
 - 01-02: 2m 46s — Cursor test migration to Vitest + happy-dom
 - 01-03: 3m 42s — Renderer & Navigation test migration, test/ directory cleanup
 - 01-04: 12m 22s — Tokenizer unit tests: 20 cases covering line-level, inline, edge cases, and document-level
+- 01-05: 4m 41s — Plugin, storage, and editor tests: 35 cases reaching INFRA-02 coverage for 9 source modules
 
 *Updated after each plan completion*
 
@@ -57,6 +58,8 @@ Recent decisions affecting current work:
 - [01-04]: Tokenizer tests use inline TokenDef definitions matching built-in plugin patterns rather than importing plugin modules — keeps tests decoupled from plugin implementation details
 - [01-04]: scanInline tested indirectly through tokenizeLine with inline-only defs since the function is not exported
 - [01-04]: Tokenizer needs no DOM — tests run in default happy-dom environment without @vitest-environment override (no document.* or DOM API calls)
+- [01-05]: Used fake-indexeddb polyfill for IndexedDB testing — happy-dom does not provide the indexedDB global
+- [01-05]: Added renderPlugin() helper to safely cast Plugin.render() return from HTMLElement | Text to HTMLElement for test assertions
 - [Init]: Theming (Phase 4) is parallel-ready with Plugin System (Phase 3) but sequenced after — plugin manifest is the higher-priority lynchpin.
 - [Init]: FORMAT requirements (strikethrough, URL links) grouped with Plugin System (Phase 3) so they use the new PluginManifest format from day one rather than requiring a separate migration step.
 - [Init]: Cursor module testing (ARCH-03) placed in Phase 2 alongside the refactoring, since comprehensive cursor tests are a prerequisite to touching the renderer internals.
@@ -80,5 +83,5 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-05-24
-Stopped at: Completed 01-04-PLAN.md — Tokenizer Tests (1 task, 12m 22s)
-Resume file: .planning/phases/01-production-infrastructure/01-04-PLAN.md (completed)
+Stopped at: Completed 01-05-PLAN.md — Plugin, Storage & Editor Tests (3 tasks, 4m 41s)
+Resume file: .planning/phases/01-production-infrastructure/01-05-PLAN.md (completed)
