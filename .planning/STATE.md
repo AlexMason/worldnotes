@@ -9,26 +9,26 @@ See: .planning/PROJECT.md (updated 2026-05-23)
 
 ## Current Position
 
-Phase: 2 of 5 (Architecture Refactoring) — IN PROGRESS
-Plan: 05 of 06 (Monolith decomposition complete) — COMPLETED
-Status: In progress (5 of 6 plans complete)
-Last activity: 2026-05-24 — Plan 02-05 completed: extracted editor-navigation.ts + editor-lifecycle.ts, rewrote editor.ts as thin orchestrator (121 lines, down from 496) — 26 new tests, all 173 passing
+Phase: 2 of 5 (Architecture Refactoring) — COMPLETE
+Plan: 06 of 06 (Demo extraction + architecture docs) — COMPLETED
+Status: Complete (6 of 6 plans complete)
+Last activity: 2026-05-24 — Plan 02-06 completed: moved demo.ts to demo/ directory (excluded from build), updated docs/architecture.md with 5-module DAG and API surfaces — Phase 2 complete
 
-Progress: [████████████░░░░░░░] 83% (5 of 6 plans)
+Progress: [████████████████████] 100% (6 of 6 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
-- Average duration: 6m 25s
-- Total execution time: 1h 04m
+- Total plans completed: 12
+- Average duration: 5m 52s
+- Total execution time: 1h 10m
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. Production Infra & Test | 6 | 41m 26s | 6m 55s |
-| 2. Architecture Refactoring | 5 | 32m 31s | 6m 30s |
+| 2. Architecture Refactoring | 6 | 35m 16s | 5m 53s |
 
 **Recent Trend:**
 - 01-01: 5m 55s — Toolchain installation, Vite upgrade, config creation
@@ -42,6 +42,7 @@ Progress: [████████████░░░░░░░] 83% (5 of 
 - 02-04: 5m 4s — Added 15 cursor edge case tests: empty docs, multi-byte Unicode, line boundaries, data-raw boundaries, forced offsets — 28 total passing tests
 - 02-03: 9m 46s — Extracted editor-render.ts: createEditorRender factory, EditorRenderAPI interface, 15 tests, render pipeline + breadcrumb + URL sync, type-only imports for editor-* modules
 - 02-05: 9m 14s — Extracted editor-navigation.ts (12 tests) + editor-lifecycle.ts (14 tests), rewrote editor.ts as thin orchestrator delegating to 5 sub-modules — all 173 tests pass, public API unchanged
+- 02-06: 2m 45s — Moved demo.ts to demo/ directory (excluded from build, no demo.d.ts leak), updated docs/architecture.md with 5-module DAG, construction order, circular dependency prevention, and API surfaces — Phase 2 complete
 
 *Updated after each plan completion*
 
@@ -79,6 +80,7 @@ Recent decisions affecting current work:
 - [02-04]: 15 new cursor edge case tests added across 6 new describe blocks — all passing against existing cursor.ts with zero production code changes. 13 existing tests discovered (plan assumed 12). Pre-existing editor-render test failure from uncommitted Plan 02-03 logged to deferred-items.
 - [02-03]: navigateFn passed through EditorRenderOptions (not hardcoded) so orchestrator wires it after navigation module creation. toContext() called inside each render() for fresh trail/world snapshot. Type-only imports for editor-state and editor-dom enforce zero runtime cycles.
 - [02-05]: Two-phase construction pattern (setRenderAPI) avoids circular dependency between navigation and render. insertTextAtSelection dispatches 'input' on same editorDiv used for addEventListener — preserving direct feedback loop. DAG-ordered construction in mountEditor (state → dom → navigation → render → lifecycle → mount). DEFAULT_HOME kept in editor.ts per plan spec despite now being unused (nav has its own copy). EditorBuilder line-count constraint (max_lines: 100) not achievable due to 56-line class body required to remain unchanged; achieved 121 lines (76% reduction).
+- [02-06]: demo.ts moved to top-level demo/ directory (outside src/) to leverage existing tsconfig include: ["src"] exclusion — simpler than Vite config exclusion. Vite dev server resolves relative imports (../src/index → /src/index.ts) automatically. Architecture docs structured with DAG diagram showing strict 6-tier dependency flow from state root to orchestrator, with import type and setRenderAPI() documented as circular dependency prevention strategies.
 
 ### Pending Todos
 
@@ -99,6 +101,6 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-05-24
-Stopped at: Completed 02-05-PLAN.md — Monolith decomposition complete (3 tasks, 9m 14s)
-Resume file: .planning/phases/02-architecture-refactoring/02-05-PLAN.md (completed)
-Next: Plan 02-06 (demo.ts extraction + docs/architecture.md update) — final Phase 2 plan
+Stopped at: Completed 02-06-PLAN.md — Demo extraction + architecture docs complete. Phase 2 fully complete.
+Resume file: None (Phase 2 complete)
+Next: Phase 3 — Plugin System & Content Extensions (plans TBD)

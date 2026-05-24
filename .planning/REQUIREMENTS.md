@@ -116,8 +116,8 @@ Deferred to subsequent milestone. Tracked but not in current roadmap.
 | ARCH-01 | Phase 2 | Pending |
 | ARCH-02 | Phase 2 | Pending |
 | ARCH-03 | Phase 2 | Complete |
-| ARCH-04 | Phase 2 | Pending |
-| ARCH-05 | Phase 2 | Pending |
+| ARCH-04 | Phase 2 | Complete |
+| ARCH-05 | Phase 2 | Complete |
 | PLUG-01 | Phase 3 | Pending |
 | PLUG-02 | Phase 3 | Pending |
 | PLUG-03 | Phase 3 | Pending |

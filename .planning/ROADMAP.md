@@ -26,7 +26,7 @@ Phase 4 is parallel-ready (depends only on Phase 2) but sequenced after Phase 3 
 ## Phases
 
 - [x] **Phase 1: Production Infrastructure & Test Foundation** - Vitest, ESLint, CI/CD, and baseline test coverage for all existing modules
-- [ ] **Phase 2: Architecture Refactoring** - Decompose editor monolith into focused, independently testable modules
+- [x] **Phase 2: Architecture Refactoring** - Decompose editor monolith into focused, independently testable modules
 - [ ] **Phase 3: Plugin System & Content Extensions** - Declarative plugin manifests, lifecycle hooks, strikethrough, and URL links
 - [ ] **Phase 4: Theming System** - CSS custom property design tokens with full theme replacement escape hatch
 - [ ] **Phase 5: UI Extension Slots** - Toolbar slot for UI plugin mounting with conflict detection
@@ -71,7 +71,7 @@ Plans:
 - [x] 02-03-PLAN.md — Extract editor-render.ts (render pipeline, breadcrumb, URL sync)
 - [x] 02-04-PLAN.md — Cursor Edge Case Tests (15 new tests: empty docs, multi-byte, line boundaries, data-raw)
 - [x] 02-05-PLAN.md — Extract editor-navigation.ts + editor-lifecycle.ts + Wire editor.ts (thin orchestrator)
-- [ ] 02-06-PLAN.md — demo.ts Extraction + docs/architecture.md Update
+- [x] 02-06-PLAN.md — demo.ts Extraction + docs/architecture.md Update
 
 ### Phase 3: Plugin System & Content Extensions
 **Goal**: Plugin authors can register plugins via declarative manifests with lifecycle hooks and category-based dispatch, and `~~strikethrough~~` and `[text](url)` render correctly in the editor.
@@ -117,7 +117,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Production Infrastructure & Test Foundation | 6/6 | Complete | 2026-05-24 — All 6 plans completed |
-| 2. Architecture Refactoring | 5/6 | In progress | 2026-05-24 — Plans 02-01, 02-02, 02-03, 02-04, 02-05 completed |
+| 2. Architecture Refactoring | 6/6 | Complete | 2026-05-24 — All 6 plans completed |
 | 3. Plugin System & Content Extensions | 0/TBD | Not started | - |
 | 4. Theming System | 0/TBD | Not started | - |
 | 5. UI Extension Slots | 0/TBD | Not started | - |
