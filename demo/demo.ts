@@ -1,4 +1,4 @@
-import { createEditor } from '../src/index'
+import { createEditor, createImportExportPlugin, LocalStorageAdapter } from '../src/index'
 import type { Token, EditorContext, ContentPlugin } from '../src/types'
 
 // ─── Example custom plugin: @mentions ─────────────────────────────────────────
@@ -50,11 +50,16 @@ style.textContent = `
 `
 document.head.appendChild(style)
 
+// ─── Shared storage adapter (so the import/export plugin can access the same data) ──
+
+const storage = new LocalStorageAdapter()
+
 // ─── Mount ────────────────────────────────────────────────────────────────────
 
 const app = document.getElementById('app')!
 
 const editor = createEditor(app, {
+  storage,
   initialPage: 'home',
   saveDebounceMs: 600,
   onTrailChange: (trail) => {
@@ -65,6 +70,10 @@ const editor = createEditor(app, {
   },
 })
   .use(mentionPlugin) // add @mention on top of defaults
+  .use(createImportExportPlugin({
+    storage,
+    onImportComplete: () => editor.navigate(editor.getCurrentPage()),
+  }))
   .mount()
 
 // Expose on window for console experimentation

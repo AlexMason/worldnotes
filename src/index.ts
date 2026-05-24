@@ -19,6 +19,12 @@ export type {
 export { LocalStorageAdapter } from './storage/localStorage'
 export { IndexedDBAdapter } from './storage/indexedDB'
 
+// ─── Import / Export ─────────────────────────────────────────────────────────
+export { exportWorld, importWorld } from './export-import'
+export type { ConflictStrategy, ImportResult } from './export-import'
+export { createImportExportPlugin } from './plugins/importExport'
+export type { ImportExportPluginOptions } from './plugins/importExport'
+
 // ─── Built-in plugins ─────────────────────────────────────────────────────────
 export { defaultPlugins } from './plugins/defaults'
 export { wikiLinkPlugin } from './plugins/wikiLink'

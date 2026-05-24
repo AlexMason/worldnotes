@@ -1,9 +1,6 @@
-import { createEditor } from '../src/index'
+import { createEditor, createImportExportPlugin, LocalStorageAdapter } from '../src/index'
 
 // ─── Example custom plugin: @mentions ─────────────────────────────────────────
-//
-// Demonstrates how to add a new token type without touching the library.
-// @username renders as a styled highlight; clicking fires a custom handler.
 
 const mentionPlugin = {
   name: 'mention',
@@ -12,7 +9,6 @@ const mentionPlugin = {
   tokens: [
     {
       type: 'mention',
-      // Matches @word — word chars only, stops at whitespace/punctuation
       pattern: /@(\w+)/,
     },
   ],
@@ -26,7 +22,6 @@ const mentionPlugin = {
 
   onNavigate(token, _context) {
     console.log(`Mention clicked: @${token.groups[0]}`)
-    // Could open a user profile, filter by tag, etc.
     return true
   },
 }
@@ -49,11 +44,16 @@ style.textContent = `
 `
 document.head.appendChild(style)
 
+// ─── Shared storage adapter ───────────────────────────────────────────────────
+
+const storage = new LocalStorageAdapter()
+
 // ─── Mount ────────────────────────────────────────────────────────────────────
 
 const app = document.getElementById('app')
 
 const editor = createEditor(app, {
+  storage,
   initialPage: 'home',
   saveDebounceMs: 600,
   onTrailChange: (trail) => {
@@ -63,8 +63,11 @@ const editor = createEditor(app, {
     console.log(`[worldnotes] saved: ${page}`)
   },
 })
-  .use(mentionPlugin) // add @mention on top of defaults
+  .use(mentionPlugin)
+  .use(createImportExportPlugin({
+    storage,
+    onImportComplete: () => editor.navigate(editor.getCurrentPage()),
+  }))
   .mount()
 
-// Expose on window for console experimentation
 ;(window).editor = editor
