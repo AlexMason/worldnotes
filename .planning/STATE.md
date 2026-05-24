@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-05-23)
 
 **Core value:** Developers and users can extend the editor with custom blocks, UI panels, and storage backends without touching core code — the plugin surface is the product.
-**Current focus:** Phase 2 — Architecture Refactoring
+**Current focus:** Phase 4 — Theming System
 
 ## Current Position
 
-Phase: 3 of 5 (Plugin System & Content Extensions) — COMPLETE
-Plan: 04 of 04 (New strikethrough + link formatting plugins) — COMPLETE
-Status: Complete (4 of 4 plans complete)
-Last activity: 2026-05-24 — Plan 03-04 completed: created strikethroughPlugin and linkPlugin, added 17 new tests, exported PluginManifest/ContentPlugin/UIPlugin/StoragePlugin types from public API, updated docs/api.md — 226 tests pass, coverage thresholds met
+Phase: 4 of 5 (Theming System) — IN PROGRESS
+Plan: 01 of 02 (Design tokens + token-driven stylesheet) — COMPLETE
+Status: In Progress (1 of 2 plans complete)
+Last activity: 2026-05-24 — Plan 04-01 completed: extracted 46 --wn-* CSS custom properties (Colors/Typography/Spacing/Radii/Shadows/Transitions/Misc), replaced DEFAULT_CSS with token-driven var() references, 17 new tests, 243 total tests pass, all CI gates green
 
-Progress: [████████████████████████] 100% (4 of 4 plans)
+Progress: [██████████████████████████████████████████████████] 50% (1 of 2 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 16
-- Average duration: 5m 24s
-- Total execution time: 1h 34m
+- Total plans completed: 17
+- Average duration: 5m 25s
+- Total execution time: 1h 40m
 
 **By Phase:**
 
@@ -30,6 +30,7 @@ Progress: [███████████████████████
 | 1. Production Infra & Test | 6 | 41m 26s | 6m 55s |
 | 2. Architecture Refactoring | 6 | 35m 16s | 5m 53s |
 | 3. Plugin System & Content Extensions | 4 | ~24m 30s | ~6m 8s |
+| 4. Theming System | 1 | 6m 1s | 6m 1s |
 
 **Recent Trend:**
 - 01-01: 5m 55s — Toolchain installation, Vite upgrade, config creation
@@ -48,6 +49,7 @@ Progress: [███████████████████████
 - 03-02: ~2m 30s — Migrated all 7 existing plugins to ContentPlugin (kind: 'content', version: '1.0.0'), updated defaults.ts to ContentPlugin[], all 209 tests pass — pure type migration with zero logic changes
 - 03-03: ~5m 0s — Wired PluginRegistry into EditorBuilder, migrated all pipeline signatures from Plugin[] to ContentPlugin[], wired lifecycle hooks (onUpdate after render, onDestroy at teardown), updated all 4 test files' mocks to ContentPlugin — 209 tests pass, 85.43% branch coverage
 - 03-04: ~10m — Created strikethroughPlugin (~~text~~ with punct markers) and linkPlugin ([text](url) external anchor / internal wiki span), 17 new tests (plugins, tokenizer, renderer), exported PluginManifest/ContentPlugin/UIPlugin/StoragePlugin types, updated docs/api.md — 226 tests pass, coverage thresholds met, Phase 3 complete
+- 04-01: 6m 1s — Extracted 46 --wn-* CSS custom properties into DEFAULT_TOKENS constant (7 categories), replaced all hardcoded design values in DEFAULT_CSS with var() references, 17 new tests (editor-dom.test.ts), 243 total tests pass, all CI gates green — token-driven theming foundation complete
 
 *Updated after each plan completion*
 
@@ -90,6 +92,7 @@ Recent decisions affecting current work:
 - [03-02]: All 7 plugins migrated in-place (per D-07) with kind: 'content' as const and version: '1.0.0'. No wrapper or adapter pattern. Plugins.test.ts unchanged — the ContentPlugin type import would be unused since renderPlugin helper uses inline type. Default plugins array ordering preserved per D-09.
 - [03-03]: PluginRegistry instantiated as private member in EditorBuilder constructor (not dependency-injected per RESEARCH.md open question). onUpdate called after ALL content plugins render, not per-plugin. editor.destroy() calls onDestroy before clearing DOM so plugins can access it. clearPlugins() does NOT call onDestroy (registry.clear() is for pre-mount reconfiguration per T-03-10).
 - [03-04]: Strikethrough follows bold/italic pattern with exported withPunct helper and dataset.raw for cursor fidelity (Pitfall 4). Link internal detection based on absence of :// or // prefix (D-11). Internal links reuse wn-wiki-link class for consistent styling. Link registration order: after wikiLinkPlugin so [[page]] matches before [text](url) (Pitfall 1). Removed deprecated Plugin type from public API — PluginManifest union is the migration point (D-08).
+- [04-01]: 46 --wn-* CSS custom properties across 7 categories (Colors 23, Typography 8, Spacing 6, Radii 3, Shadows 2, Transitions 2, Misc 2) defined in DEFAULT_TOKENS constant. Tokens injected on .wn-root via template literal concatenation (DEFAULT_CSS = DEFAULT_TOKENS + ...). All var() references include fallbacks matching token defaults. Wiki-link font-size (13px) and code-text font-size (12.5px) shifted to unified --wn-font-size-small (12px) — intentional ~1px visual change.
 
 ### Pending Todos
 
@@ -110,6 +113,6 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-05-24
-Stopped at: Completed 03-04-PLAN.md — strikethroughPlugin and linkPlugin created, public API types exported, docs updated. Phase 3 complete.
-Resume file: None (Phase 3 complete)
-Next: Phase 4 — Theming & Visual Design or Phase 5 — UI Plugin Slots
+Stopped at: Completed 04-01-PLAN.md — 46 DEFAULT_TOKENS created, DEFAULT_CSS converted to var() references, 17 new tests, 243 total tests pass. Phase 4-01 complete.
+Resume file: .planning/phases/04-theming/04-02-PLAN.md
+Next: Phase 4 Plan 02 — Theme option + docs (EditorOptions.theme, docs/theming.md reference)

@@ -101,7 +101,11 @@ Plans:
   3. Consumer passes a complete CSS string to `EditorOptions.theme` and sees the editor render with entirely custom styling, replacing the default stylesheet
   4. Inspecting the editor DOM shows zero inline `style` attributes — all styling comes from `wn-*` prefixed CSS classes driven by design tokens
   5. Consumer reads `docs/theming.md` and finds a reference table of every design token with its default value, CSS property mapping, and visual impact
-**Plans**: TBD
+**Plans**: 2 plans in 2 waves
+
+Plans:
+- [x] 04-01-PLAN.md — Design tokens + token-driven stylesheet (DEFAULT_TOKENS, var(--wn-*) DEFAULT_CSS)
+- [ ] 04-02-PLAN.md — Theme option + docs (EditorOptions.theme, docs/theming.md reference)
 **UI hint**: yes
 
 ### Phase 5: UI Extension Slots
@@ -125,5 +129,5 @@ Plans:
 | 1. Production Infrastructure & Test Foundation | 6/6 | Complete | 2026-05-24 — All 6 plans completed |
 | 2. Architecture Refactoring | 6/6 | Complete | 2026-05-24 — All 6 plans completed |
 | 3. Plugin System & Content Extensions | 4/4 | Complete | 2026-05-24 — All 4 plans completed |
-| 4. Theming System | 0/TBD | Not started | - |
+| 4. Theming System | 1/2 | In Progress | 2026-05-24 — Plan 04-01 completed: token system |
 | 5. UI Extension Slots | 0/TBD | Not started | - |
