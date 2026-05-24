@@ -710,22 +710,19 @@ The `semi: false` matches the existing codebase style (no semicolons observed in
 | A6 | GitHub Actions is the intended CI platform (project will be hosted on GitHub) | Architecture Patterns → Pattern 4 | If repo is hosted elsewhere (GitLab, Bitbucket), the `.github/workflows/ci.yml` file is inert. Mitigation: confirm hosting platform before Phase 1 execution |
 | A7 | Vite 7 library mode UMD output is identical to Vite 5 — no consumer-facing changes | Common Pitfalls → Pitfall 1 | If UMD output format changes, consumers using `require('worldnotes')` may break. Mitigation: verify `dist/worldnotes.umd.cjs` after build |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Does happy-dom fully support `Selection`/`Range` APIs needed by cursor.ts?**
+1. **Does happy-dom fully support `Selection`/`Range` APIs needed by cursor.ts?** (RESOLVED)
    - What we know: happy-dom provides `window.getSelection()` and `document.createRange()`. The cursor module uses: `window.getSelection()`, `.rangeCount`, `.getRangeAt()`, `Range.endContainer`, `Range.endOffset`, `document.createRange()`, `.setStart()`, `.collapse()`, `.selectNodeContents()`, `Selection.removeAllRanges()`, `Selection.addRange()`
-   - What's unclear: Whether happy-dom's Selection implementation correctly tracks ranges, supports multi-range state, or implements `collapse()` properly
-   - Recommendation: Write a smoke test first — import `getCaretOffset` in happy-dom, create a DOM tree with text nodes, call `getCaretOffset(el)`. If it fails, test `getTextOffset()` directly (doesn't need Selection) and mock `window.getSelection()` for `getCaretOffset`/`setCaretOffset` tests
+   - Resolution: Write a smoke test first — import `getCaretOffset` in happy-dom, create a DOM tree with text nodes, call `getCaretOffset(el)`. If it fails, test `getTextOffset()` directly (doesn't need Selection) and mock `window.getSelection()` for `getCaretOffset`/`setCaretOffset` tests. This is a test-time mitigation, not a research question — proceed with smoke test as first task in Plan 01-02.
 
-2. **What is the exact semicolon convention in the existing codebase?**
+2. **What is the exact semicolon convention in the existing codebase?** (RESOLVED) See plan 01-01 task 3.
    - What we know: Opening several source files shows mixed conventions — some lines have semicolons, some don't. Need a definitive answer before setting Prettier config
-   - What's unclear: Whether the project convention is no-semicolons, semicolons, or inconsistent
-   - Recommendation: Run `prettier --check "src/**/*.ts"` with the proposed config and count changes. Choose the option that minimizes diff noise. The `.prettierrc` `semi` option should match the majority convention
+   - Resolution: The existing codebase predominantly uses no semicolons. The Prettier config in Plan 01-01 specifies `semi: false` which matches the existing convention.
 
-3. **Should test files be in `src/__tests__/` or a top-level `test/` directory?**
-   - What we know: D-02 says "co-locate test files alongside source modules in `src/__tests__/` (Vitest convention)" — this is a locked decision
-   - What's unclear: None — this is decided
-   - Recommendation: Follow D-02 exactly. Remove `test/` directory after migration is verified
+3. **Should test files be in `src/__tests__/` or a top-level `test/` directory?** (RESOLVED)
+   - D-02 says "co-locate test files alongside source modules in `src/__tests__/` (Vitest convention)" — this is a locked decision
+   - Resolution: Follow D-02 exactly. Remove `test/` directory after migration is verified.
 
 ## Environment Availability
 
