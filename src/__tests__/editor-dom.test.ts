@@ -271,3 +271,55 @@ describe('createEditorDOM theme option', () => {
     expect(secondText).toContain('.wn-root')
   })
 })
+
+// ─── Toolbar slot (Plan 05-01 Task 1) ──────────────────────────────────────────
+
+describe('wn-toolbar slot', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    const existing = document.getElementById('worldnotes-styles')
+    if (existing) existing.remove()
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+  })
+
+  it('createEditorDOM returns toolbar field — a div with class "wn-toolbar"', () => {
+    const dom = createEditorDOM(container)
+
+    expect(dom.toolbar).toBeDefined()
+    expect(dom.toolbar).toBeInstanceOf(HTMLDivElement)
+    expect(dom.toolbar.className).toBe('wn-toolbar')
+  })
+
+  it('toolbar div is positioned between topbar and editor-wrap in DOM order', () => {
+    const dom = createEditorDOM(container)
+
+    const children = Array.from(container.children)
+    expect(children).toHaveLength(3) // topbar, toolbar, editorWrap
+
+    const topbarIndex = children.indexOf(dom.topbar)
+    const toolbarIndex = children.indexOf(dom.toolbar)
+    const editorWrapIndex = children.indexOf(dom.editorWrap)
+
+    expect(topbarIndex).toBe(0)
+    expect(toolbarIndex).toBe(1)
+    expect(editorWrapIndex).toBe(2)
+  })
+
+  it('toolbar div has zero height when empty', () => {
+    const dom = createEditorDOM(container)
+
+    // An empty flex container with no content should have offsetHeight === 0
+    expect(dom.toolbar.children.length).toBe(0)
+    expect(dom.toolbar.offsetHeight).toBe(0)
+  })
+
+  it('.wn-toolbar CSS rule is present in injected stylesheet', () => {
+    createEditorDOM(container)
+    const text = getStyleText()
+
+    expect(text).toContain('.wn-toolbar')
+  })
+})
