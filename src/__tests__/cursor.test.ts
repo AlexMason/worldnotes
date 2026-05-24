@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect } from 'vitest'
-import { getTextOffset } from '../cursor'
+import { getTextOffset, extractText, setCaretOffset } from '../cursor'
 
 // DOM tree builder helpers using happy-dom's real DOM implementation
 // These replace the hand-stubbed FakeElement/FakeText from the original test.
@@ -75,5 +75,93 @@ describe('getTextOffset', () => {
 
     const result = getTextOffset(line, label, 2)
     expect(result.offset).toBe('open [['.length)
+  })
+
+  it('handles targetNode as parent element with targetOffset at end of children', () => {
+    const first = text('a')
+    const second = text('b')
+    const div = element('DIV', [first, second])
+
+    // targetNode = div, targetOffset = 2 (after all children)
+    const result = getTextOffset(div, div, 2)
+    expect(result.text).toBe('ab')
+    expect(result.offset).toBe(2)
+  })
+
+  it('returns text from deeply nested DOM elements', () => {
+    const div = element('DIV', [
+      element('P', [text('hello')]),
+      element('P', [element('SPAN', [text('world')])]),
+    ])
+    const result = getTextOffset(div, null, 0)
+    expect(result.text).toBe('hello\nworld')
+  })
+})
+
+// ─── extractText ─────────────────────────────────────────────────────────────
+
+describe('extractText', () => {
+  it('extracts plain text from simple element', () => {
+    const div = element('DIV', [text('hello world')])
+    expect(extractText(div)).toBe('hello world')
+  })
+
+  it('handles nested inline elements with data-raw', () => {
+    const div = element('DIV', [
+      text('before '),
+      element('SPAN', [text('label')], { raw: '[[page]]' }),
+      text(' after'),
+    ])
+    expect(extractText(div)).toBe('before [[page]] after')
+  })
+
+  it('returns empty string for empty element', () => {
+    const div = element('DIV', [])
+    expect(extractText(div)).toBe('')
+  })
+})
+
+// ─── setCaretOffset ──────────────────────────────────────────────────────────
+
+describe('setCaretOffset', () => {
+  it('places caret at the specified character offset within text', () => {
+    const div = element('DIV', [text('hello world')])
+    document.body.appendChild(div)
+
+    setCaretOffset(div, 6)
+
+    const sel = window.getSelection()
+    expect(sel).toBeTruthy()
+    expect(sel!.rangeCount).toBe(1)
+    expect(sel!.getRangeAt(0).startOffset).toBe(6)
+
+    document.body.removeChild(div)
+  })
+
+  it('falls back to end of element when offset exceeds text length', () => {
+    const div = element('DIV', [text('hi')])
+    document.body.appendChild(div)
+
+    setCaretOffset(div, 999)
+
+    const sel = window.getSelection()
+    expect(sel).toBeTruthy()
+    expect(sel!.rangeCount).toBe(1)
+
+    document.body.removeChild(div)
+  })
+
+  it('handles offset 0 placing caret at start', () => {
+    const div = element('DIV', [text('hello')])
+    document.body.appendChild(div)
+
+    setCaretOffset(div, 0)
+
+    const sel = window.getSelection()
+    expect(sel).toBeTruthy()
+    expect(sel!.rangeCount).toBe(1)
+    expect(sel!.getRangeAt(0).startOffset).toBe(0)
+
+    document.body.removeChild(div)
   })
 })

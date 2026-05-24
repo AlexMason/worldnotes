@@ -418,7 +418,10 @@ function pe(n, t, e, o) {
     getWorld: () => ({ ...p })
   };
   function T() {
-    const i = se(f), d = D(f), h = te(d, t.flatMap((S) => S.tokens)), m = oe(h, t, B, i);
+    const i = se(f), d = D(f), h = te(
+      d,
+      t.flatMap((S) => S.tokens)
+    ), m = oe(h, t, B, i);
     f.innerHTML = "", m.forEach((S, z) => {
       f.appendChild(S), z < m.length - 1 && f.appendChild(document.createTextNode(`
 `));
@@ -442,7 +445,11 @@ function pe(n, t, e, o) {
   }
   function $() {
     const i = F(window.location.search, c);
-    window.history.replaceState(null, "", `${window.location.pathname}${i}${window.location.hash}`);
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${i}${window.location.hash}`
+    );
   }
   async function L(i) {
     if (!p[i]) {

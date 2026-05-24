@@ -22,13 +22,15 @@ export default defineConfig({
         'src/types.ts',            // Interfaces only, no executable code
         'src/plugins/index.ts',    // Re-export barrel
         'src/storage/index.ts',    // Re-export barrel
+        'src/plugins/defaults.ts', // Constant array, no logic
       ],
-      // Start thresholds at 0 — will be raised to 80% in Plan 06 after all tests are written
+      // Coverage thresholds enforce quality gates in CI.
+      // Must be met by npm run test:coverage to pass.
       thresholds: {
-        branches: 0,
-        functions: 0,
-        lines: 0,
-        statements: 0,
+        branches: 80,
+        functions: 80,
+        lines: 80,
+        statements: 80,
       },
       reporter: ['text', 'html', 'lcov'],
     },

@@ -20,7 +20,9 @@ function createToken(type: string, raw: string, groups: string[]): Token {
 
 function createContext(overrides: Partial<EditorContext> = {}): EditorContext {
   return {
-    navigate: () => {},
+    navigate: () => {
+      // noop — mock context
+    },
     getTrail: () => [],
     getWorld: () => ({}),
     ...overrides,
@@ -142,7 +144,7 @@ describe('inline plugins', () => {
       expect(el.childNodes[2].textContent).toBe('**')
     })
 
-    it('handles empty group with fallback to empty string', () => {
+    it('handles empty string group content', () => {
       const token = createToken('bold', '****', [''])
       const el = renderPlugin(boldPlugin, token, createContext())
 
@@ -221,6 +223,52 @@ describe('inline plugins', () => {
       expect(el.textContent).toBe('---')
     })
   })
+
+  // ─── Nullish coalescing coverage ──────────────────────────────────────────
+
+  describe('boldPlugin nullish coalescing', () => {
+    it('falls back to empty string when token.groups is empty', () => {
+      const token = createToken('bold', '****', [])
+      const el = renderPlugin(boldPlugin, token, createContext())
+
+      expect(el.className).toBe('wn-bold')
+      // Middle text node should be empty string (from ?? fallback)
+      expect(el.childNodes[1].textContent).toBe('')
+    })
+  })
+
+  describe('italicPlugin nullish coalescing', () => {
+    it('falls back to empty string when token.groups is empty', () => {
+      const token = createToken('italic', '**', [])
+      const el = renderPlugin(italicPlugin, token, createContext())
+
+      expect(el.className).toBe('wn-italic')
+      expect(el.childNodes[1].textContent).toBe('')
+    })
+  })
+
+  describe('inlineCodePlugin nullish coalescing', () => {
+    it('falls back to empty string when token.groups is empty', () => {
+      const token = createToken('inline-code', '``', [])
+      const el = renderPlugin(inlineCodePlugin, token, createContext())
+
+      expect(el.className).toBe('wn-inline-code')
+      expect(el.children[1].className).toBe('wn-code-text')
+      expect(el.children[1].textContent).toBe('')
+    })
+  })
+
+  describe('blockquotePlugin nullish coalescing', () => {
+    it('falls back to empty string for content when groups[1] is undefined', () => {
+      const token = createToken('blockquote', '> ', ['> '])
+      const el = renderPlugin(blockquotePlugin, token, createContext())
+
+      expect(el.className).toBe('wn-blockquote')
+      expect(el.children[0].textContent).toBe('> ')
+      // Content span should be empty (from ?? '' fallback)
+      expect(el.children[1].textContent).toBe('')
+    })
+  })
 })
 
 // ─── Wiki Link Plugin ─────────────────────────────────────────────────────────
@@ -270,6 +318,27 @@ describe('wikiLinkPlugin', () => {
     const result = wikiLinkPlugin.onNavigate!(token, context)
 
     expect(navigate).toHaveBeenCalledWith('projects/acme')
+    expect(result).toBe(true)
+  })
+
+  it('falls back to empty string when token.groups is empty (render)', () => {
+    const token = createToken('wiki-link', '[[]]', [])
+    const el = renderPlugin(wikiLinkPlugin, token, createContext())
+
+    expect(el.className).toBe('wn-wiki-link')
+    // page and display default to empty string from ?? fallback
+    expect(el.dataset.page).toBe('')
+    expect(el.textContent).toBe('')
+  })
+
+  it('falls back to empty string when token.groups is empty (onNavigate)', () => {
+    const navigate = vi.fn()
+    const context = createContext({ navigate })
+
+    const token = createToken('wiki-link', '[[]]', [])
+    const result = wikiLinkPlugin.onNavigate!(token, context)
+
+    expect(navigate).toHaveBeenCalledWith('')
     expect(result).toBe(true)
   })
 })
