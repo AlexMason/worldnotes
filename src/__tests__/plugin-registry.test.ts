@@ -572,3 +572,52 @@ describe('Edge Cases', () => {
     expect(defs.map((d) => d.type)).toEqual(['a', 'b', 'c'])
   })
 })
+
+// ─── I. getUIPluginsForSlot (Plan 05-01 Task 2) ────────────────────────────────
+
+describe('getUIPluginsForSlot', () => {
+  it('returns plugins sorted by priority ascending', () => {
+    const registry = new PluginRegistry()
+    registry.register(makeUIPlugin({ name: 'high', slots: ['wn-toolbar'], priority: 100 }))
+    registry.register(makeUIPlugin({ name: 'low', slots: ['wn-toolbar'], priority: 0 }))
+    registry.register(makeUIPlugin({ name: 'mid', slots: ['wn-toolbar'], priority: 50 }))
+
+    const result = registry.getUIPluginsForSlot('wn-toolbar')
+    expect(result).toHaveLength(3)
+    expect(result[0].name).toBe('low')    // priority 0
+    expect(result[1].name).toBe('mid')    // priority 50
+    expect(result[2].name).toBe('high')   // priority 100
+  })
+
+  it('returns only plugins for the requested slot', () => {
+    const registry = new PluginRegistry()
+    registry.register(makeUIPlugin({ name: 'toolbar-a', slots: ['wn-toolbar'], priority: 0 }))
+    registry.register(makeUIPlugin({ name: 'sidebar', slots: ['wn-sidebar'], priority: 0 }))
+
+    const result = registry.getUIPluginsForSlot('wn-toolbar')
+    expect(result).toHaveLength(1)
+    expect(result[0].name).toBe('toolbar-a')
+  })
+
+  it('returns empty array for slot with no plugins', () => {
+    const registry = new PluginRegistry()
+    registry.register(makeUIPlugin({ name: 'a', slots: ['wn-toolbar'], priority: 0 }))
+
+    expect(registry.getUIPluginsForSlot('nonexistent')).toEqual([])
+  })
+
+  it('returns empty array when no UI plugins registered', () => {
+    const registry = new PluginRegistry()
+    expect(registry.getUIPluginsForSlot('wn-toolbar')).toEqual([])
+  })
+
+  it('default priority 0 sorts before explicit non-zero priorities', () => {
+    const registry = new PluginRegistry()
+    registry.register(makeUIPlugin({ name: 'explicit', slots: ['wn-toolbar'], priority: 5 }))
+    registry.register(makeUIPlugin({ name: 'default', slots: ['wn-toolbar'], priority: undefined }))
+
+    const result = registry.getUIPluginsForSlot('wn-toolbar')
+    expect(result[0].name).toBe('default')  // priority undefined → 0
+    expect(result[1].name).toBe('explicit') // priority 5
+  })
+})
