@@ -77,9 +77,6 @@ export interface PluginLifecycle {
 /**
  * A content plugin tokenizes and renders inline or line-level text patterns.
  *
- * Superset of the legacy Plugin interface — all existing Plugin objects
- * are structurally compatible with ContentPlugin when kind + version are added.
- *
  * @property kind       - Discriminant: 'content'
  * @property version    - Semver version string (validated at registration)
  * @property tokens     - TokenDef[] this plugin introduces
@@ -142,29 +139,6 @@ export interface StoragePlugin extends PluginLifecycle {
  * exhaustiveness checking and type-safe field access.
  */
 export type PluginManifest = ContentPlugin | UIPlugin | StoragePlugin
-
-// ─── Plugin (Legacy) ──────────────────────────────────────────────────────────
-
-/**
- * A plugin adds one or more token types to the editor, controls how they
- * render, and optionally handles click/navigation events on those tokens.
- *
- * @property name       - Unique plugin identifier
- * @property tokens     - Token definitions this plugin introduces
- * @property render     - Converts a matched Token into a DOM node
- * @property onNavigate - Optional: called when a token element is clicked;
- *                        return true to suppress default navigation
- *
- * @deprecated Use ContentPlugin from the PluginManifest discriminated union.
- *             This interface is retained for compatibility and will be removed
- *             when all consumers migrate to PluginManifest.
- */
-export interface Plugin {
-  name: string
-  tokens: TokenDef[]
-  render(token: Token, context: EditorContext): HTMLElement | Text
-  onNavigate?(token: Token, context: EditorContext): boolean | void
-}
 
 // ─── Editor Options ───────────────────────────────────────────────────────────
 

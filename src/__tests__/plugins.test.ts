@@ -33,7 +33,7 @@ function createContext(overrides: Partial<EditorContext> = {}): EditorContext {
 
 /**
  * Helper: call plugin.render() and cast to HTMLElement.
- * All built-in plugins return HTMLElement (never Text), but Plugin.render()
+ * All built-in plugins return HTMLElement (never Text), but ContentPlugin.render()
  * is typed as HTMLElement | Text for extensibility.
  */
 function renderPlugin(
