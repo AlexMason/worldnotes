@@ -48,6 +48,75 @@ export interface EditorContext {
     getWorld(): Record<string, string>;
 }
 /**
+ * Optional lifecycle hooks shared by all plugin categories.
+ *
+ * @method onInit    - Called immediately after successful registration
+ * @method onDestroy - Called before plugin removal or replacement
+ */
+export interface PluginLifecycle {
+    onInit?(): void;
+    onDestroy?(): void;
+}
+/**
+ * A content plugin tokenizes and renders inline or line-level text patterns.
+ *
+ * Superset of the legacy Plugin interface — all existing Plugin objects
+ * are structurally compatible with ContentPlugin when kind + version are added.
+ *
+ * @property kind       - Discriminant: 'content'
+ * @property version    - Semver version string (validated at registration)
+ * @property tokens     - TokenDef[] this plugin introduces
+ * @property render     - Converts a matched Token into a DOM node
+ * @property onNavigate - Optional: called when a token element is interacted with
+ * @property onUpdate   - Optional: called after each render cycle (content-specific)
+ */
+export interface ContentPlugin extends PluginLifecycle {
+    name: string;
+    version: string;
+    kind: 'content';
+    tokens: TokenDef[];
+    render(token: Token, context: EditorContext): HTMLElement | Text;
+    onNavigate?(token: Token, context: EditorContext): boolean | void;
+    onUpdate?(): void;
+}
+/**
+ * A UI plugin mounts DOM into named slots (toolbars, sidebars, overlays).
+ *
+ * @property kind     - Discriminant: 'ui'
+ * @property version  - Semver version string (validated at registration)
+ * @property slots    - Slot names this plugin claims
+ * @property priority - Ordering within a slot (default 0, lower = first)
+ * @property onMount  - Called with the slot's DOM element for mounting
+ */
+export interface UIPlugin extends PluginLifecycle {
+    name: string;
+    version: string;
+    kind: 'ui';
+    slots: string[];
+    priority?: number;
+    onMount(slotEl: HTMLElement): void;
+}
+/**
+ * A storage plugin provides a persistence adapter for page content.
+ *
+ * @property kind    - Discriminant: 'storage'
+ * @property version - Semver version string (validated at registration)
+ * @property adapter - The StorageAdapter implementation
+ */
+export interface StoragePlugin extends PluginLifecycle {
+    name: string;
+    version: string;
+    kind: 'storage';
+    adapter: StorageAdapter;
+}
+/**
+ * A plugin manifest — the unified plugin registration type.
+ *
+ * Use discriminated union narrowing via `switch (manifest.kind)` for
+ * exhaustiveness checking and type-safe field access.
+ */
+export type PluginManifest = ContentPlugin | UIPlugin | StoragePlugin;
+/**
  * A plugin adds one or more token types to the editor, controls how they
  * render, and optionally handles click/navigation events on those tokens.
  *
@@ -56,6 +125,10 @@ export interface EditorContext {
  * @property render     - Converts a matched Token into a DOM node
  * @property onNavigate - Optional: called when a token element is clicked;
  *                        return true to suppress default navigation
+ *
+ * @deprecated Use ContentPlugin from the PluginManifest discriminated union.
+ *             This interface is retained for compatibility and will be removed
+ *             when all consumers migrate to PluginManifest.
  */
 export interface Plugin {
     name: string;
@@ -69,6 +142,10 @@ export interface Plugin {
  * @property storage         - StorageAdapter instance (defaults to localStorage)
  * @property initialPage     - Page name to load on mount (defaults to 'home')
  * @property saveDebounceMs  - Milliseconds to debounce saves after input (default 600)
+ * @property theme           - Optional CSS string that replaces the entire default stylesheet.
+ *                            When provided, the injected <style id="worldnotes-styles"> element
+ *                            contains this CSS instead of the default token-driven stylesheet.
+ *                            When omitted (default), the --wn-* design token stylesheet is used.
  * @property onTrailChange   - Called whenever the breadcrumb trail changes
  * @property onPageLoad      - Called after a page is loaded into the editor
  * @property onSave          - Called after a page is successfully persisted
@@ -77,6 +154,22 @@ export interface EditorOptions {
     storage?: StorageAdapter;
     initialPage?: string;
     saveDebounceMs?: number;
+    /**
+     * Optional CSS string that replaces the entire default stylesheet.
+     * When provided, the injected <style id="worldnotes-styles"> element
+     * contains this CSS instead of the default token-driven stylesheet.
+     * When omitted (default), the --wn-* design token stylesheet is used.
+     *
+     * Use this for complete visual customization when token overrides
+     * are insufficient.
+     *
+     * @example
+     * // Replace the entire stylesheet with a custom theme
+     * createEditor(el, {
+     *   theme: '.wn-root { --wn-color-bg: #fff; --wn-color-fg: #111; } ...'
+     * })
+     */
+    theme?: string;
     onTrailChange?: (trail: string[]) => void;
     onPageLoad?: (page: string, content: string) => void;
     onSave?: (page: string, content: string) => void;

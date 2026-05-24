@@ -26,6 +26,8 @@ export interface EditorDOM {
  * keyboard navigation.
  *
  * @param container - The host element that will receive the editor DOM
+ * @param theme     - Optional CSS string that replaces the default stylesheet.
+ *                    When omitted, the token-driven DEFAULT_CSS is injected.
  * @returns Typed references to every major editor element
  */
-export declare function createEditorDOM(container: HTMLElement): EditorDOM;
+export declare function createEditorDOM(container: HTMLElement, theme?: string): EditorDOM;

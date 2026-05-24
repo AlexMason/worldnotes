@@ -1,4 +1,4 @@
-import { Plugin } from '../types';
+import { ContentPlugin } from '../types';
 /**
  * Built-in plugin: wiki-style page links.
  *
@@ -10,4 +10,4 @@ import { Plugin } from '../types';
  *   [[projects/acme]] → <span class="wn-wiki-link">acme</span>
  *   [[projects/acme|Client Portal]] → <span class="wn-wiki-link">Client Portal</span>
  */
-export declare const wikiLinkPlugin: Plugin;
+export declare const wikiLinkPlugin: ContentPlugin;

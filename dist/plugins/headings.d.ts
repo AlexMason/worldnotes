@@ -1,4 +1,4 @@
-import { Plugin } from '../types';
+import { ContentPlugin } from '../types';
 /**
  * Built-in plugin: markdown headings (h1, h2, h3).
  *
@@ -8,4 +8,4 @@ import { Plugin } from '../types';
  * Renders:
  *   # Title  → <span class="wn-h1"><span class="wn-punct"># </span><span>Title</span></span>
  */
-export declare const headingsPlugin: Plugin;
+export declare const headingsPlugin: ContentPlugin;

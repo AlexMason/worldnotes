@@ -1,4 +1,4 @@
-import { Plugin } from './types';
+import { ContentPlugin } from './types';
 import { EditorStateAPI } from './editor-state';
 import { EditorDOM } from './editor-dom';
 /**
@@ -50,16 +50,16 @@ export interface EditorRenderOptions {
  * tokenizer, renderer, navigation) and uses type-only imports for
  * editor-state and editor-dom to avoid runtime dependency cycles.
  *
- * @param dom     - Live DOM references (editorDiv, breadcrumb, placeholder)
- * @param plugins - All registered Plugin instances
- * @param state   - State accessors for trail, world, and EditorContext
- * @param options - Callbacks wired by the orchestrator
+ * @param dom            - Live DOM references (editorDiv, breadcrumb, placeholder)
+ * @param contentPlugins - All registered ContentPlugin instances
+ * @param state          - State accessors for trail, world, and EditorContext
+ * @param options        - Callbacks wired by the orchestrator
  *
  * @example
- * const render = createEditorRender(dom, plugins, state, {
+ * const render = createEditorRender(dom, contentPlugins, state, {
  *   onBreadcrumbNavigate: (page) => editor.navigate(page),
  *   onTrailChange: (trail) => options.onTrailChange?.(trail),
  *   navigateFn: (page) => navigation.navigateToPage(page),
  * })
  */
-export declare function createEditorRender(dom: EditorDOM, plugins: Plugin[], state: EditorStateAPI, options?: EditorRenderOptions): EditorRenderAPI;
+export declare function createEditorRender(dom: EditorDOM, contentPlugins: ContentPlugin[], state: EditorStateAPI, options?: EditorRenderOptions): EditorRenderAPI;

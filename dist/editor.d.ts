@@ -1,24 +1,26 @@
-import { Plugin, StorageAdapter, EditorOptions, EditorInstance } from './types';
+import { PluginManifest, StorageAdapter, EditorOptions, EditorInstance } from './types';
 /**
  * Fluent builder returned by createEditor().
  * Chain .use(), .withStorage(), then call .mount() to get a live EditorInstance.
  */
 export declare class EditorBuilder {
     private readonly el;
-    private plugins;
+    private registry;
     private storage;
     private options;
     constructor(el: HTMLElement, options?: EditorOptions);
     /**
-     * Register a plugin (or replace a built-in by matching name).
-     * Plugins are applied in registration order during tokenization.
+     * Register a plugin manifest (or replace a built-in by matching name).
+     * Validates semver, detects conflicts, and fires lifecycle hooks.
      *
-     * @param plugin - Plugin instance to register
+     * @param manifest - PluginManifest to register
+     * @throws Error if version is invalid or a token/slot conflict is detected
      */
-    use(plugin: Plugin): this;
+    use(manifest: PluginManifest): this;
     /**
-     * Remove all default plugins and start with an empty plugin set.
-     * Useful when you want full control over which tokens are supported.
+     * Remove all registered plugins and start fresh.
+     * Note: does NOT call onDestroy on removed plugins.
+     * Call mount() afterward to re-initialize the editor.
      */
     clearPlugins(): this;
     /**
