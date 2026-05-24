@@ -59,7 +59,91 @@ export interface EditorContext {
   getWorld(): Record<string, string>
 }
 
-// ─── Plugin ───────────────────────────────────────────────────────────────────
+// ─── Plugin Lifecycle ──────────────────────────────────────────────────────────
+
+/**
+ * Optional lifecycle hooks shared by all plugin categories.
+ *
+ * @method onInit    - Called immediately after successful registration
+ * @method onDestroy - Called before plugin removal or replacement
+ */
+export interface PluginLifecycle {
+  onInit?(): void
+  onDestroy?(): void
+}
+
+// ─── Content Plugin ───────────────────────────────────────────────────────────
+
+/**
+ * A content plugin tokenizes and renders inline or line-level text patterns.
+ *
+ * Superset of the legacy Plugin interface — all existing Plugin objects
+ * are structurally compatible with ContentPlugin when kind + version are added.
+ *
+ * @property kind       - Discriminant: 'content'
+ * @property version    - Semver version string (validated at registration)
+ * @property tokens     - TokenDef[] this plugin introduces
+ * @property render     - Converts a matched Token into a DOM node
+ * @property onNavigate - Optional: called when a token element is interacted with
+ * @property onUpdate   - Optional: called after each render cycle (content-specific)
+ */
+export interface ContentPlugin extends PluginLifecycle {
+  name: string
+  version: string
+  kind: 'content'
+  tokens: TokenDef[]
+  render(token: Token, context: EditorContext): HTMLElement | Text
+  onNavigate?(token: Token, context: EditorContext): boolean | void
+  onUpdate?(): void
+}
+
+// ─── UI Plugin ─────────────────────────────────────────────────────────────────
+
+/**
+ * A UI plugin mounts DOM into named slots (toolbars, sidebars, overlays).
+ *
+ * @property kind     - Discriminant: 'ui'
+ * @property version  - Semver version string (validated at registration)
+ * @property slots    - Slot names this plugin claims
+ * @property priority - Ordering within a slot (default 0, lower = first)
+ * @property onMount  - Called with the slot's DOM element for mounting
+ */
+export interface UIPlugin extends PluginLifecycle {
+  name: string
+  version: string
+  kind: 'ui'
+  slots: string[]
+  priority?: number
+  onMount(slotEl: HTMLElement): void
+}
+
+// ─── Storage Plugin ────────────────────────────────────────────────────────────
+
+/**
+ * A storage plugin provides a persistence adapter for page content.
+ *
+ * @property kind    - Discriminant: 'storage'
+ * @property version - Semver version string (validated at registration)
+ * @property adapter - The StorageAdapter implementation
+ */
+export interface StoragePlugin extends PluginLifecycle {
+  name: string
+  version: string
+  kind: 'storage'
+  adapter: StorageAdapter
+}
+
+// ─── Plugin Manifest (Discriminated Union) ─────────────────────────────────────
+
+/**
+ * A plugin manifest — the unified plugin registration type.
+ *
+ * Use discriminated union narrowing via `switch (manifest.kind)` for
+ * exhaustiveness checking and type-safe field access.
+ */
+export type PluginManifest = ContentPlugin | UIPlugin | StoragePlugin
+
+// ─── Plugin (Legacy) ──────────────────────────────────────────────────────────
 
 /**
  * A plugin adds one or more token types to the editor, controls how they
@@ -70,6 +154,10 @@ export interface EditorContext {
  * @property render     - Converts a matched Token into a DOM node
  * @property onNavigate - Optional: called when a token element is clicked;
  *                        return true to suppress default navigation
+ *
+ * @deprecated Use ContentPlugin from the PluginManifest discriminated union.
+ *             This interface is retained for compatibility and will be removed
+ *             when all consumers migrate to PluginManifest.
  */
 export interface Plugin {
   name: string
