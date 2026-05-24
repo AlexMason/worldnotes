@@ -117,7 +117,11 @@ Plans:
   2. Developer inspects the editor DOM and finds a `<div class="wn-toolbar">` element in the editor chrome where UI plugins render
   3. Two UI plugins both claiming the `wn-toolbar` slot with the same priority value produce an immediate, descriptive registration error
   4. Plugin author calls `editor.removePlugin(id)` and the UI plugin's mounted DOM content is cleanly removed from the toolbar slot
-**Plans**: TBD
+**Plans**: 1 plan in 1 wave
+
+Plans:
+- [ ] 05-01-PLAN.md — Toolbar slot, priority-sorted UI accessor, lifecycle wiring, post-mount registration
+
 **UI hint**: yes
 
 ## Progress
