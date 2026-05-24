@@ -41,15 +41,19 @@ function createTestDOM(): EditorDOM {
   placeholder.className = 'wn-placeholder'
   editorWrap.appendChild(placeholder)
 
+  const toolbar = document.createElement('div')
+  toolbar.className = 'wn-toolbar'
+
   const editorDiv = document.createElement('div') as HTMLDivElement
   editorDiv.className = 'wn-editor'
   editorDiv.contentEditable = 'true'
   editorWrap.appendChild(editorDiv)
 
   container.appendChild(topbar)
+  container.appendChild(toolbar)
   container.appendChild(editorWrap)
 
-  return { container, topbar, breadcrumb, editorWrap, editorDiv, placeholder }
+  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder }
 }
 
 /**

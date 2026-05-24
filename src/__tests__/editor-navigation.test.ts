@@ -62,10 +62,15 @@ function mockDOM(): EditorDOM {
   topbar.appendChild(breadcrumb)
   editorWrap.appendChild(placeholder)
   editorWrap.appendChild(editorDiv)
+
+  const toolbar = document.createElement('div')
+  toolbar.className = 'wn-toolbar'
+
   container.appendChild(topbar)
+  container.appendChild(toolbar)
   container.appendChild(editorWrap)
 
-  return { container, topbar, breadcrumb, editorWrap, editorDiv, placeholder }
+  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder }
 }
 
 function mockRender(): EditorRenderAPI {
