@@ -108,7 +108,7 @@ Deferred to subsequent milestone. Tracked but not in current roadmap.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | INFRA-01 | Phase 1 | Complete |
-| INFRA-02 | Phase 1 | In Progress (cursor module covered — remaining modules in plans 01-03 to 01-05) |
+| INFRA-02 | Phase 1 | In Progress (cursor, renderer, navigation covered — remaining modules in plans 01-04 to 01-05) |
 | INFRA-03 | Phase 1 | Complete |
 | INFRA-04 | Phase 1 | Complete |
 | INFRA-05 | Phase 1 | Pending |
