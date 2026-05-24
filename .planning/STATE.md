@@ -10,25 +10,25 @@ See: .planning/PROJECT.md (updated 2026-05-23)
 ## Current Position
 
 Phase: 2 of 5 (Architecture Refactoring) — IN PROGRESS
-Plan: 02 of 06 (Extract editor-dom.ts) — COMPLETED
-Status: In progress (2 of 6 plans complete)
-Last activity: 2026-05-24 — Plan 02-01 completed: editor-state.ts extracted from editor.ts — 135 lines, factory-function pattern, zero editor-* imports, 14 unit tests
+Plan: 04 of 06 (Cursor edge case tests) — COMPLETED
+Status: In progress (3 of 6 plans complete)
+Last activity: 2026-05-24 — Plan 02-04 completed: 15 cursor edge case tests added — 28 total passing, all 4 exports covered, safety net for Phase 3 renderer changes
 
-Progress: [███░░░░░░░░░░░░░░░░░] 33% (2 of 6 plans)
+Progress: [█████░░░░░░░░░░░░░░░] 50% (3 of 6 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
-- Average duration: 6m 15s
-- Total execution time: 0h 50m
+- Total plans completed: 9
+- Average duration: 6m 3s
+- Total execution time: 0h 54m
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. Production Infra & Test | 6 | 41m 26s | 6m 55s |
-| 2. Architecture Refactoring | 2 | 8m 27s | 4m 14s |
+| 2. Architecture Refactoring | 3 | 13m 31s | 4m 30s |
 
 **Recent Trend:**
 - 01-01: 5m 55s — Toolchain installation, Vite upgrade, config creation
@@ -39,6 +39,7 @@ Progress: [███░░░░░░░░░░░░░░░░░] 33% (2 
 - 01-06: 12m 00s — Coverage thresholds (80% branches), AGENTS.md documentation, 36 new test cases, 103 total passing
 - 02-01: 4m 34s — Extracted editor-state.ts from editor.ts: createEditorState factory, EditorStateAPI interface, 14 unit tests, DAG root with zero editor-* imports
 - 02-02: 3m 53s — Extracted editor-dom.ts from editor.ts: createEditorDOM factory, EditorDOM interface, private el() helper, DEFAULT_CSS + injectStyles, zero imports
+- 02-04: 5m 4s — Added 15 cursor edge case tests: empty docs, multi-byte Unicode, line boundaries, data-raw boundaries, forced offsets — 28 total passing tests
 
 *Updated after each plan completion*
 
@@ -73,6 +74,7 @@ Recent decisions affecting current work:
 - [Init]: Cursor module testing (ARCH-03) placed in Phase 2 alongside the refactoring, since comprehensive cursor tests are a prerequisite to touching the renderer internals.
 - [02-01]: Editor mutable state extracted as createEditorState() factory — zero editor-* imports (DAG root), all getters return defensive copies. Unused `saveDebounce` variable removed (belongs in lifecycle module's input handler).
 - [02-02]: DOM construction extracted as createEditorDOM() pure factory — zero imports, zero state dependency, el() kept private. Prettier singleQuote config (Phase 1) overrides pre-refactor CONVENTIONS.md double-quote analysis.
+- [02-04]: 15 new cursor edge case tests added across 6 new describe blocks — all passing against existing cursor.ts with zero production code changes. 13 existing tests discovered (plan assumed 12). Pre-existing editor-render test failure from uncommitted Plan 02-03 logged to deferred-items.
 
 ### Pending Todos
 
@@ -93,6 +95,6 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-05-24
-Stopped at: Completed 02-01-PLAN.md — Extract editor-state.ts (1 task, 4m 34s)
-Resume file: .planning/phases/02-architecture-refactoring/02-01-PLAN.md (completed)
-Next: Plan 02-03 (extract editor-render.ts) — depends on 02-01 (EditorStateAPI) and 02-02 (EditorDOM)
+Stopped at: Completed 02-04-PLAN.md — Cursor edge case tests (1 task, 5m 4s)
+Resume file: .planning/phases/02-architecture-refactoring/02-04-PLAN.md (completed)
+Next: Plan 02-03 (extract editor-render.ts) — has uncommitted changes in working tree

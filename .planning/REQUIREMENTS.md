@@ -20,7 +20,7 @@ Requirements for first production milestone. Each maps to roadmap phases.
 
 - [ ] **ARCH-01**: Editor monolith (`src/editor.ts`) split into cohesive modules — state management, DOM construction, input handling, navigation, persistence, and lifecycle
 - [ ] **ARCH-02**: Render pipeline (tokenizer → renderer) remains intact but is modularized with clear boundaries
-- [ ] **ARCH-03**: Cursor module tested comprehensively for caret edge cases before renderer changes
+- [x] **ARCH-03**: Cursor module tested comprehensively for caret edge cases before renderer changes
 - [ ] **ARCH-04**: `src/demo.ts` extracted to a separate entry point (not compiled into library build output)
 - [ ] **ARCH-05**: Module responsibilities documented in `docs/architecture.md`
 
@@ -115,7 +115,7 @@ Deferred to subsequent milestone. Tracked but not in current roadmap.
 | INFRA-06 | Phase 1 | Complete |
 | ARCH-01 | Phase 2 | Pending |
 | ARCH-02 | Phase 2 | Pending |
-| ARCH-03 | Phase 2 | Pending |
+| ARCH-03 | Phase 2 | Complete |
 | ARCH-04 | Phase 2 | Pending |
 | ARCH-05 | Phase 2 | Pending |
 | PLUG-01 | Phase 3 | Pending |
