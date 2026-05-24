@@ -16,7 +16,7 @@ export interface ImportResult {
  */
 export async function exportWorld(
   storage: StorageAdapter,
-  options?: { filename?: string },
+  _options?: { filename?: string },
 ): Promise<Blob> {
   const zip = new JSZip()
   const pageNames = await storage.keys()

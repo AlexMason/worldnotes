@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { StorageAdapter, EditorInstance } from '../types'
+import type { StorageAdapter } from '../types'
 import { createImportExportPlugin } from '../plugins/importExport'
 import * as exportImport from '../export-import'
 
@@ -13,27 +13,14 @@ function mockStorage(): StorageAdapter {
   }
 }
 
-function mockEditor(): EditorInstance {
-  return {
-    destroy: vi.fn(),
-    navigate: vi.fn(),
-    getCurrentPage: vi.fn(() => 'home'),
-    getTrail: vi.fn(() => ['home']),
-    getContent: vi.fn(() => ''),
-    setContent: vi.fn(),
-  }
-}
-
 describe('createImportExportPlugin', () => {
   let storage: StorageAdapter
-  let editor: EditorInstance
-  let onImportComplete: ReturnType<typeof vi.fn>
+  let onImportComplete: ReturnType<typeof vi.fn<() => void>>
   let slotEl: HTMLElement
 
   beforeEach(() => {
     storage = mockStorage()
-    editor = mockEditor()
-    onImportComplete = vi.fn()
+    onImportComplete = vi.fn<() => void>()
     slotEl = document.createElement('div')
   })
 

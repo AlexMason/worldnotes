@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import JSZip from 'jszip'
 import type { StorageAdapter } from '../types'
 import { exportWorld, importWorld } from '../export-import'
