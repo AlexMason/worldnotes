@@ -1,47 +1,47 @@
-const D = "worldnotes";
-class S {
-  constructor(t = D) {
-    this.namespace = t;
+const A = "worldnotes";
+class I {
+  constructor(e = A) {
+    this.namespace = e;
   }
-  key(t) {
-    return `${this.namespace}::${t}`;
+  key(e) {
+    return `${this.namespace}::${e}`;
   }
-  async get(t) {
-    return localStorage.getItem(this.key(t));
+  async get(e) {
+    return localStorage.getItem(this.key(e));
   }
-  async set(t, e) {
-    localStorage.setItem(this.key(t), e);
+  async set(e, t) {
+    localStorage.setItem(this.key(e), t);
   }
   async keys() {
-    const t = `${this.namespace}::`;
-    return Object.keys(localStorage).filter((e) => e.startsWith(t)).map((e) => e.slice(t.length));
+    const e = `${this.namespace}::`;
+    return Object.keys(localStorage).filter((t) => t.startsWith(e)).map((t) => t.slice(e.length));
   }
 }
-function v(r) {
-  const t = r.trim().replace(/\/+$/, ""), e = t.split("/").filter(Boolean);
-  return e[e.length - 1] ?? t;
+function v(o) {
+  const e = o.trim().replace(/\/+$/, ""), t = e.split("/").filter(Boolean);
+  return t[t.length - 1] ?? e;
 }
-function E(r) {
-  const t = r.indexOf("|"), e = (t === -1 ? r : r.slice(0, t)).trim(), n = t === -1 ? v(e) : r.slice(t + 1).trim();
-  return { page: e, display: n || v(e) };
+function E(o) {
+  const e = o.indexOf("|"), t = (e === -1 ? o : o.slice(0, e)).trim(), n = e === -1 ? v(t) : o.slice(e + 1).trim();
+  return { page: t, display: n || v(t) };
 }
-function A(r, t) {
-  const n = r.replace(/^\?/, "").split("&").filter(Boolean).filter((a) => {
-    const [c = ""] = a.split("=", 1);
-    return decodeURIComponent(c.replace(/\+/g, " ")) !== "path";
-  }), o = t.map((a) => encodeURIComponent(a)).join("/");
-  return `?${[...n, `path=${o}`].join("&")}`;
+function M(o, e) {
+  const n = o.replace(/^\?/, "").split("&").filter(Boolean).filter((s) => {
+    const [l = ""] = s.split("=", 1);
+    return decodeURIComponent(l.replace(/\+/g, " ")) !== "path";
+  }), r = e.map((s) => encodeURIComponent(s)).join("/");
+  return `?${[...n, `path=${r}`].join("&")}`;
 }
-function I(r) {
-  const e = r.replace(/^\?/, "").split("&").filter(Boolean).find((i) => {
-    const [a = ""] = i.split("=", 1);
-    return decodeURIComponent(a.replace(/\+/g, " ")) === "path";
+function z(o) {
+  const t = o.replace(/^\?/, "").split("&").filter(Boolean).find((i) => {
+    const [s = ""] = i.split("=", 1);
+    return decodeURIComponent(s.replace(/\+/g, " ")) === "path";
   });
-  if (!e) return [];
-  const n = e.indexOf("="), o = n === -1 ? "" : e.slice(n + 1);
-  return o ? o.split("/").filter(Boolean).map((i) => decodeURIComponent(i)) : [];
+  if (!t) return [];
+  const n = t.indexOf("="), r = n === -1 ? "" : t.slice(n + 1);
+  return r ? r.split("/").filter(Boolean).map((i) => decodeURIComponent(i)) : [];
 }
-const z = {
+const L = {
   name: "wiki-link",
   version: "1.0.0",
   kind: "content",
@@ -52,24 +52,24 @@ const z = {
       pattern: /\[\[([^\]]+)\]\]/
     }
   ],
-  render(r, t) {
-    const { page: e, display: n } = E(r.groups[0] ?? ""), o = document.createElement("span");
-    return o.className = "wn-wiki-link", o.dataset.page = e, o.dataset.raw = r.raw, o.textContent = n, o;
+  render(o, e) {
+    const { page: t, display: n } = E(o.groups[0] ?? ""), r = document.createElement("span");
+    return r.className = "wn-wiki-link", r.dataset.page = t, r.dataset.raw = o.raw, r.textContent = n, r;
   },
-  onNavigate(r, t) {
-    const { page: e } = E(r.groups[0] ?? "");
-    return t.navigate(e), !0;
+  onNavigate(o, e) {
+    const { page: t } = E(o.groups[0] ?? "");
+    return e.navigate(t), !0;
   }
 };
-function b(r, t, e) {
+function k(o, e, t) {
   const n = document.createElement("span");
-  n.className = e;
-  const o = document.createElement("span");
-  o.className = "wn-punct", o.textContent = t;
+  n.className = t;
+  const r = document.createElement("span");
+  r.className = "wn-punct", r.textContent = e;
   const i = document.createElement("span");
-  return i.className = `${e}-text`, i.textContent = r.groups[0] ?? "", n.appendChild(o), n.appendChild(i), n;
+  return i.className = `${t}-text`, i.textContent = o.groups[0] ?? "", n.appendChild(r), n.appendChild(i), n;
 }
-const L = {
+const _ = {
   name: "headings",
   version: "1.0.0",
   kind: "content",
@@ -78,130 +78,130 @@ const L = {
     { type: "h2", pattern: /^## (.*)$/ },
     { type: "h3", pattern: /^### (.*)$/ }
   ],
-  render(r, t) {
-    switch (r.type) {
+  render(o, e) {
+    switch (o.type) {
       case "h1":
-        return b(r, "# ", "wn-h1");
+        return k(o, "# ", "wn-h1");
       case "h2":
-        return b(r, "## ", "wn-h2");
+        return k(o, "## ", "wn-h2");
       case "h3":
-        return b(r, "### ", "wn-h3");
+        return k(o, "### ", "wn-h3");
       default:
-        return b(r, "", "wn-h1");
+        return k(o, "", "wn-h1");
     }
   }
 };
-function y(r, t, e) {
+function y(o, e, t) {
   const n = document.createElement("span");
-  n.className = r;
-  const o = (i) => {
-    const a = document.createElement("span");
-    return a.className = "wn-punct", a.textContent = i, a;
+  n.className = o;
+  const r = (i) => {
+    const s = document.createElement("span");
+    return s.className = "wn-punct", s.textContent = i, s;
   };
-  return n.appendChild(o(t)), n.appendChild(document.createTextNode(e)), n.appendChild(o(t)), n;
+  return n.appendChild(r(e)), n.appendChild(document.createTextNode(t)), n.appendChild(r(e)), n;
 }
-const M = {
+const R = {
   name: "bold",
   version: "1.0.0",
   kind: "content",
   tokens: [{ type: "bold", pattern: /\*\*([^*]+)\*\*/ }],
-  render(r, t) {
-    return y("wn-bold", "**", r.groups[0] ?? "");
+  render(o, e) {
+    return y("wn-bold", "**", o.groups[0] ?? "");
   }
-}, R = {
+}, O = {
   name: "italic",
   version: "1.0.0",
   kind: "content",
   tokens: [{ type: "italic", pattern: /\*([^*]+)\*/ }],
-  render(r, t) {
-    return y("wn-italic", "*", r.groups[0] ?? "");
+  render(o, e) {
+    return y("wn-italic", "*", o.groups[0] ?? "");
   }
-}, O = {
+}, $ = {
   name: "inline-code",
   version: "1.0.0",
   kind: "content",
   tokens: [{ type: "inline-code", pattern: /`([^`]+)`/ }],
-  render(r, t) {
-    const e = document.createElement("span");
-    e.className = "wn-inline-code";
+  render(o, e) {
+    const t = document.createElement("span");
+    t.className = "wn-inline-code";
     const n = (i) => {
-      const a = document.createElement("span");
-      return a.className = "wn-punct", a.textContent = i, a;
+      const s = document.createElement("span");
+      return s.className = "wn-punct", s.textContent = i, s;
     };
-    e.appendChild(n("`"));
-    const o = document.createElement("span");
-    return o.className = "wn-code-text", o.textContent = r.groups[0] ?? "", e.appendChild(o), e.appendChild(n("`")), e;
+    t.appendChild(n("`"));
+    const r = document.createElement("span");
+    return r.className = "wn-code-text", r.textContent = o.groups[0] ?? "", t.appendChild(r), t.appendChild(n("`")), t;
   }
-}, $ = {
+}, B = {
   name: "blockquote",
   version: "1.0.0",
   kind: "content",
   tokens: [{ type: "blockquote", pattern: /^(> )(.*)$/ }],
-  render(r, t) {
-    const e = document.createElement("span");
-    e.className = "wn-blockquote";
+  render(o, e) {
+    const t = document.createElement("span");
+    t.className = "wn-blockquote";
     const n = document.createElement("span");
     n.className = "wn-punct", n.textContent = "> ";
-    const o = document.createElement("span");
-    return o.className = "wn-blockquote-text", o.textContent = r.groups[1] ?? "", e.appendChild(n), e.appendChild(o), e;
+    const r = document.createElement("span");
+    return r.className = "wn-blockquote-text", r.textContent = o.groups[1] ?? "", t.appendChild(n), t.appendChild(r), t;
   }
-}, _ = {
+}, H = {
   name: "hr",
   version: "1.0.0",
   kind: "content",
   tokens: [{ type: "hr", pattern: /^---+$/ }],
-  render(r, t) {
-    const e = document.createElement("span");
-    return e.className = "wn-hr", e.textContent = "---", e;
+  render(o, e) {
+    const t = document.createElement("span");
+    return t.className = "wn-hr", t.textContent = "---", t;
   }
-}, B = {
+}, U = {
   name: "link",
   version: "1.0.0",
   kind: "content",
   tokens: [{ type: "link", pattern: /\[([^\]]+)\]\(([^)]+)\)/ }],
-  render(r, t) {
-    const e = r.groups[0] ?? "", n = r.groups[1] ?? "";
+  render(o, e) {
+    const t = o.groups[0] ?? "", n = o.groups[1] ?? "";
     if (!n.includes("://") && !n.startsWith("//")) {
-      const a = document.createElement("span");
-      return a.className = "wn-wiki-link", a.dataset.page = n, a.dataset.raw = r.raw, a.textContent = e, a;
+      const s = document.createElement("span");
+      return s.className = "wn-wiki-link", s.dataset.page = n, s.dataset.raw = o.raw, s.textContent = t, s;
     }
     const i = document.createElement("a");
-    return i.className = "wn-link", i.href = n, i.target = "_blank", i.rel = "noopener noreferrer", i.dataset.raw = r.raw, i.textContent = e, i;
+    return i.className = "wn-link", i.href = n, i.target = "_blank", i.rel = "noopener noreferrer", i.dataset.raw = o.raw, i.textContent = t, i;
   },
-  onNavigate(r, t) {
-    const e = r.groups[1] ?? "";
-    return !e.includes("://") && !e.startsWith("//") ? (t.navigate(e), !0) : !1;
+  onNavigate(o, e) {
+    const t = o.groups[1] ?? "";
+    return !t.includes("://") && !t.startsWith("//") ? (e.navigate(t), !0) : !1;
   }
-}, H = {
+}, W = {
   name: "strikethrough",
   version: "1.0.0",
   kind: "content",
   tokens: [{ type: "strikethrough", pattern: /~~([^~]+)~~/ }],
-  render(r, t) {
-    const e = y("wn-strikethrough", "~~", r.groups[0] ?? "");
-    return e.dataset.raw = r.raw, e;
+  render(o, e) {
+    const t = y("wn-strikethrough", "~~", o.groups[0] ?? "");
+    return t.dataset.raw = o.raw, t;
   }
-}, W = [
-  L,
-  // line-level — must come before inline plugins
+}, q = [
   _,
-  // line-level
-  $,
-  // line-level
-  z,
-  // inline — [[...]] before [...] to avoid partial match (Pitfall 1)
-  B,
-  // inline — [text](url) after [[...]]
-  M,
-  // inline — ** before * to avoid partial match
-  R,
-  // inline
+  // line-level — must come before inline plugins
   H,
-  // inline — ~~text~~ (no conflict with * patterns)
-  O
+  // line-level
+  B,
+  // line-level
+  L,
+  // inline — [[...]] before [...] to avoid partial match (Pitfall 1)
+  U,
+  // inline — [text](url) after [[...]]
+  R,
+  // inline — ** before * to avoid partial match
+  O,
   // inline
-], U = /^\d+\.\d+\.\d+(-[\w.]+)?$/;
-class q {
+  W,
+  // inline — ~~text~~ (no conflict with * patterns)
+  $
+  // inline
+], F = /^\d+\.\d+\.\d+(-[\w.]+)?$/;
+class j {
   constructor() {
     this.contentPlugins = /* @__PURE__ */ new Map(), this.uiPlugins = /* @__PURE__ */ new Map(), this.storagePlugins = /* @__PURE__ */ new Map(), this.tokenTypeOwners = /* @__PURE__ */ new Map(), this.slotAssignments = /* @__PURE__ */ new Map();
   }
@@ -210,10 +210,10 @@ class q {
    * Validate a version string against the semver regex.
    * Throws if the version does not match the expected format.
    */
-  validateVersion(t, e) {
-    if (!U.test(e))
+  validateVersion(e, t) {
+    if (!F.test(t))
       throw new Error(
-        `Invalid version "${e}" for plugin "${t}": must match semver format X.Y.Z or X.Y.Z-prerelease`
+        `Invalid version "${t}" for plugin "${e}": must match semver format X.Y.Z or X.Y.Z-prerelease`
       );
   }
   // ── Name-Based Replacement ──────────────────────────────────────────────────
@@ -221,28 +221,28 @@ class q {
    * Remove a previously registered plugin by name and clean up its ownership.
    * Calls onDestroy on the removed plugin.
    */
-  removeByName(t) {
-    const e = this.contentPlugins.get(t);
-    if (e) {
-      e.onDestroy?.();
-      for (const i of e.tokens)
+  removeByName(e) {
+    const t = this.contentPlugins.get(e);
+    if (t) {
+      t.onDestroy?.();
+      for (const i of t.tokens)
         this.tokenTypeOwners.delete(i.type);
-      this.contentPlugins.delete(t);
+      this.contentPlugins.delete(e);
       return;
     }
-    const n = this.uiPlugins.get(t);
+    const n = this.uiPlugins.get(e);
     if (n) {
       n.onDestroy?.();
       const i = n.priority ?? 0;
-      for (const a of n.slots) {
-        const c = this.slotAssignments.get(a);
-        c && (c.delete(i), c.size === 0 && this.slotAssignments.delete(a));
+      for (const s of n.slots) {
+        const l = this.slotAssignments.get(s);
+        l && (l.delete(i), l.size === 0 && this.slotAssignments.delete(s));
       }
-      this.uiPlugins.delete(t);
+      this.uiPlugins.delete(e);
       return;
     }
-    const o = this.storagePlugins.get(t);
-    o && (o.onDestroy?.(), this.storagePlugins.delete(t));
+    const r = this.storagePlugins.get(e);
+    r && (r.onDestroy?.(), this.storagePlugins.delete(e));
   }
   // ── Registration ────────────────────────────────────────────────────────────
   /**
@@ -253,59 +253,59 @@ class q {
    * @throws {Error} If a content plugin conflicts on a token type
    * @throws {Error} If a UI plugin conflicts on a slot+priority pair
    */
-  register(t) {
-    switch (this.validateVersion(t.name, t.version), this.removeByName(t.name), t.kind) {
+  register(e) {
+    switch (this.validateVersion(e.name, e.version), this.removeByName(e.name), e.kind) {
       case "content":
-        this.registerContent(t);
+        this.registerContent(e);
         break;
       case "ui":
-        this.registerUI(t);
+        this.registerUI(e);
         break;
       case "storage":
-        this.registerStorage(t);
+        this.registerStorage(e);
         break;
     }
     try {
-      t.onInit?.();
-    } catch (e) {
-      throw this.removeByName(t.name), e;
+      e.onInit?.();
+    } catch (t) {
+      throw this.removeByName(e.name), t;
     }
   }
   /** Register a content plugin with token type conflict detection. */
-  registerContent(t) {
-    for (const e of t.tokens) {
-      const n = this.tokenTypeOwners.get(e.type);
-      if (n !== void 0 && n !== t.name)
+  registerContent(e) {
+    for (const t of e.tokens) {
+      const n = this.tokenTypeOwners.get(t.type);
+      if (n !== void 0 && n !== e.name)
         throw new Error(
-          `Plugin conflict: "${t.name}" declares token type "${e.type}", but "${n}" already owns it. Each token type may only be registered by one content plugin.`
+          `Plugin conflict: "${e.name}" declares token type "${t.type}", but "${n}" already owns it. Each token type may only be registered by one content plugin.`
         );
     }
-    for (const e of t.tokens)
-      this.tokenTypeOwners.set(e.type, t.name);
-    this.contentPlugins.set(t.name, t);
+    for (const t of e.tokens)
+      this.tokenTypeOwners.set(t.type, e.name);
+    this.contentPlugins.set(e.name, e);
   }
   /** Register a UI plugin with slot+priority conflict detection. */
-  registerUI(t) {
-    const e = t.priority ?? 0;
-    for (const n of t.slots) {
-      const o = this.slotAssignments.get(n);
-      if (o) {
-        const i = o.get(e);
-        if (i !== void 0 && i !== t.name)
+  registerUI(e) {
+    const t = e.priority ?? 0;
+    for (const n of e.slots) {
+      const r = this.slotAssignments.get(n);
+      if (r) {
+        const i = r.get(t);
+        if (i !== void 0 && i !== e.name)
           throw new Error(
-            `UI plugin conflict: "${t.name}" claims slot "${n}" with priority ${e}, but "${i}" already claims it with the same priority. Change one plugin's priority to resolve.`
+            `UI plugin conflict: "${e.name}" claims slot "${n}" with priority ${t}, but "${i}" already claims it with the same priority. Change one plugin's priority to resolve.`
           );
       }
     }
-    for (const n of t.slots) {
-      let o = this.slotAssignments.get(n);
-      o || (o = /* @__PURE__ */ new Map(), this.slotAssignments.set(n, o)), o.set(e, t.name);
+    for (const n of e.slots) {
+      let r = this.slotAssignments.get(n);
+      r || (r = /* @__PURE__ */ new Map(), this.slotAssignments.set(n, r)), r.set(t, e.name);
     }
-    this.uiPlugins.set(t.name, t);
+    this.uiPlugins.set(e.name, e);
   }
   /** Register a storage plugin (no conflict detection needed). */
-  registerStorage(t) {
-    this.storagePlugins.set(t.name, t);
+  registerStorage(e) {
+    this.storagePlugins.set(e.name, e);
   }
   // ── Accessors ───────────────────────────────────────────────────────────────
   /** Return all registered content plugins (no UI/storage plugins). */
@@ -314,23 +314,23 @@ class q {
   }
   /** Return all TokenDefs from all registered content plugins. */
   allTokenDefs() {
-    return this.allContentPlugins().flatMap((t) => t.tokens);
+    return this.allContentPlugins().flatMap((e) => e.tokens);
   }
   /**
    * Look up the content plugin that owns a given token type.
    * Returns undefined if no plugin claims the type.
    */
-  getContentPluginByType(t) {
-    const e = this.tokenTypeOwners.get(t);
-    if (e)
-      return this.contentPlugins.get(e);
+  getContentPluginByType(e) {
+    const t = this.tokenTypeOwners.get(e);
+    if (t)
+      return this.contentPlugins.get(t);
   }
   /**
    * Get a plugin by name across all categories.
    * Returns undefined if no plugin with that name is registered.
    */
-  getPlugin(t) {
-    return this.contentPlugins.get(t) ?? this.uiPlugins.get(t) ?? this.storagePlugins.get(t);
+  getPlugin(e) {
+    return this.contentPlugins.get(e) ?? this.uiPlugins.get(e) ?? this.storagePlugins.get(e);
   }
   /** Return all registered plugins from all categories combined. */
   getAllPlugins() {
@@ -343,6 +343,20 @@ class q {
   /** Return all registered UI plugins. */
   allUIPlugins() {
     return Array.from(this.uiPlugins.values());
+  }
+  /**
+   * Return UI plugins registered for the given slot, sorted by priority ascending.
+   * Lower priority numbers mean the plugin renders first (closer to the top of the slot).
+   *
+   * @param slot - Slot name (e.g., 'wn-toolbar')
+   * @returns UIPlugin[] sorted by priority (lowest first), empty array if no plugins for slot
+   */
+  getUIPluginsForSlot(e) {
+    const t = this.slotAssignments.get(e);
+    return t ? Array.from(t.keys()).sort((r, i) => r - i).map((r) => {
+      const i = t.get(r);
+      return this.uiPlugins.get(i);
+    }).filter(Boolean) : [];
   }
   /** Return all registered storage plugins. */
   allStoragePlugins() {
@@ -360,51 +374,51 @@ class q {
     this.contentPlugins.clear(), this.uiPlugins.clear(), this.storagePlugins.clear(), this.tokenTypeOwners.clear(), this.slotAssignments.clear();
   }
 }
-function F(r, t = {}) {
-  const e = t.initialPage ?? "home", n = I(window.location.search), o = n[n.length - 1] ?? e, i = {};
-  let a = n.length ? [...n] : [o], c = null, d = !1;
+function V(o, e = {}) {
+  const t = e.initialPage ?? "home", n = z(window.location.search), r = n[n.length - 1] ?? t, i = {};
+  let s = n.length ? [...n] : [r], l = null, c = !1;
   return {
     world: i,
     getTrail() {
-      return [...a];
+      return [...s];
     },
     getWorld() {
       return { ...i };
     },
-    setWorldPage(s, l) {
-      i[s] = l;
+    setWorldPage(a, d) {
+      i[a] = d;
     },
-    pushTrail(s) {
-      a.push(s);
+    pushTrail(a) {
+      s.push(a);
     },
-    setTrail(s) {
-      a = s;
+    setTrail(a) {
+      s = a;
     },
-    truncateTrail(s) {
-      a = a.slice(0, s + 1);
+    truncateTrail(a) {
+      s = s.slice(0, a + 1);
     },
-    setNavigating(s) {
-      return d = s, s;
+    setNavigating(a) {
+      return c = a, a;
     },
     isNavigating() {
-      return d;
+      return c;
     },
     clearSaveTimer() {
-      c && (clearTimeout(c), c = null);
+      l && (clearTimeout(l), l = null);
     },
-    setSaveTimer(s) {
-      c = s;
+    setSaveTimer(a) {
+      l = a;
     },
-    toContext(s) {
+    toContext(a) {
       return {
-        navigate: s,
-        getTrail: () => [...a],
+        navigate: a,
+        getTrail: () => [...s],
         getWorld: () => ({ ...i })
       };
     }
   };
 }
-const j = `
+const X = `
 /* ===== WorldNotes Design Tokens ===== */
 .wn-root {
   /* Colors */
@@ -467,7 +481,7 @@ const j = `
   --wn-caret-color: #9b8fe8;         /* text cursor color */
   --wn-font-weight-bold: 600;        /* bold text weight */
 }
-`, V = j + `
+`, K = X + `
 .wn-root {
   display: flex;
   flex-direction: column;
@@ -484,6 +498,13 @@ const j = `
   padding: var(--wn-padding-topbar-y, 10px) var(--wn-padding-topbar-x, 14px);
   border-bottom: 0.5px solid var(--wn-color-border, #1f1f23);
   background: var(--wn-color-surface, #0a0a0c);
+  flex-shrink: 0;
+}
+
+.wn-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
 }
 
@@ -602,35 +623,35 @@ const j = `
 }
 .wn-link:hover { color: var(--wn-color-accent-hover, #bbb3f8); }
 `;
-function m(r, t) {
-  const e = document.createElement(r);
-  return e.className = t, e;
+function b(o, e) {
+  const t = document.createElement(o);
+  return t.className = e, t;
 }
-function X(r) {
-  const t = "worldnotes-styles", e = document.getElementById(t);
-  if (e) {
-    r !== void 0 && (e.textContent = r);
+function Y(o) {
+  const e = "worldnotes-styles", t = document.getElementById(e);
+  if (t) {
+    o !== void 0 && (t.textContent = o);
     return;
   }
   const n = document.createElement("style");
-  n.id = t, n.textContent = r ?? V, document.head.appendChild(n);
+  n.id = e, n.textContent = o ?? K, document.head.appendChild(n);
 }
-function K(r, t) {
-  X(t), r.innerHTML = "", r.className = "wn-root";
-  const e = m("div", "wn-topbar"), n = m("div", "wn-breadcrumb"), o = m("div", "wn-editor-wrap"), i = m("div", "wn-editor"), a = m("div", "wn-placeholder");
-  return a.textContent = "Start writing… use [[page name]] to link deeper", i.contentEditable = "true", i.spellcheck = !1, e.appendChild(n), o.appendChild(a), o.appendChild(i), r.appendChild(e), r.appendChild(o), { container: r, topbar: e, breadcrumb: n, editorWrap: o, editorDiv: i, placeholder: a };
+function G(o, e) {
+  Y(e), o.innerHTML = "", o.className = "wn-root";
+  const t = b("div", "wn-topbar"), n = b("div", "wn-breadcrumb"), r = b("div", "wn-toolbar"), i = b("div", "wn-editor-wrap"), s = b("div", "wn-editor"), l = b("div", "wn-placeholder");
+  return l.textContent = "Start writing… use [[page name]] to link deeper", s.contentEditable = "true", s.spellcheck = !1, t.appendChild(n), i.appendChild(l), i.appendChild(s), o.appendChild(t), o.appendChild(r), o.appendChild(i), { container: o, topbar: t, breadcrumb: n, toolbar: r, editorWrap: i, editorDiv: s, placeholder: l };
 }
-function Y(r) {
-  const t = window.getSelection();
-  if (!t || !t.rangeCount) return 0;
-  const e = t.getRangeAt(0);
-  return N(r, e.endContainer, e.endOffset).offset;
+function Z(o) {
+  const e = window.getSelection();
+  if (!e || !e.rangeCount) return 0;
+  const t = e.getRangeAt(0);
+  return N(o, t.endContainer, t.endOffset).offset;
 }
-function G(r, t) {
-  const e = ee(r, t), n = document.createRange(), o = window.getSelection();
-  o && (e ? (n.setStart(e.node, e.offset), n.collapse(!0)) : (n.selectNodeContents(r), n.collapse(!1)), o.removeAllRanges(), o.addRange(n));
+function Q(o, e) {
+  const t = ne(o, e), n = document.createRange(), r = window.getSelection();
+  r && (t ? (n.setStart(t.node, t.offset), n.collapse(!0)) : (n.selectNodeContents(o), n.collapse(!1)), r.removeAllRanges(), r.addRange(n));
 }
-const Z = /* @__PURE__ */ new Set([
+const J = /* @__PURE__ */ new Set([
   "ADDRESS",
   "ARTICLE",
   "ASIDE",
@@ -660,211 +681,211 @@ const Z = /* @__PURE__ */ new Set([
   "TABLE",
   "UL"
 ]);
-function Q(r) {
-  return r.nodeType === Node.ELEMENT_NODE && Z.has(r.nodeName);
+function ee(o) {
+  return o.nodeType === Node.ELEMENT_NODE && J.has(o.nodeName);
 }
-function x(r) {
-  return N(r, null, 0).text;
+function x(o) {
+  return N(o, null, 0).text;
 }
-function N(r, t, e) {
-  let n = "", o = 0, i = t === null;
-  function a(s) {
-    i || (o += s.length), n += s;
+function N(o, e, t) {
+  let n = "", r = 0, i = e === null;
+  function s(a) {
+    i || (r += a.length), n += a;
   }
-  function c(s) {
-    if (s.nodeType === Node.TEXT_NODE) {
-      const l = s.textContent ?? "";
-      s === t && !i ? (o += Math.min(e, l.length), i = !0, n += l) : a(l);
-    } else if (s.dataset?.raw !== void 0) {
-      const l = s.dataset.raw ?? "";
-      s === t && !i ? (o += e <= 0 ? 0 : l.length, i = !0) : J(s, t) && !i ? (T(s, t, e), o += Math.min(T(s, t, e), l.length), i = !0) : a(l);
-    } else s.nodeName === "BR" ? a(`
-`) : (Q(s) && n && !n.endsWith(`
-`) && a(`
-`), d(s));
+  function l(a) {
+    if (a.nodeType === Node.TEXT_NODE) {
+      const d = a.textContent ?? "";
+      a === e && !i ? (r += Math.min(t, d.length), i = !0, n += d) : s(d);
+    } else if (a.dataset?.raw !== void 0) {
+      const d = a.dataset.raw ?? "";
+      a === e && !i ? (r += t <= 0 ? 0 : d.length, i = !0) : te(a, e) && !i ? (P(a, e, t), r += Math.min(P(a, e, t), d.length), i = !0) : s(d);
+    } else a.nodeName === "BR" ? s(`
+`) : (ee(a) && n && !n.endsWith(`
+`) && s(`
+`), c(a));
   }
-  function d(s) {
-    s.childNodes.forEach((l, p) => {
-      s === t && p === e && !i && (i = !0), c(l);
-    }), s === t && s.childNodes.length === e && !i && (i = !0);
+  function c(a) {
+    a.childNodes.forEach((d, p) => {
+      a === e && p === t && !i && (i = !0), l(d);
+    }), a === e && a.childNodes.length === t && !i && (i = !0);
   }
-  return d(r), { text: n, offset: o };
+  return c(o), { text: n, offset: r };
 }
-function J(r, t) {
-  if (!t) return !1;
-  let e = t;
-  for (; e; ) {
-    if (e === r) return !0;
-    e = e.parentNode;
+function te(o, e) {
+  if (!e) return !1;
+  let t = e;
+  for (; t; ) {
+    if (t === o) return !0;
+    t = t.parentNode;
   }
   return !1;
 }
-function T(r, t, e) {
-  let n = 0, o = !1;
-  function i(a) {
-    if (!o) {
-      if (a.nodeType === Node.TEXT_NODE) {
-        const c = a.textContent ?? "";
-        a === t ? (n += Math.min(e, c.length), o = !0) : n += c.length;
+function P(o, e, t) {
+  let n = 0, r = !1;
+  function i(s) {
+    if (!r) {
+      if (s.nodeType === Node.TEXT_NODE) {
+        const l = s.textContent ?? "";
+        s === e ? (n += Math.min(t, l.length), r = !0) : n += l.length;
         return;
       }
-      a.childNodes.forEach((c, d) => {
-        a === t && d === e && !o && (o = !0), o || i(c);
-      }), a === t && a.childNodes.length === e && !o && (o = !0);
+      s.childNodes.forEach((l, c) => {
+        s === e && c === t && !r && (r = !0), r || i(l);
+      }), s === e && s.childNodes.length === t && !r && (r = !0);
     }
   }
-  return i(r), n;
+  return i(o), n;
 }
-function ee(r, t) {
-  let e = t, n = null;
-  function o(i) {
+function ne(o, e) {
+  let t = e, n = null;
+  function r(i) {
     if (n) return;
     if (i.nodeType === Node.TEXT_NODE) {
-      const c = i.length;
-      if (e <= c) {
-        n = { node: i, offset: e };
+      const l = i.length;
+      if (t <= l) {
+        n = { node: i, offset: t };
         return;
       }
-      e -= c;
+      t -= l;
       return;
     }
-    const a = i.dataset?.raw;
-    if (a !== void 0) {
-      e -= a.length;
+    const s = i.dataset?.raw;
+    if (s !== void 0) {
+      t -= s.length;
       return;
     }
     if (i.nodeName === "BR") {
-      e -= 1;
+      t -= 1;
       return;
     }
-    i.childNodes.forEach(o);
+    i.childNodes.forEach(r);
   }
-  return o(r), n;
+  return r(o), n;
 }
-function P(r) {
-  return { type: "text", raw: r, groups: [r] };
+function T(o) {
+  return { type: "text", raw: o, groups: [o] };
 }
-function te(r, t) {
-  const e = t.filter((o) => o.pattern.source.startsWith("^")), n = t.filter((o) => !o.pattern.source.startsWith("^"));
-  for (const o of e) {
-    const i = r.match(o.pattern);
+function oe(o, e) {
+  const t = e.filter((r) => r.pattern.source.startsWith("^")), n = e.filter((r) => !r.pattern.source.startsWith("^"));
+  for (const r of t) {
+    const i = o.match(r.pattern);
     if (i)
-      return [{ type: o.type, raw: i[0], groups: i.slice(1).map((a) => a ?? "") }];
+      return [{ type: r.type, raw: i[0], groups: i.slice(1).map((s) => s ?? "") }];
   }
-  return ne(r, n);
+  return re(o, n);
 }
-function ne(r, t) {
-  const e = [];
-  let n = r;
+function re(o, e) {
+  const t = [];
+  let n = o;
   for (; n.length > 0; ) {
-    let o = null;
-    for (const i of t) {
-      const a = n.match(i.pattern);
-      !a || a.index === void 0 || (o === null || a.index < o.index) && (o = { index: a.index, match: a, def: i });
+    let r = null;
+    for (const i of e) {
+      const s = n.match(i.pattern);
+      !s || s.index === void 0 || (r === null || s.index < r.index) && (r = { index: s.index, match: s, def: i });
     }
-    if (!o) {
-      e.push(P(n));
+    if (!r) {
+      t.push(T(n));
       break;
     }
-    o.index > 0 && e.push(P(n.slice(0, o.index))), e.push({
-      type: o.def.type,
-      raw: o.match[0],
-      groups: o.match.slice(1).map((i) => i ?? "")
-    }), n = n.slice(o.index + o.match[0].length);
+    r.index > 0 && t.push(T(n.slice(0, r.index))), t.push({
+      type: r.def.type,
+      raw: r.match[0],
+      groups: r.match.slice(1).map((i) => i ?? "")
+    }), n = n.slice(r.index + r.match[0].length);
   }
-  return e;
-}
-function re(r, t) {
-  return r.split(`
-`).map((e) => te(e, t));
-}
-function oe(r, t, e, n = -1) {
-  const o = document.createDocumentFragment(), i = ae(t);
-  let a = 0;
-  for (const c of r) {
-    if (c.type === "text") {
-      o.appendChild(document.createTextNode(c.raw)), a += c.raw.length;
-      continue;
-    }
-    const d = a, s = d + c.raw.length;
-    if (a = s, n >= d && n <= s) {
-      o.appendChild(document.createTextNode(c.raw));
-      continue;
-    }
-    const l = i.get(c.type);
-    if (!l) {
-      o.appendChild(document.createTextNode(c.raw));
-      continue;
-    }
-    const p = l.render(c, e);
-    if (p instanceof HTMLElement && l.onNavigate) {
-      const u = l.onNavigate.bind(l);
-      p.addEventListener("mousedown", (g) => {
-        u(c, e) && g.preventDefault();
-      });
-    }
-    o.appendChild(p);
-  }
-  return o;
-}
-function ie(r, t, e, n = -1) {
-  let o = 0;
-  return r.map((i) => {
-    const a = i.reduce((s, l) => s + l.raw.length, 0), c = n - o, d = oe(i, t, e, c);
-    return o += a + 1, d;
-  });
-}
-function ae(r) {
-  const t = /* @__PURE__ */ new Map();
-  for (const e of r)
-    for (const n of e.tokens)
-      t.set(n.type, e);
   return t;
 }
-function se(r, t, e, n = {}) {
-  const { editorDiv: o, placeholder: i, breadcrumb: a } = r;
-  function c() {
-    const l = Y(o), p = x(o), u = re(
+function ie(o, e) {
+  return o.split(`
+`).map((t) => oe(t, e));
+}
+function se(o, e, t, n = -1) {
+  const r = document.createDocumentFragment(), i = le(e);
+  let s = 0;
+  for (const l of o) {
+    if (l.type === "text") {
+      r.appendChild(document.createTextNode(l.raw)), s += l.raw.length;
+      continue;
+    }
+    const c = s, a = c + l.raw.length;
+    if (s = a, n >= c && n <= a) {
+      r.appendChild(document.createTextNode(l.raw));
+      continue;
+    }
+    const d = i.get(l.type);
+    if (!d) {
+      r.appendChild(document.createTextNode(l.raw));
+      continue;
+    }
+    const p = d.render(l, t);
+    if (p instanceof HTMLElement && d.onNavigate) {
+      const h = d.onNavigate.bind(d);
+      p.addEventListener("mousedown", (w) => {
+        h(l, t) && w.preventDefault();
+      });
+    }
+    r.appendChild(p);
+  }
+  return r;
+}
+function ae(o, e, t, n = -1) {
+  let r = 0;
+  return o.map((i) => {
+    const s = i.reduce((a, d) => a + d.raw.length, 0), l = n - r, c = se(i, e, t, l);
+    return r += s + 1, c;
+  });
+}
+function le(o) {
+  const e = /* @__PURE__ */ new Map();
+  for (const t of o)
+    for (const n of t.tokens)
+      e.set(n.type, t);
+  return e;
+}
+function ce(o, e, t, n = {}) {
+  const { editorDiv: r, placeholder: i, breadcrumb: s } = o;
+  function l() {
+    const d = Z(r), p = x(r), h = ie(
       p,
-      t.flatMap((h) => h.tokens)
-    ), g = e.toContext(
-      n.navigateFn ?? ((h) => {
+      e.flatMap((g) => g.tokens)
+    ), w = t.toContext(
+      n.navigateFn ?? ((g) => {
       })
-    ), w = ie(u, t, g, l);
-    o.innerHTML = "", w.forEach((h, k) => {
-      o.appendChild(h), k < w.length - 1 && o.appendChild(document.createTextNode(`
+    ), u = ae(h, e, w, d);
+    r.innerHTML = "", u.forEach((g, f) => {
+      r.appendChild(g), f < u.length - 1 && r.appendChild(document.createTextNode(`
 `));
     }), i.style.display = p.length ? "none" : "block";
     try {
-      G(o, l);
+      Q(r, d);
     } catch {
     }
   }
-  function d() {
-    a.innerHTML = "";
-    const l = e.getTrail();
-    l.forEach((p, u) => {
-      if (u > 0) {
-        const w = document.createElement("span");
-        w.className = "wn-crumb-sep", w.textContent = "/", a.appendChild(w);
+  function c() {
+    s.innerHTML = "";
+    const d = t.getTrail();
+    d.forEach((p, h) => {
+      if (h > 0) {
+        const u = document.createElement("span");
+        u.className = "wn-crumb-sep", u.textContent = "/", s.appendChild(u);
       }
-      const g = document.createElement("span");
-      g.className = "wn-crumb" + (u === l.length - 1 ? " wn-crumb--active" : ""), g.textContent = v(p), u < l.length - 1 && g.addEventListener("click", () => {
-        e.truncateTrail(u);
-        const w = e.getTrail(), h = w[w.length - 1];
-        n.onBreadcrumbNavigate?.(h);
-      }), a.appendChild(g);
-    }), n.onTrailChange?.(e.getTrail()), s();
+      const w = document.createElement("span");
+      w.className = "wn-crumb" + (h === d.length - 1 ? " wn-crumb--active" : ""), w.textContent = v(p), h < d.length - 1 && w.addEventListener("click", () => {
+        t.truncateTrail(h);
+        const u = t.getTrail(), g = u[u.length - 1];
+        n.onBreadcrumbNavigate?.(g);
+      }), s.appendChild(w);
+    }), n.onTrailChange?.(t.getTrail()), a();
   }
-  function s() {
-    const l = e.getTrail(), p = A(window.location.search, l);
+  function a() {
+    const d = t.getTrail(), p = M(window.location.search, d);
     window.history.replaceState(
       null,
       "",
       `${window.location.pathname}${p}${window.location.hash}`
     );
   }
-  return { render: c, renderBreadcrumb: d, syncUrlToTrail: s };
+  return { render: l, renderBreadcrumb: c, syncUrlToTrail: a };
 }
 const C = `# Welcome to your world
 
@@ -875,105 +896,120 @@ Start writing here. Use [[page name]] to link into new pages.
 ---
 
 > Every link opens a door.`;
-function ce(r, t, e, n) {
-  let o = null;
-  function i(d) {
-    o = d;
+function de(o, e, t, n) {
+  let r = null;
+  function i(c) {
+    r = c;
   }
-  async function a(d) {
-    if (!r.world[d]) {
-      const s = await t.get(d);
-      s ? r.setWorldPage(d, s) : (r.setWorldPage(d, `# ${d}
+  async function s(c) {
+    if (!o.world[c]) {
+      const a = await e.get(c);
+      a ? o.setWorldPage(c, a) : (o.setWorldPage(c, `# ${c}
 
-`), await t.set(d, r.world[d]));
+`), await e.set(c, o.world[c]));
     }
-    r.pushTrail(d), await c(d);
+    o.pushTrail(c), await l(c);
   }
-  async function c(d) {
-    if (r.setNavigating(!0), !r.world[d]) {
-      const l = await t.get(d);
-      !l && d === "home" ? (r.setWorldPage(d, C), await t.set(d, C)) : r.setWorldPage(d, l ?? `# ${d}
+  async function l(c) {
+    if (o.setNavigating(!0), !o.world[c]) {
+      const d = await e.get(c);
+      !d && c === "home" ? (o.setWorldPage(c, C), await e.set(c, C)) : o.setWorldPage(c, d ?? `# ${c}
 
 `);
     }
-    const s = r.world[d];
-    e.editorDiv.textContent = s, o && (o.render(), o.renderBreadcrumb());
+    const a = o.world[c];
+    t.editorDiv.textContent = a, r && (r.render(), r.renderBreadcrumb());
     try {
-      const l = document.createRange(), p = window.getSelection();
-      p && (l.setStart(e.editorDiv, 0), l.collapse(!0), p.removeAllRanges(), p.addRange(l));
+      const d = document.createRange(), p = window.getSelection();
+      p && (d.setStart(t.editorDiv, 0), d.collapse(!0), p.removeAllRanges(), p.addRange(d));
     } catch {
     }
-    n.onPageLoad?.(d, s), r.setNavigating(!1), e.editorDiv.focus();
+    n.onPageLoad?.(c, a), o.setNavigating(!1), t.editorDiv.focus();
   }
-  return { navigateToPage: a, loadPage: c, setRenderAPI: i };
+  return { navigateToPage: s, loadPage: l, setRenderAPI: i };
 }
-function le(r, t, e, n, o, i, a) {
-  function c(s) {
-    const l = window.getSelection();
-    if (!l || !l.rangeCount) return;
-    const p = l.getRangeAt(0);
-    p.deleteContents();
-    const u = document.createTextNode(s);
-    p.insertNode(u), p.setStart(u, s.length), p.collapse(!0), l.removeAllRanges(), l.addRange(p), r.editorDiv.dispatchEvent(new Event("input", { bubbles: !0 }));
+function ue(o, e, t, n, r, i, s, l) {
+  function c(d) {
+    const p = window.getSelection();
+    if (!p || !p.rangeCount) return;
+    const h = p.getRangeAt(0);
+    h.deleteContents();
+    const w = document.createTextNode(d);
+    h.insertNode(w), h.setStart(w, d.length), h.collapse(!0), p.removeAllRanges(), p.addRange(h), o.editorDiv.dispatchEvent(new Event("input", { bubbles: !0 }));
   }
-  function d() {
-    const s = a.saveDebounceMs ?? 600;
-    r.editorDiv.addEventListener("input", () => {
-      if (e.isNavigating()) return;
-      n.render();
-      for (const k of t)
-        k.onUpdate?.();
-      const u = x(r.editorDiv), g = e.getTrail(), w = g[g.length - 1];
-      e.setWorldPage(w, u), e.clearSaveTimer();
-      const h = setTimeout(async () => {
-        await i.set(w, u), a.onSave?.(w, u);
-      }, s);
-      e.setSaveTimer(h);
-    }), r.editorDiv.addEventListener("paste", (u) => {
+  function a() {
+    const d = l.saveDebounceMs ?? 600;
+    o.editorDiv.addEventListener("input", () => {
+      if (n.isNavigating()) return;
+      r.render();
+      for (const S of e)
+        S.onUpdate?.();
+      const u = x(o.editorDiv), g = n.getTrail(), f = g[g.length - 1];
+      n.setWorldPage(f, u), n.clearSaveTimer();
+      const D = setTimeout(async () => {
+        await s.set(f, u), l.onSave?.(f, u);
+      }, d);
+      n.setSaveTimer(D);
+    }), o.editorDiv.addEventListener("paste", (u) => {
       u.preventDefault();
       const g = u.clipboardData?.getData("text/plain") ?? "";
       c(g);
-    }), r.editorDiv.addEventListener("keydown", (u) => {
+    }), o.editorDiv.addEventListener("keydown", (u) => {
       u.key === "Tab" ? (u.preventDefault(), c("  ")) : u.key === "Enter" && (u.preventDefault(), c(`
 `));
     });
-    const l = e.getTrail(), p = l[l.length - 1];
-    return o.loadPage(p), {
+    const p = n.getTrail(), h = p[p.length - 1];
+    i.loadPage(h);
+    const w = {
+      "wn-toolbar": o.toolbar
+    };
+    for (const u of t)
+      for (const g of u.slots) {
+        const f = w[g];
+        f && u.onMount(f);
+      }
+    return {
       destroy() {
-        e.clearSaveTimer();
-        for (const u of t)
+        n.clearSaveTimer();
+        for (const u of e)
           try {
             u.onDestroy?.();
           } catch (g) {
             console.error(`Plugin "${u.name}" onDestroy failed:`, g);
           }
-        r.container.innerHTML = "";
+        for (const u of t)
+          try {
+            u.onDestroy?.();
+          } catch (g) {
+            console.error(`UI plugin "${u.name}" onDestroy failed:`, g);
+          }
+        o.container.innerHTML = "";
       },
       navigate(u) {
-        o.navigateToPage(u);
+        i.navigateToPage(u);
       },
       getCurrentPage() {
-        const u = e.getTrail();
+        const u = n.getTrail();
         return u[u.length - 1];
       },
       getTrail() {
-        return e.getTrail();
+        return n.getTrail();
       },
       getContent() {
-        return x(r.editorDiv);
+        return x(o.editorDiv);
       },
       setContent(u) {
-        const g = e.getTrail(), w = g[g.length - 1];
-        e.setWorldPage(w, u), r.editorDiv.textContent = u, n.render();
+        const g = n.getTrail(), f = g[g.length - 1];
+        n.setWorldPage(f, u), o.editorDiv.textContent = u, r.render();
       }
     };
   }
-  return { mount: d };
+  return { mount: a };
 }
-class de {
-  constructor(t, e = {}) {
-    this.registry = new q(), this.storage = new S(), this.options = {}, this.el = t, this.options = e, e.storage && (this.storage = e.storage);
-    for (const n of W)
+class pe {
+  constructor(e, t = {}) {
+    this.registry = new j(), this.storage = new I(), this.options = {}, this._mounted = !1, this._slotElements = null, this.el = e, this.options = t, t.storage && (this.storage = t.storage);
+    for (const n of q)
       this.registry.register(n);
   }
   /**
@@ -983,8 +1019,13 @@ class de {
    * @param manifest - PluginManifest to register
    * @throws Error if version is invalid or a token/slot conflict is detected
    */
-  use(t) {
-    return this.registry.register(t), this;
+  use(e) {
+    if (this.registry.register(e), this._mounted && e.kind === "ui" && this._slotElements)
+      for (const t of e.slots) {
+        const n = this._slotElements[t];
+        n && e.onMount(n);
+      }
+    return this;
   }
   /**
    * Remove all registered plugins and start fresh.
@@ -999,87 +1040,105 @@ class de {
    *
    * @param adapter - Any object implementing StorageAdapter
    */
-  withStorage(t) {
-    return this.storage = t, this;
+  withStorage(e) {
+    return this.storage = e, this;
   }
   /**
    * Mount the editor into the provided element and return a live EditorInstance.
    * Injects required styles, sets up event listeners, and loads the initial page.
    */
   mount() {
-    return ue(this.el, this.registry.allContentPlugins(), this.storage, this.options);
+    const e = this.registry.allUIPlugins().sort((n, r) => (n.priority ?? 0) - (r.priority ?? 0)), t = ge(
+      this.el,
+      this.registry.allContentPlugins(),
+      e,
+      this.storage,
+      this.options
+    );
+    return this._mounted = !0, this._slotElements = {
+      "wn-toolbar": this.el.querySelector(".wn-toolbar")
+    }, t;
   }
 }
-function ge(r, t = {}) {
-  return new de(r, t);
+function we(o, e = {}) {
+  return new pe(o, e);
 }
-function ue(r, t, e, n) {
-  const o = F(e, n), i = K(r, n.theme), a = ce(o, e, i, n), c = {
-    navigateFn: (s) => {
-      a.navigateToPage(s);
+function ge(o, e, t, n, r) {
+  const i = V(n, r), s = G(o, r.theme), l = de(i, n, s, r), c = {
+    navigateFn: (p) => {
+      l.navigateToPage(p);
     },
-    onBreadcrumbNavigate: (s) => {
-      a.loadPage(s);
+    onBreadcrumbNavigate: (p) => {
+      l.loadPage(p);
     },
-    onTrailChange: n.onTrailChange
-  }, d = se(i, t, o, c);
-  return a.setRenderAPI(d), le(i, t, o, d, a, e, n).mount();
+    onTrailChange: r.onTrailChange
+  }, a = ce(s, e, i, c);
+  return l.setRenderAPI(a), ue(
+    s,
+    e,
+    t,
+    i,
+    a,
+    l,
+    n,
+    r
+  ).mount();
 }
-const pe = "worldnotes", f = "pages";
-class we {
-  constructor(t = pe) {
-    this.db = null, this.dbName = t;
+const he = "worldnotes", m = "pages";
+class fe {
+  constructor(e = he) {
+    this.db = null, this.dbName = e;
   }
   /**
    * Open (or create) the IndexedDB database.
    * Must be called before get/set/keys, or those methods will call it lazily.
    */
   async open() {
-    this.db || (this.db = await new Promise((t, e) => {
+    this.db || (this.db = await new Promise((e, t) => {
       const n = indexedDB.open(this.dbName, 1);
       n.onupgradeneeded = () => {
-        n.result.createObjectStore(f);
-      }, n.onsuccess = () => t(n.result), n.onerror = () => e(n.error);
+        n.result.createObjectStore(m);
+      }, n.onsuccess = () => e(n.result), n.onerror = () => t(n.error);
     }));
   }
   async ensureOpen() {
     return await this.open(), this.db;
   }
-  async get(t) {
-    const e = await this.ensureOpen();
-    return new Promise((n, o) => {
-      const a = e.transaction(f, "readonly").objectStore(f).get(t);
-      a.onsuccess = () => n(a.result ?? null), a.onerror = () => o(a.error);
+  async get(e) {
+    const t = await this.ensureOpen();
+    return new Promise((n, r) => {
+      const s = t.transaction(m, "readonly").objectStore(m).get(e);
+      s.onsuccess = () => n(s.result ?? null), s.onerror = () => r(s.error);
     });
   }
-  async set(t, e) {
+  async set(e, t) {
     const n = await this.ensureOpen();
-    return new Promise((o, i) => {
-      const c = n.transaction(f, "readwrite").objectStore(f).put(e, t);
-      c.onsuccess = () => o(), c.onerror = () => i(c.error);
+    return new Promise((r, i) => {
+      const l = n.transaction(m, "readwrite").objectStore(m).put(t, e);
+      l.onsuccess = () => r(), l.onerror = () => i(l.error);
     });
   }
   async keys() {
-    const t = await this.ensureOpen();
-    return new Promise((e, n) => {
-      const i = t.transaction(f, "readonly").objectStore(f).getAllKeys();
-      i.onsuccess = () => e(i.result), i.onerror = () => n(i.error);
+    const e = await this.ensureOpen();
+    return new Promise((t, n) => {
+      const i = e.transaction(m, "readonly").objectStore(m).getAllKeys();
+      i.onsuccess = () => t(i.result), i.onerror = () => n(i.error);
     });
   }
 }
 export {
-  de as EditorBuilder,
-  we as IndexedDBAdapter,
-  S as LocalStorageAdapter,
-  $ as blockquotePlugin,
-  M as boldPlugin,
-  ge as createEditor,
-  W as defaultPlugins,
-  L as headingsPlugin,
-  _ as hrPlugin,
-  O as inlineCodePlugin,
-  R as italicPlugin,
-  B as linkPlugin,
-  H as strikethroughPlugin,
-  z as wikiLinkPlugin
+  pe as EditorBuilder,
+  fe as IndexedDBAdapter,
+  I as LocalStorageAdapter,
+  B as blockquotePlugin,
+  R as boldPlugin,
+  we as createEditor,
+  q as defaultPlugins,
+  _ as headingsPlugin,
+  H as hrPlugin,
+  $ as inlineCodePlugin,
+  O as italicPlugin,
+  U as linkPlugin,
+  W as strikethroughPlugin,
+  L as wikiLinkPlugin
 };

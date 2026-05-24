@@ -4,6 +4,7 @@
  * @property container   - The root wn-root element (the original container)
  * @property topbar      - Top bar wrapper containing breadcrumbs
  * @property breadcrumb   - Breadcrumb navigation element
+ * @property toolbar     - Toolbar slot container between topbar and editor area
  * @property editorWrap  - Wrapper around editor and placeholder
  * @property editorDiv   - The contentEditable editor div
  * @property placeholder - Initial placeholder text element
@@ -12,6 +13,7 @@ export interface EditorDOM {
     container: HTMLElement;
     topbar: HTMLElement;
     breadcrumb: HTMLElement;
+    toolbar: HTMLElement;
     editorWrap: HTMLElement;
     editorDiv: HTMLDivElement;
     placeholder: HTMLElement;

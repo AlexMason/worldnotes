@@ -8,6 +8,8 @@ export declare class EditorBuilder {
     private registry;
     private storage;
     private options;
+    private _mounted;
+    private _slotElements;
     constructor(el: HTMLElement, options?: EditorOptions);
     /**
      * Register a plugin manifest (or replace a built-in by matching name).

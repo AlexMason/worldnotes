@@ -67,6 +67,14 @@ export declare class PluginRegistry {
     getAllPlugins(): PluginManifest[];
     /** Return all registered UI plugins. */
     allUIPlugins(): UIPlugin[];
+    /**
+     * Return UI plugins registered for the given slot, sorted by priority ascending.
+     * Lower priority numbers mean the plugin renders first (closer to the top of the slot).
+     *
+     * @param slot - Slot name (e.g., 'wn-toolbar')
+     * @returns UIPlugin[] sorted by priority (lowest first), empty array if no plugins for slot
+     */
+    getUIPluginsForSlot(slot: string): UIPlugin[];
     /** Return all registered storage plugins. */
     allStoragePlugins(): StoragePlugin[];
     /**
