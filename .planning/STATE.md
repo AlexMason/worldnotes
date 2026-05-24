@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-05-23)
 
 ## Current Position
 
-Phase: 4 of 5 (Theming System) — IN PROGRESS
-Plan: 01 of 02 (Design tokens + token-driven stylesheet) — COMPLETE
-Status: In Progress (1 of 2 plans complete)
-Last activity: 2026-05-24 — Plan 04-01 completed: extracted 46 --wn-* CSS custom properties (Colors/Typography/Spacing/Radii/Shadows/Transitions/Misc), replaced DEFAULT_CSS with token-driven var() references, 17 new tests, 243 total tests pass, all CI gates green
+Phase: 4 of 5 (Theming System) — COMPLETE
+Plan: 02 of 02 (Theme option + documentation) — COMPLETE
+Status: Complete (2 of 2 plans complete)
+Last activity: 2026-05-24 — Plan 04-02 completed: added EditorOptions.theme full-replacement escape hatch, threaded theme through EditorBuilder → mountEditor → createEditorDOM → injectStyles, 4 new tests (247 total), docs/theming.md with complete 46-token reference and CSS class guide, all CI gates green
 
-Progress: [██████████████████████████████████████████████████] 50% (1 of 2 plans)
+Progress: [████████████████████████████████████████████████████████████] 100% (2 of 2 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 17
-- Average duration: 5m 25s
-- Total execution time: 1h 40m
+- Total plans completed: 18
+- Average duration: 5m 28s
+- Total execution time: 1h 46m
 
 **By Phase:**
 
@@ -30,7 +30,7 @@ Progress: [███████████████████████
 | 1. Production Infra & Test | 6 | 41m 26s | 6m 55s |
 | 2. Architecture Refactoring | 6 | 35m 16s | 5m 53s |
 | 3. Plugin System & Content Extensions | 4 | ~24m 30s | ~6m 8s |
-| 4. Theming System | 1 | 6m 1s | 6m 1s |
+| 4. Theming System | 2 | 12m 14s | 6m 7s |
 
 **Recent Trend:**
 - 01-01: 5m 55s — Toolchain installation, Vite upgrade, config creation
@@ -50,6 +50,7 @@ Progress: [███████████████████████
 - 03-03: ~5m 0s — Wired PluginRegistry into EditorBuilder, migrated all pipeline signatures from Plugin[] to ContentPlugin[], wired lifecycle hooks (onUpdate after render, onDestroy at teardown), updated all 4 test files' mocks to ContentPlugin — 209 tests pass, 85.43% branch coverage
 - 03-04: ~10m — Created strikethroughPlugin (~~text~~ with punct markers) and linkPlugin ([text](url) external anchor / internal wiki span), 17 new tests (plugins, tokenizer, renderer), exported PluginManifest/ContentPlugin/UIPlugin/StoragePlugin types, updated docs/api.md — 226 tests pass, coverage thresholds met, Phase 3 complete
 - 04-01: 6m 1s — Extracted 46 --wn-* CSS custom properties into DEFAULT_TOKENS constant (7 categories), replaced all hardcoded design values in DEFAULT_CSS with var() references, 17 new tests (editor-dom.test.ts), 243 total tests pass, all CI gates green — token-driven theming foundation complete
+- 04-02: 6m 13s — Added EditorOptions.theme full-replacement escape hatch, threaded theme through EditorBuilder → mountEditor → createEditorDOM → injectStyles, 4 new tests (247 total), docs/theming.md with complete 46-token reference and CSS class guide, all CI gates green — Phase 4 complete
 
 *Updated after each plan completion*
 
@@ -93,6 +94,7 @@ Recent decisions affecting current work:
 - [03-03]: PluginRegistry instantiated as private member in EditorBuilder constructor (not dependency-injected per RESEARCH.md open question). onUpdate called after ALL content plugins render, not per-plugin. editor.destroy() calls onDestroy before clearing DOM so plugins can access it. clearPlugins() does NOT call onDestroy (registry.clear() is for pre-mount reconfiguration per T-03-10).
 - [03-04]: Strikethrough follows bold/italic pattern with exported withPunct helper and dataset.raw for cursor fidelity (Pitfall 4). Link internal detection based on absence of :// or // prefix (D-11). Internal links reuse wn-wiki-link class for consistent styling. Link registration order: after wikiLinkPlugin so [[page]] matches before [text](url) (Pitfall 1). Removed deprecated Plugin type from public API — PluginManifest union is the migration point (D-08).
 - [04-01]: 46 --wn-* CSS custom properties across 7 categories (Colors 23, Typography 8, Spacing 6, Radii 3, Shadows 2, Transitions 2, Misc 2) defined in DEFAULT_TOKENS constant. Tokens injected on .wn-root via template literal concatenation (DEFAULT_CSS = DEFAULT_TOKENS + ...). All var() references include fallbacks matching token defaults. Wiki-link font-size (13px) and code-text font-size (12.5px) shifted to unified --wn-font-size-small (12px) — intentional ~1px visual change.
+- [04-02]: EditorOptions.theme is an optional string that replaces the entire <style id="worldnotes-styles"> content. Threaded through EditorBuilder → mountEditor → createEditorDOM → injectStyles using nullish coalescing (theme ?? DEFAULT_CSS). When theme is provided and a style element already exists, content is replaced (not appended) — enables future dynamic theme switching. docs/theming.md documents all 46 tokens with default values, CSS property mappings, and visual impact descriptions. Two-tier theming: token overrides (80% of use cases via CSS cascade) + full replacement (20% via EditorOptions.theme).
 
 ### Pending Todos
 
@@ -113,6 +115,6 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-05-24
-Stopped at: Completed 04-01-PLAN.md — 46 DEFAULT_TOKENS created, DEFAULT_CSS converted to var() references, 17 new tests, 243 total tests pass. Phase 4-01 complete.
-Resume file: .planning/phases/04-theming/04-02-PLAN.md
-Next: Phase 4 Plan 02 — Theme option + docs (EditorOptions.theme, docs/theming.md reference)
+Stopped at: Completed 04-02-PLAN.md — EditorOptions.theme full replacement, theme threading through pipeline, docs/theming.md with 46-token reference, 4 new tests, 247 total tests pass. Phase 4 complete.
+Resume file: None (Phase 4 complete)
+Next: Phase 5 — Deployment & Distribution

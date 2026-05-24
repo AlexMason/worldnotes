@@ -38,8 +38,8 @@ Requirements for first production milestone. Each maps to roadmap phases.
 - [x] **THEME-01**: Design tokens defined as CSS custom properties under `--wn-*` namespace (colors, typography, spacing, radii, shadows)
 - [x] **THEME-02**: Injected default stylesheet moved from inline template string in editor.ts to a token-driven stylesheet
 - [x] **THEME-03**: All CSS class selectors remain `wn-*` prefixed; no inline styles in DOM
-- [ ] **THEME-04**: `EditorOptions.theme` accepts a CSS string to replace the injected stylesheet entirely (full theme replacement)
-- [ ] **THEME-05**: Design token reference documented in `docs/theming.md`
+- [x] **THEME-04**: `EditorOptions.theme` accepts a CSS string to replace the injected stylesheet entirely (full theme replacement)
+- [x] **THEME-05**: Design token reference documented in `docs/theming.md`
 
 ### Formatting (FORMAT)
 
@@ -130,8 +130,8 @@ Deferred to subsequent milestone. Tracked but not in current roadmap.
 | THEME-01 | Phase 4 | Complete |
 | THEME-02 | Phase 4 | Complete |
 | THEME-03 | Phase 4 | Complete |
-| THEME-04 | Phase 4 | Planned |
-| THEME-05 | Phase 4 | Planned |
+| THEME-04 | Phase 4 | Complete |
+| THEME-05 | Phase 4 | Complete |
 | UI-01 | Phase 5 | Pending |
 | UI-02 | Phase 5 | Pending |
 | UI-03 | Phase 5 | Pending |

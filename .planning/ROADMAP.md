@@ -28,7 +28,7 @@ Phase 4 is parallel-ready (depends only on Phase 2) but sequenced after Phase 3 
 - [x] **Phase 1: Production Infrastructure & Test Foundation** - Vitest, ESLint, CI/CD, and baseline test coverage for all existing modules
 - [x] **Phase 2: Architecture Refactoring** - Decompose editor monolith into focused, independently testable modules
 - [x] **Phase 3: Plugin System & Content Extensions** - Declarative plugin manifests, lifecycle hooks, strikethrough, and URL links
-- [ ] **Phase 4: Theming System** - CSS custom property design tokens with full theme replacement escape hatch
+- [x] **Phase 4: Theming System** - CSS custom property design tokens with full theme replacement escape hatch
 - [ ] **Phase 5: UI Extension Slots** - Toolbar slot for UI plugin mounting with conflict detection
 
 ## Phase Details
@@ -105,7 +105,7 @@ Plans:
 
 Plans:
 - [x] 04-01-PLAN.md — Design tokens + token-driven stylesheet (DEFAULT_TOKENS, var(--wn-*) DEFAULT_CSS)
-- [ ] 04-02-PLAN.md — Theme option + docs (EditorOptions.theme, docs/theming.md reference)
+- [x] 04-02-PLAN.md — Theme option + docs (EditorOptions.theme, docs/theming.md reference)
 **UI hint**: yes
 
 ### Phase 5: UI Extension Slots
@@ -129,5 +129,5 @@ Plans:
 | 1. Production Infrastructure & Test Foundation | 6/6 | Complete | 2026-05-24 — All 6 plans completed |
 | 2. Architecture Refactoring | 6/6 | Complete | 2026-05-24 — All 6 plans completed |
 | 3. Plugin System & Content Extensions | 4/4 | Complete | 2026-05-24 — All 4 plans completed |
-| 4. Theming System | 1/2 | In Progress | 2026-05-24 — Plan 04-01 completed: token system |
+| 4. Theming System | 2/2 | Complete | 2026-05-24 — All 2 plans completed |
 | 5. UI Extension Slots | 0/TBD | Not started | - |
