@@ -26,7 +26,8 @@ export interface EditorLifecycleAPI {
  * public {@link EditorInstance} object.
  *
  * @param dom        - Editor DOM references (editorDiv for event listeners)
- * @param plugins    - Registered plugins (passed through for consistency)
+ * @param _plugins   - Registered plugins (accepted for signature consistency;
+ *                     render already holds the plugin list)
  * @param state      - Editor state (world, trail, save timer, nav flag)
  * @param render     - Render pipeline (render, renderBreadcrumb)
  * @param navigation - Page navigation (navigateToPage, loadPage)
@@ -34,19 +35,130 @@ export interface EditorLifecycleAPI {
  * @param options    - Editor options (saveDebounceMs, onSave, onPageLoad)
  *
  * @returns Lifecycle API with a single mount() method that returns EditorInstance
+ *
+ * @example
+ * const lifecycle = createEditorLifecycle(dom, plugins, state, render, nav, storage, opts)
+ * const editor = lifecycle.mount()
+ * editor.setContent('# new page')
  */
 export function createEditorLifecycle(
   dom: EditorDOM,
-  plugins: Plugin[],
+  _plugins: Plugin[],
   state: EditorStateAPI,
   render: EditorRenderAPI,
   navigation: EditorNavigationAPI,
   storage: StorageAdapter,
   options: EditorOptions,
 ): EditorLifecycleAPI {
-  // TODO: implement in GREEN phase
+  /**
+   * Insert plain text at the current selection, replacing any selected
+   * content. After insertion, dispatches an 'input' event on editorDiv
+   * so the input handler picks up the change and re-renders.
+   *
+   * @param text - Plain text to insert at the caret position
+   */
+  function insertTextAtSelection(text: string): void {
+    const sel = window.getSelection()
+    if (!sel || !sel.rangeCount) return
+
+    const range = sel.getRangeAt(0)
+    range.deleteContents()
+
+    const node = document.createTextNode(text)
+    range.insertNode(node)
+    range.setStart(node, text.length)
+    range.collapse(true)
+
+    sel.removeAllRanges()
+    sel.addRange(range)
+
+    dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+
+  /**
+   * Wire all event listeners, load the initial page, and return the
+   * public {@link EditorInstance} with all 6 methods.
+   */
   function mount(): EditorInstance {
-    throw new Error('not implemented')
+    const saveDebounce = options.saveDebounceMs ?? 600
+
+    // ── Input handler ──────────────────────────────────────────────────────
+
+    dom.editorDiv.addEventListener('input', () => {
+      if (state.isNavigating()) return
+      render.render()
+      const raw = extractText(dom.editorDiv)
+      const trail = state.getTrail()
+      const page = trail[trail.length - 1]
+      state.setWorldPage(page, raw)
+
+      state.clearSaveTimer()
+      const timer = setTimeout(async () => {
+        await storage.set(page, raw)
+        options.onSave?.(page, raw)
+      }, saveDebounce)
+      state.setSaveTimer(timer)
+    })
+
+    // ── Paste handler ──────────────────────────────────────────────────────
+
+    dom.editorDiv.addEventListener('paste', (e: ClipboardEvent) => {
+      e.preventDefault()
+      const text = e.clipboardData?.getData('text/plain') ?? ''
+      insertTextAtSelection(text)
+    })
+
+    // ── Keydown handler ────────────────────────────────────────────────────
+
+    dom.editorDiv.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Tab') {
+        e.preventDefault()
+        insertTextAtSelection('  ')
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        insertTextAtSelection('\n')
+      }
+    })
+
+    // ── Load initial page ──────────────────────────────────────────────────
+
+    const trail = state.getTrail()
+    const initialPage = trail[trail.length - 1]
+    navigation.loadPage(initialPage)
+
+    // ── Public instance ────────────────────────────────────────────────────
+
+    return {
+      destroy() {
+        state.clearSaveTimer()
+        dom.container.innerHTML = ''
+      },
+
+      navigate(page: string) {
+        navigation.navigateToPage(page)
+      },
+
+      getCurrentPage(): string {
+        const trail = state.getTrail()
+        return trail[trail.length - 1]
+      },
+
+      getTrail(): string[] {
+        return state.getTrail()
+      },
+
+      getContent(): string {
+        return extractText(dom.editorDiv)
+      },
+
+      setContent(content: string): void {
+        const trail = state.getTrail()
+        const page = trail[trail.length - 1]
+        state.setWorldPage(page, content)
+        dom.editorDiv.textContent = content
+        render.render()
+      },
+    }
   }
 
   return { mount }

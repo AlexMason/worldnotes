@@ -7,6 +7,7 @@ import type { EditorDOM } from '../editor-dom'
 import type { EditorRenderAPI } from '../editor-render'
 import type { EditorNavigationAPI } from '../editor-navigation'
 import { createEditorLifecycle } from '../editor-lifecycle'
+import { extractText } from '../cursor'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -332,7 +333,6 @@ describe('Editor lifecycle event handlers', () => {
       dom.editorDiv.dispatchEvent(tabEvent)
 
       // Content should include spaces — extractText should pick them up
-      const { extractText } = require('../cursor')
       const text = extractText(dom.editorDiv)
       expect(text).toContain('  ')
     })
@@ -356,7 +356,6 @@ describe('Editor lifecycle event handlers', () => {
       const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
       dom.editorDiv.dispatchEvent(enterEvent)
 
-      const { extractText } = require('../cursor')
       const text = extractText(dom.editorDiv)
       expect(text).toContain('\n')
     })
