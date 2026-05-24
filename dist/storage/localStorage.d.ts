@@ -1,5 +1,4 @@
 import { StorageAdapter } from '../types';
-
 /**
  * Storage adapter backed by window.localStorage.
  * All keys are namespaced to avoid collisions with other localStorage users.

@@ -1,5 +1,4 @@
 import { Plugin, StorageAdapter, EditorOptions, EditorInstance } from './types';
-
 /**
  * Fluent builder returned by createEditor().
  * Chain .use(), .withStorage(), then call .mount() to get a live EditorInstance.

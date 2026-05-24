@@ -1,5 +1,4 @@
 import { StorageAdapter } from '../types';
-
 /**
  * Storage adapter backed by IndexedDB.
  * Better suited than localStorage for large worlds or binary content.

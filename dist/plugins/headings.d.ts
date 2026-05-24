@@ -1,5 +1,4 @@
 import { Plugin } from '../types';
-
 /**
  * Built-in plugin: markdown headings (h1, h2, h3).
  *

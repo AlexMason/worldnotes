@@ -1,5 +1,4 @@
 import { Token, Plugin, EditorContext } from './types';
-
 /**
  * Build a decorated DOM fragment for a single line of tokens.
  * Each token is handed to the plugin that owns its type; unrecognised

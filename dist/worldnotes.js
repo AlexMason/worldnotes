@@ -17,29 +17,29 @@ class q {
     return Object.keys(localStorage).filter((e) => e.startsWith(t)).map((e) => e.slice(t.length));
   }
 }
-function P(o) {
-  const t = o.trim().replace(/\/+$/, ""), e = t.split("/").filter(Boolean);
+function P(n) {
+  const t = n.trim().replace(/\/+$/, ""), e = t.split("/").filter(Boolean);
   return e[e.length - 1] ?? t;
 }
-function R(o) {
-  const t = o.indexOf("|"), e = (t === -1 ? o : o.slice(0, t)).trim(), n = t === -1 ? P(e) : o.slice(t + 1).trim();
-  return { page: e, display: n || P(e) };
+function R(n) {
+  const t = n.indexOf("|"), e = (t === -1 ? n : n.slice(0, t)).trim(), o = t === -1 ? P(e) : n.slice(t + 1).trim();
+  return { page: e, display: o || P(e) };
 }
-function F(o, t) {
-  const n = o.replace(/^\?/, "").split("&").filter(Boolean).filter((s) => {
-    const [l = ""] = s.split("=", 1);
+function F(n, t) {
+  const o = n.replace(/^\?/, "").split("&").filter(Boolean).filter((a) => {
+    const [l = ""] = a.split("=", 1);
     return decodeURIComponent(l.replace(/\+/g, " ")) !== "path";
-  }), r = t.map((s) => encodeURIComponent(s)).join("/");
-  return `?${[...n, `path=${r}`].join("&")}`;
+  }), r = t.map((a) => encodeURIComponent(a)).join("/");
+  return `?${[...o, `path=${r}`].join("&")}`;
 }
-function W(o) {
-  const e = o.replace(/^\?/, "").split("&").filter(Boolean).find((a) => {
-    const [s = ""] = a.split("=", 1);
-    return decodeURIComponent(s.replace(/\+/g, " ")) === "path";
+function W(n) {
+  const e = n.replace(/^\?/, "").split("&").filter(Boolean).find((s) => {
+    const [a = ""] = s.split("=", 1);
+    return decodeURIComponent(a.replace(/\+/g, " ")) === "path";
   });
   if (!e) return [];
-  const n = e.indexOf("="), r = n === -1 ? "" : e.slice(n + 1);
-  return r ? r.split("/").filter(Boolean).map((a) => decodeURIComponent(a)) : [];
+  const o = e.indexOf("="), r = o === -1 ? "" : e.slice(o + 1);
+  return r ? r.split("/").filter(Boolean).map((s) => decodeURIComponent(s)) : [];
 }
 const j = {
   name: "wiki-link",
@@ -50,22 +50,22 @@ const j = {
       pattern: /\[\[([^\]]+)\]\]/
     }
   ],
-  render(o, t) {
-    const { page: e, display: n } = R(o.groups[0] ?? ""), r = document.createElement("span");
-    return r.className = "wn-wiki-link", r.dataset.page = e, r.dataset.raw = o.raw, r.textContent = n, r;
+  render(n, t) {
+    const { page: e, display: o } = R(n.groups[0] ?? ""), r = document.createElement("span");
+    return r.className = "wn-wiki-link", r.dataset.page = e, r.dataset.raw = n.raw, r.textContent = o, r;
   },
-  onNavigate(o, t) {
-    const { page: e } = R(o.groups[0] ?? "");
+  onNavigate(n, t) {
+    const { page: e } = R(n.groups[0] ?? "");
     return t.navigate(e), !0;
   }
 };
-function C(o, t, e) {
-  const n = document.createElement("span");
-  n.className = e;
+function k(n, t, e) {
+  const o = document.createElement("span");
+  o.className = e;
   const r = document.createElement("span");
   r.className = "wn-punct", r.textContent = t;
-  const a = document.createElement("span");
-  return a.className = `${e}-text`, a.textContent = o.groups[0] ?? "", n.appendChild(r), n.appendChild(a), n;
+  const s = document.createElement("span");
+  return s.className = `${e}-text`, s.textContent = n.groups[0] ?? "", o.appendChild(r), o.appendChild(s), o;
 }
 const K = {
   name: "headings",
@@ -74,69 +74,69 @@ const K = {
     { type: "h2", pattern: /^## (.*)$/ },
     { type: "h3", pattern: /^### (.*)$/ }
   ],
-  render(o, t) {
-    switch (o.type) {
+  render(n, t) {
+    switch (n.type) {
       case "h1":
-        return C(o, "# ", "wn-h1");
+        return k(n, "# ", "wn-h1");
       case "h2":
-        return C(o, "## ", "wn-h2");
+        return k(n, "## ", "wn-h2");
       case "h3":
-        return C(o, "### ", "wn-h3");
+        return k(n, "### ", "wn-h3");
       default:
-        return C(o, "", "wn-h1");
+        return k(n, "", "wn-h1");
     }
   }
 };
-function M(o, t, e) {
-  const n = document.createElement("span");
-  n.className = o;
-  const r = (a) => {
-    const s = document.createElement("span");
-    return s.className = "wn-punct", s.textContent = a, s;
+function M(n, t, e) {
+  const o = document.createElement("span");
+  o.className = n;
+  const r = (s) => {
+    const a = document.createElement("span");
+    return a.className = "wn-punct", a.textContent = s, a;
   };
-  return n.appendChild(r(t)), n.appendChild(document.createTextNode(e)), n.appendChild(r(t)), n;
+  return o.appendChild(r(t)), o.appendChild(document.createTextNode(e)), o.appendChild(r(t)), o;
 }
 const X = {
   name: "bold",
   tokens: [{ type: "bold", pattern: /\*\*([^*]+)\*\*/ }],
-  render(o, t) {
-    return M("wn-bold", "**", o.groups[0] ?? "");
+  render(n, t) {
+    return M("wn-bold", "**", n.groups[0] ?? "");
   }
 }, G = {
   name: "italic",
   tokens: [{ type: "italic", pattern: /\*([^*]+)\*/ }],
-  render(o, t) {
-    return M("wn-italic", "*", o.groups[0] ?? "");
+  render(n, t) {
+    return M("wn-italic", "*", n.groups[0] ?? "");
   }
 }, V = {
   name: "inline-code",
   tokens: [{ type: "inline-code", pattern: /`([^`]+)`/ }],
-  render(o, t) {
+  render(n, t) {
     const e = document.createElement("span");
     e.className = "wn-inline-code";
-    const n = (a) => {
-      const s = document.createElement("span");
-      return s.className = "wn-punct", s.textContent = a, s;
+    const o = (s) => {
+      const a = document.createElement("span");
+      return a.className = "wn-punct", a.textContent = s, a;
     };
-    e.appendChild(n("`"));
+    e.appendChild(o("`"));
     const r = document.createElement("span");
-    return r.className = "wn-code-text", r.textContent = o.groups[0] ?? "", e.appendChild(r), e.appendChild(n("`")), e;
+    return r.className = "wn-code-text", r.textContent = n.groups[0] ?? "", e.appendChild(r), e.appendChild(o("`")), e;
   }
 }, Q = {
   name: "blockquote",
   tokens: [{ type: "blockquote", pattern: /^(> )(.*)$/ }],
-  render(o, t) {
+  render(n, t) {
     const e = document.createElement("span");
     e.className = "wn-blockquote";
-    const n = document.createElement("span");
-    n.className = "wn-punct", n.textContent = "> ";
+    const o = document.createElement("span");
+    o.className = "wn-punct", o.textContent = "> ";
     const r = document.createElement("span");
-    return r.className = "wn-blockquote-text", r.textContent = o.groups[1] ?? "", e.appendChild(n), e.appendChild(r), e;
+    return r.className = "wn-blockquote-text", r.textContent = n.groups[1] ?? "", e.appendChild(o), e.appendChild(r), e;
   }
 }, Y = {
   name: "hr",
   tokens: [{ type: "hr", pattern: /^---+$/ }],
-  render(o, t) {
+  render(n, t) {
     const e = document.createElement("span");
     return e.className = "wn-hr", e.textContent = "---", e;
   }
@@ -156,95 +156,95 @@ const X = {
   V
   // inline
 ];
-function A(o) {
-  return { type: "text", raw: o, groups: [o] };
+function A(n) {
+  return { type: "text", raw: n, groups: [n] };
 }
-function Z(o, t) {
-  const e = t.filter((r) => r.pattern.source.startsWith("^")), n = t.filter((r) => !r.pattern.source.startsWith("^"));
+function Z(n, t) {
+  const e = t.filter((r) => r.pattern.source.startsWith("^")), o = t.filter((r) => !r.pattern.source.startsWith("^"));
   for (const r of e) {
-    const a = o.match(r.pattern);
-    if (a)
-      return [{ type: r.type, raw: a[0], groups: a.slice(1).map((s) => s ?? "") }];
+    const s = n.match(r.pattern);
+    if (s)
+      return [{ type: r.type, raw: s[0], groups: s.slice(1).map((a) => a ?? "") }];
   }
-  return ee(o, n);
+  return ee(n, o);
 }
-function ee(o, t) {
+function ee(n, t) {
   const e = [];
-  let n = o;
-  for (; n.length > 0; ) {
+  let o = n;
+  for (; o.length > 0; ) {
     let r = null;
-    for (const a of t) {
-      const s = n.match(a.pattern);
-      !s || s.index === void 0 || (r === null || s.index < r.index) && (r = { index: s.index, match: s, def: a });
+    for (const s of t) {
+      const a = o.match(s.pattern);
+      !a || a.index === void 0 || (r === null || a.index < r.index) && (r = { index: a.index, match: a, def: s });
     }
     if (!r) {
-      e.push(A(n));
+      e.push(A(o));
       break;
     }
-    r.index > 0 && e.push(A(n.slice(0, r.index))), e.push({
+    r.index > 0 && e.push(A(o.slice(0, r.index))), e.push({
       type: r.def.type,
       raw: r.match[0],
-      groups: r.match.slice(1).map((a) => a ?? "")
-    }), n = n.slice(r.index + r.match[0].length);
+      groups: r.match.slice(1).map((s) => s ?? "")
+    }), o = o.slice(r.index + r.match[0].length);
   }
   return e;
 }
-function te(o, t) {
-  return o.split(`
+function te(n, t) {
+  return n.split(`
 `).map((e) => Z(e, t));
 }
-function ne(o, t, e, n = -1) {
-  const r = document.createDocumentFragment(), a = re(t);
-  let s = 0;
-  for (const l of o) {
+function ne(n, t, e, o = -1) {
+  const r = document.createDocumentFragment(), s = re(t);
+  let a = 0;
+  for (const l of n) {
     if (l.type === "text") {
-      r.appendChild(document.createTextNode(l.raw)), s += l.raw.length;
+      r.appendChild(document.createTextNode(l.raw)), a += l.raw.length;
       continue;
     }
-    const d = s, c = d + l.raw.length;
-    if (s = c, n >= d && n <= c) {
+    const p = a, c = p + l.raw.length;
+    if (a = c, o >= p && o <= c) {
       r.appendChild(document.createTextNode(l.raw));
       continue;
     }
-    const h = a.get(l.type);
-    if (!h) {
+    const u = s.get(l.type);
+    if (!u) {
       r.appendChild(document.createTextNode(l.raw));
       continue;
     }
-    const m = h.render(l, e);
-    if (m instanceof HTMLElement && h.onNavigate) {
-      const E = h.onNavigate.bind(h);
-      m.addEventListener("mousedown", (b) => {
-        E(l, e) && b.preventDefault();
+    const w = u.render(l, e);
+    if (w instanceof HTMLElement && u.onNavigate) {
+      const y = u.onNavigate.bind(u);
+      w.addEventListener("mousedown", (x) => {
+        y(l, e) && x.preventDefault();
       });
     }
-    r.appendChild(m);
+    r.appendChild(w);
   }
   return r;
 }
-function oe(o, t, e, n = -1) {
+function oe(n, t, e, o = -1) {
   let r = 0;
-  return o.map((a) => {
-    const s = a.reduce((c, h) => c + h.raw.length, 0), l = n - r, d = ne(a, t, e, l);
-    return r += s + 1, d;
+  return n.map((s) => {
+    const a = s.reduce((c, u) => c + u.raw.length, 0), l = o - r, p = ne(s, t, e, l);
+    return r += a + 1, p;
   });
 }
-function re(o) {
+function re(n) {
   const t = /* @__PURE__ */ new Map();
-  for (const e of o)
-    for (const n of e.tokens)
-      t.set(n.type, e);
+  for (const e of n)
+    for (const o of e.tokens)
+      t.set(o.type, e);
   return t;
 }
-function ae(o) {
+function se(n) {
   const t = window.getSelection();
   if (!t || !t.rangeCount) return 0;
   const e = t.getRangeAt(0);
-  return _(o, e.endContainer, e.endOffset).offset;
+  return _(n, e.endContainer, e.endOffset).offset;
 }
-function se(o, t) {
-  const e = de(o, t), n = document.createRange(), r = window.getSelection();
-  r && (e ? (n.setStart(e.node, e.offset), n.collapse(!0)) : (n.selectNodeContents(o), n.collapse(!1)), r.removeAllRanges(), r.addRange(n));
+function ae(n, t) {
+  const e = de(n, t), o = document.createRange(), r = window.getSelection();
+  r && (e ? (o.setStart(e.node, e.offset), o.collapse(!0)) : (o.selectNodeContents(n), o.collapse(!1)), r.removeAllRanges(), r.addRange(o));
 }
 const ie = /* @__PURE__ */ new Set([
   "ADDRESS",
@@ -276,88 +276,86 @@ const ie = /* @__PURE__ */ new Set([
   "TABLE",
   "UL"
 ]);
-function ce(o) {
-  return o.nodeType === Node.ELEMENT_NODE && ie.has(o.nodeName);
+function ce(n) {
+  return n.nodeType === Node.ELEMENT_NODE && ie.has(n.nodeName);
 }
-function D(o) {
-  return _(o, null, 0).text;
+function D(n) {
+  return _(n, null, 0).text;
 }
-function _(o, t, e) {
-  let n = "", r = 0, a = t === null;
-  function s(c) {
-    a || (r += c.length), n += c;
+function _(n, t, e) {
+  let o = "", r = 0, s = t === null;
+  function a(c) {
+    s || (r += c.length), o += c;
   }
   function l(c) {
-    var h;
     if (c.nodeType === Node.TEXT_NODE) {
-      const m = c.textContent ?? "";
-      c === t && !a ? (r += Math.min(e, m.length), a = !0, n += m) : s(m);
-    } else if (((h = c.dataset) == null ? void 0 : h.raw) !== void 0) {
-      const m = c.dataset.raw ?? "";
-      c === t && !a ? (r += e <= 0 ? 0 : m.length, a = !0) : le(c, t) && !a ? (I(c, t, e), r += Math.min(I(c, t, e), m.length), a = !0) : s(m);
-    } else c.nodeName === "BR" ? s(`
-`) : (ce(c) && n && !n.endsWith(`
-`) && s(`
-`), d(c));
+      const u = c.textContent ?? "";
+      c === t && !s ? (r += Math.min(e, u.length), s = !0, o += u) : a(u);
+    } else if (c.dataset?.raw !== void 0) {
+      const u = c.dataset.raw ?? "";
+      c === t && !s ? (r += e <= 0 ? 0 : u.length, s = !0) : le(c, t) && !s ? (I(c, t, e), r += Math.min(I(c, t, e), u.length), s = !0) : a(u);
+    } else c.nodeName === "BR" ? a(`
+`) : (ce(c) && o && !o.endsWith(`
+`) && a(`
+`), p(c));
   }
-  function d(c) {
-    c.childNodes.forEach((h, m) => {
-      c === t && m === e && !a && (a = !0), l(h);
-    }), c === t && c.childNodes.length === e && !a && (a = !0);
+  function p(c) {
+    c.childNodes.forEach((u, w) => {
+      c === t && w === e && !s && (s = !0), l(u);
+    }), c === t && c.childNodes.length === e && !s && (s = !0);
   }
-  return d(o), { text: n, offset: r };
+  return p(n), { text: o, offset: r };
 }
-function le(o, t) {
+function le(n, t) {
   if (!t) return !1;
   let e = t;
   for (; e; ) {
-    if (e === o) return !0;
+    if (e === n) return !0;
     e = e.parentNode;
   }
   return !1;
 }
-function I(o, t, e) {
-  let n = 0, r = !1;
-  function a(s) {
+function I(n, t, e) {
+  let o = 0, r = !1;
+  function s(a) {
     if (!r) {
-      if (s.nodeType === Node.TEXT_NODE) {
-        const l = s.textContent ?? "";
-        s === t ? (n += Math.min(e, l.length), r = !0) : n += l.length;
+      if (a.nodeType === Node.TEXT_NODE) {
+        const l = a.textContent ?? "";
+        a === t ? (o += Math.min(e, l.length), r = !0) : o += l.length;
         return;
       }
-      s.childNodes.forEach((l, d) => {
-        s === t && d === e && !r && (r = !0), r || a(l);
-      }), s === t && s.childNodes.length === e && !r && (r = !0);
+      a.childNodes.forEach((l, p) => {
+        a === t && p === e && !r && (r = !0), r || s(l);
+      }), a === t && a.childNodes.length === e && !r && (r = !0);
     }
   }
-  return a(o), n;
+  return s(n), o;
 }
-function de(o, t) {
-  let e = t, n = null;
-  function r(a) {
-    var l;
-    if (n) return;
-    if (a.nodeType === Node.TEXT_NODE) {
-      const d = a.length;
-      if (e <= d) {
-        n = { node: a, offset: e };
+function de(n, t) {
+  let e = t, o = null;
+  function r(s) {
+    if (o) return;
+    if (s.nodeType === Node.TEXT_NODE) {
+      const l = s.length;
+      if (e <= l) {
+        o = { node: s, offset: e };
         return;
       }
-      e -= d;
+      e -= l;
       return;
     }
-    const s = (l = a.dataset) == null ? void 0 : l.raw;
-    if (s !== void 0) {
-      e -= s.length;
+    const a = s.dataset?.raw;
+    if (a !== void 0) {
+      e -= a.length;
       return;
     }
-    if (a.nodeName === "BR") {
+    if (s.nodeName === "BR") {
       e -= 1;
       return;
     }
-    a.childNodes.forEach(r);
+    s.childNodes.forEach(r);
   }
-  return r(o), n;
+  return r(n), o;
 }
 const O = `# Welcome to your world
 
@@ -379,7 +377,7 @@ class ue {
    * @param plugin - Plugin instance to register
    */
   use(t) {
-    const e = this.plugins.findIndex((n) => n.name === t.name);
+    const e = this.plugins.findIndex((o) => o.name === t.name);
     return e !== -1 ? this.plugins[e] = t : this.plugins.push(t), this;
   }
   /**
@@ -405,93 +403,89 @@ class ue {
     return pe(this.el, this.plugins, this.storage, this.options);
   }
 }
-function we(o, t = {}) {
-  return new ue(o, t);
+function we(n, t = {}) {
+  return new ue(n, t);
 }
-function pe(o, t, e, n) {
-  const r = n.saveDebounceMs ?? 600, a = n.initialPage ?? "home", s = W(window.location.search), l = s[s.length - 1] ?? a, d = {};
-  let c = s.length ? [...s] : [l], h = null, m = !1;
-  fe(), o.innerHTML = "", o.className = "wn-root";
-  const E = y("div", "wn-topbar"), b = y("div", "wn-breadcrumb"), k = y("div", "wn-editor-wrap"), f = y("div", "wn-editor"), T = y("div", "wn-placeholder");
-  T.textContent = "Start writing… use [[page name]] to link deeper", f.contentEditable = "true", f.spellcheck = !1, E.appendChild(b), k.appendChild(T), k.appendChild(f), o.appendChild(E), o.appendChild(k);
+function pe(n, t, e, o) {
+  const r = o.saveDebounceMs ?? 600, s = o.initialPage ?? "home", a = W(window.location.search), l = a[a.length - 1] ?? s, p = {};
+  let c = a.length ? [...a] : [l], u = null, w = !1;
+  fe(), n.innerHTML = "", n.className = "wn-root";
+  const y = b("div", "wn-topbar"), x = b("div", "wn-breadcrumb"), E = b("div", "wn-editor-wrap"), f = b("div", "wn-editor"), C = b("div", "wn-placeholder");
+  C.textContent = "Start writing… use [[page name]] to link deeper", f.contentEditable = "true", f.spellcheck = !1, y.appendChild(x), E.appendChild(C), E.appendChild(f), n.appendChild(y), n.appendChild(E);
   const B = {
     navigate: (i) => L(i),
     getTrail: () => [...c],
-    getWorld: () => ({ ...d })
+    getWorld: () => ({ ...p })
   };
-  function N() {
-    const i = ae(f), u = D(f), p = te(u, t.flatMap((g) => g.tokens)), w = oe(p, t, B, i);
-    f.innerHTML = "", w.forEach((g, z) => {
-      f.appendChild(g), z < w.length - 1 && f.appendChild(document.createTextNode(`
+  function T() {
+    const i = se(f), d = D(f), h = te(d, t.flatMap((S) => S.tokens)), m = oe(h, t, B, i);
+    f.innerHTML = "", m.forEach((S, z) => {
+      f.appendChild(S), z < m.length - 1 && f.appendChild(document.createTextNode(`
 `));
-    }), T.style.display = u.length ? "none" : "block";
+    }), C.style.display = d.length ? "none" : "block";
     try {
-      se(f, i);
+      ae(f, i);
     } catch {
     }
   }
   function H() {
-    var i;
-    b.innerHTML = "", c.forEach((u, p) => {
-      if (p > 0) {
-        const g = document.createElement("span");
-        g.className = "wn-crumb-sep", g.textContent = "/", b.appendChild(g);
+    x.innerHTML = "", c.forEach((i, d) => {
+      if (d > 0) {
+        const m = document.createElement("span");
+        m.className = "wn-crumb-sep", m.textContent = "/", x.appendChild(m);
       }
-      const w = document.createElement("span");
-      w.className = "wn-crumb" + (p === c.length - 1 ? " wn-crumb--active" : ""), w.textContent = P(u), p < c.length - 1 && w.addEventListener("click", () => {
-        c = c.slice(0, p + 1), v(c[c.length - 1]);
-      }), b.appendChild(w);
-    }), (i = n.onTrailChange) == null || i.call(n, [...c]), $();
+      const h = document.createElement("span");
+      h.className = "wn-crumb" + (d === c.length - 1 ? " wn-crumb--active" : ""), h.textContent = P(i), d < c.length - 1 && h.addEventListener("click", () => {
+        c = c.slice(0, d + 1), N(c[c.length - 1]);
+      }), x.appendChild(h);
+    }), o.onTrailChange?.([...c]), $();
   }
   function $() {
     const i = F(window.location.search, c);
     window.history.replaceState(null, "", `${window.location.pathname}${i}${window.location.hash}`);
   }
   async function L(i) {
-    if (!d[i]) {
-      const u = await e.get(i);
-      d[i] = u ?? `# ${i}
+    if (!p[i]) {
+      const d = await e.get(i);
+      p[i] = d ?? `# ${i}
 
-`, u || await e.set(i, d[i]);
+`, d || await e.set(i, p[i]);
     }
-    c.push(i), await v(i);
+    c.push(i), await N(i);
   }
-  async function v(i) {
-    var p;
-    if (m = !0, !d[i]) {
-      const w = await e.get(i);
-      !w && i === "home" ? (d[i] = O, await e.set(i, O)) : d[i] = w ?? `# ${i}
+  async function N(i) {
+    if (w = !0, !p[i]) {
+      const h = await e.get(i);
+      !h && i === "home" ? (p[i] = O, await e.set(i, O)) : p[i] = h ?? `# ${i}
 
 `;
     }
-    const u = d[i];
-    f.textContent = u, N(), H();
+    const d = p[i];
+    f.textContent = d, T(), H();
     try {
-      const w = document.createRange(), g = window.getSelection();
-      g && (w.setStart(f, 0), w.collapse(!0), g.removeAllRanges(), g.addRange(w));
+      const h = document.createRange(), m = window.getSelection();
+      m && (h.setStart(f, 0), h.collapse(!0), m.removeAllRanges(), m.addRange(h));
     } catch {
     }
-    (p = n.onPageLoad) == null || p.call(n, i, u), m = !1, f.focus();
+    o.onPageLoad?.(i, d), w = !1, f.focus();
   }
   return f.addEventListener("input", () => {
-    if (m) return;
-    N();
-    const i = D(f), u = c[c.length - 1];
-    d[u] = i, h && clearTimeout(h), h = setTimeout(async () => {
-      var p;
-      await e.set(u, i), (p = n.onSave) == null || p.call(n, u, i);
+    if (w) return;
+    T();
+    const i = D(f), d = c[c.length - 1];
+    p[d] = i, u && clearTimeout(u), u = setTimeout(async () => {
+      await e.set(d, i), o.onSave?.(d, i);
     }, r);
   }), f.addEventListener("paste", (i) => {
-    var p;
     i.preventDefault();
-    const u = ((p = i.clipboardData) == null ? void 0 : p.getData("text/plain")) ?? "";
-    S(u);
+    const d = i.clipboardData?.getData("text/plain") ?? "";
+    v(d);
   }), f.addEventListener("keydown", (i) => {
-    i.key === "Tab" ? (i.preventDefault(), S("  ")) : i.key === "Enter" && (i.preventDefault(), S(`
+    i.key === "Tab" ? (i.preventDefault(), v("  ")) : i.key === "Enter" && (i.preventDefault(), v(`
 `));
-  }), v(l), {
+  }), N(l), {
     destroy() {
-      h && clearTimeout(h), o.innerHTML = "";
+      u && clearTimeout(u), n.innerHTML = "";
     },
     navigate(i) {
       L(i);
@@ -506,28 +500,28 @@ function pe(o, t, e, n) {
       return D(f);
     },
     setContent(i) {
-      const u = c[c.length - 1];
-      d[u] = i, f.textContent = i, N();
+      const d = c[c.length - 1];
+      p[d] = i, f.textContent = i, T();
     }
   };
-  function S(i) {
-    const u = window.getSelection();
-    if (!u || !u.rangeCount) return;
-    const p = u.getRangeAt(0);
-    p.deleteContents();
-    const w = document.createTextNode(i);
-    p.insertNode(w), p.setStart(w, i.length), p.collapse(!0), u.removeAllRanges(), u.addRange(p), f.dispatchEvent(new Event("input", { bubbles: !0 }));
+  function v(i) {
+    const d = window.getSelection();
+    if (!d || !d.rangeCount) return;
+    const h = d.getRangeAt(0);
+    h.deleteContents();
+    const m = document.createTextNode(i);
+    h.insertNode(m), h.setStart(m, i.length), h.collapse(!0), d.removeAllRanges(), d.addRange(h), f.dispatchEvent(new Event("input", { bubbles: !0 }));
   }
 }
-function y(o, t) {
-  const e = document.createElement(o);
+function b(n, t) {
+  const e = document.createElement(n);
   return e.className = t, e;
 }
 function fe() {
-  const o = "worldnotes-styles";
-  if (document.getElementById(o)) return;
+  const n = "worldnotes-styles";
+  if (document.getElementById(n)) return;
   const t = document.createElement("style");
-  t.id = o, t.textContent = he, document.head.appendChild(t);
+  t.id = n, t.textContent = he, document.head.appendChild(t);
 }
 const he = `
 .wn-root {
@@ -649,7 +643,7 @@ const he = `
   transition: background 0.12s;
 }
 .wn-wiki-link:hover { background: #221e42; color: #bbb3f8; }
-`, me = "worldnotes", x = "pages";
+`, me = "worldnotes", g = "pages";
 class ge {
   constructor(t = me) {
     this.db = null, this.dbName = t;
@@ -660,10 +654,10 @@ class ge {
    */
   async open() {
     this.db || (this.db = await new Promise((t, e) => {
-      const n = indexedDB.open(this.dbName, 1);
-      n.onupgradeneeded = () => {
-        n.result.createObjectStore(x);
-      }, n.onsuccess = () => t(n.result), n.onerror = () => e(n.error);
+      const o = indexedDB.open(this.dbName, 1);
+      o.onupgradeneeded = () => {
+        o.result.createObjectStore(g);
+      }, o.onsuccess = () => t(o.result), o.onerror = () => e(o.error);
     }));
   }
   async ensureOpen() {
@@ -671,23 +665,23 @@ class ge {
   }
   async get(t) {
     const e = await this.ensureOpen();
-    return new Promise((n, r) => {
-      const s = e.transaction(x, "readonly").objectStore(x).get(t);
-      s.onsuccess = () => n(s.result ?? null), s.onerror = () => r(s.error);
+    return new Promise((o, r) => {
+      const a = e.transaction(g, "readonly").objectStore(g).get(t);
+      a.onsuccess = () => o(a.result ?? null), a.onerror = () => r(a.error);
     });
   }
   async set(t, e) {
-    const n = await this.ensureOpen();
-    return new Promise((r, a) => {
-      const l = n.transaction(x, "readwrite").objectStore(x).put(e, t);
-      l.onsuccess = () => r(), l.onerror = () => a(l.error);
+    const o = await this.ensureOpen();
+    return new Promise((r, s) => {
+      const l = o.transaction(g, "readwrite").objectStore(g).put(e, t);
+      l.onsuccess = () => r(), l.onerror = () => s(l.error);
     });
   }
   async keys() {
     const t = await this.ensureOpen();
-    return new Promise((e, n) => {
-      const a = t.transaction(x, "readonly").objectStore(x).getAllKeys();
-      a.onsuccess = () => e(a.result), a.onerror = () => n(a.error);
+    return new Promise((e, o) => {
+      const s = t.transaction(g, "readonly").objectStore(g).getAllKeys();
+      s.onsuccess = () => e(s.result), s.onerror = () => o(s.error);
     });
   }
 }

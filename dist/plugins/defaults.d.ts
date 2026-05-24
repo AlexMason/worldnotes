@@ -1,5 +1,4 @@
 import { Plugin } from '../types';
-
 /**
  * The default plugin set loaded by createEditor() when no plugins are specified.
  *

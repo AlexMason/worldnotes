@@ -1,5 +1,4 @@
 import { Plugin } from '../types';
-
 /**
  * Built-in plugin: **bold** text.
  * Renders the ** markers as dimmed punctuation flanking styled bold text.

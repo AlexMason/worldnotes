@@ -1,5 +1,4 @@
 import { Token, TokenDef } from './types';
-
 /**
  * Tokenize a single line of raw text using the provided token definitions.
  *

@@ -1,5 +1,4 @@
 import { Plugin } from '../types';
-
 /**
  * Built-in plugin: wiki-style page links.
  *
