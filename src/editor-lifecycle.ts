@@ -1,6 +1,6 @@
 // ─── Editor Lifecycle ──────────────────────────────────────────────────────────
 
-import type { ContentPlugin, StorageAdapter, EditorOptions, EditorInstance } from './types'
+import type { ContentPlugin, UIPlugin, StorageAdapter, EditorOptions, EditorInstance } from './types'
 import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
 import type { EditorRenderAPI } from './editor-render'
@@ -27,6 +27,7 @@ export interface EditorLifecycleAPI {
  *
  * @param dom             - Editor DOM references (editorDiv for event listeners)
  * @param contentPlugins  - Registered ContentPlugin instances (used for lifecycle hooks)
+ * @param uiPlugins       - Registered UIPlugin instances (mounted into DOM slots)
  * @param state           - Editor state (world, trail, save timer, nav flag)
  * @param render          - Render pipeline (render, renderBreadcrumb)
  * @param navigation      - Page navigation (navigateToPage, loadPage)
@@ -36,13 +37,14 @@ export interface EditorLifecycleAPI {
  * @returns Lifecycle API with a single mount() method that returns EditorInstance
  *
  * @example
- * const lifecycle = createEditorLifecycle(dom, contentPlugins, state, render, nav, storage, opts)
+ * const lifecycle = createEditorLifecycle(dom, contentPlugins, uiPlugins, state, render, nav, storage, opts)
  * const editor = lifecycle.mount()
  * editor.setContent('# new page')
  */
 export function createEditorLifecycle(
   dom: EditorDOM,
   contentPlugins: ContentPlugin[],
+  uiPlugins: UIPlugin[],
   state: EditorStateAPI,
   render: EditorRenderAPI,
   navigation: EditorNavigationAPI,
@@ -131,6 +133,19 @@ export function createEditorLifecycle(
     const initialPage = trail[trail.length - 1]
     navigation.loadPage(initialPage)
 
+    // ── Mount UI plugins ──────────────────────────────────────────────────
+    const slotElements: Record<string, HTMLElement> = {
+      'wn-toolbar': dom.toolbar,
+    }
+    for (const plugin of uiPlugins) {
+      for (const slot of plugin.slots) {
+        const el = slotElements[slot]
+        if (el) {
+          plugin.onMount(el)
+        }
+      }
+    }
+
     // ── Public instance ────────────────────────────────────────────────────
 
     return {
@@ -142,6 +157,14 @@ export function createEditorLifecycle(
             plugin.onDestroy?.()
           } catch (e) {
             console.error(`Plugin "${plugin.name}" onDestroy failed:`, e)
+          }
+        }
+        // UI plugin teardown
+        for (const plugin of uiPlugins) {
+          try {
+            plugin.onDestroy?.()
+          } catch (e) {
+            console.error(`UI plugin "${plugin.name}" onDestroy failed:`, e)
           }
         }
         dom.container.innerHTML = ''

@@ -1,4 +1,4 @@
-import type { ContentPlugin, PluginManifest, StorageAdapter, EditorOptions, EditorInstance } from './types'
+import type { ContentPlugin, UIPlugin, PluginManifest, StorageAdapter, EditorOptions, EditorInstance } from './types'
 import { LocalStorageAdapter } from './storage/localStorage'
 import { defaultPlugins } from './plugins/defaults'
 import { PluginRegistry } from './plugin-registry'
@@ -81,7 +81,16 @@ export class EditorBuilder {
    * Injects required styles, sets up event listeners, and loads the initial page.
    */
   mount(): EditorInstance {
-    return mountEditor(this.el, this.registry.allContentPlugins(), this.storage, this.options)
+    const uiPlugins = this.registry.allUIPlugins()
+      .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
+
+    return mountEditor(
+      this.el,
+      this.registry.allContentPlugins(),
+      uiPlugins,
+      this.storage,
+      this.options,
+    )
   }
 }
 
@@ -106,6 +115,7 @@ export function createEditor(el: HTMLElement, options: EditorOptions = {}): Edit
 function mountEditor(
   container: HTMLElement,
   contentPlugins: ContentPlugin[],
+  allUIPlugins: UIPlugin[],
   storage: StorageAdapter,
   options: EditorOptions,
 ): EditorInstance {
@@ -119,5 +129,9 @@ function mountEditor(
   }
   const render = createEditorRender(dom, contentPlugins, state, renderOpts)
   navigation.setRenderAPI(render)
-  return createEditorLifecycle(dom, contentPlugins, state, render, navigation, storage, options).mount()
+
+  const lifecycle = createEditorLifecycle(
+    dom, contentPlugins, allUIPlugins, state, render, navigation, storage, options,
+  )
+  return lifecycle.mount()
 }

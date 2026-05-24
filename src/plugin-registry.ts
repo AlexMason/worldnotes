@@ -258,6 +258,28 @@ export class PluginRegistry {
     return Array.from(this.uiPlugins.values())
   }
 
+  /**
+   * Return UI plugins registered for the given slot, sorted by priority ascending.
+   * Lower priority numbers mean the plugin renders first (closer to the top of the slot).
+   *
+   * @param slot - Slot name (e.g., 'wn-toolbar')
+   * @returns UIPlugin[] sorted by priority (lowest first), empty array if no plugins for slot
+   */
+  getUIPluginsForSlot(slot: string): UIPlugin[] {
+    const priorityMap = this.slotAssignments.get(slot)
+    if (!priorityMap) return []
+
+    // Sort by priority ascending
+    const sortedPriorities = Array.from(priorityMap.keys()).sort((a, b) => a - b)
+
+    return sortedPriorities
+      .map((priority) => {
+        const name = priorityMap.get(priority)!
+        return this.uiPlugins.get(name)!
+      })
+      .filter(Boolean) // safety: skip if plugin was removed but slot assignment lingered
+  }
+
   /** Return all registered storage plugins. */
   allStoragePlugins(): StoragePlugin[] {
     return Array.from(this.storagePlugins.values())
