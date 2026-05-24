@@ -18,8 +18,8 @@ Requirements for first production milestone. Each maps to roadmap phases.
 
 ### Architecture (ARCH)
 
-- [ ] **ARCH-01**: Editor monolith (`src/editor.ts`) split into cohesive modules — state management, DOM construction, input handling, navigation, persistence, and lifecycle
-- [ ] **ARCH-02**: Render pipeline (tokenizer → renderer) remains intact but is modularized with clear boundaries
+- [x] **ARCH-01**: Editor monolith (`src/editor.ts`) split into cohesive modules — state management, DOM construction, input handling, navigation, persistence, and lifecycle
+- [x] **ARCH-02**: Render pipeline (tokenizer → renderer) remains intact but is modularized with clear boundaries
 - [x] **ARCH-03**: Cursor module tested comprehensively for caret edge cases before renderer changes
 - [ ] **ARCH-04**: `src/demo.ts` extracted to a separate entry point (not compiled into library build output)
 - [ ] **ARCH-05**: Module responsibilities documented in `docs/architecture.md`

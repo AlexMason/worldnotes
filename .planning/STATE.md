@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-05-23)
 ## Current Position
 
 Phase: 2 of 5 (Architecture Refactoring) — IN PROGRESS
-Plan: 03 of 06 (Editor render extraction) — COMPLETED
-Status: In progress (4 of 6 plans complete)
-Last activity: 2026-05-24 — Plan 02-03 completed: extracted editor-render.ts — render pipeline, breadcrumb, URL sync — 15 tests, 155 lines
+Plan: 05 of 06 (Monolith decomposition complete) — COMPLETED
+Status: In progress (5 of 6 plans complete)
+Last activity: 2026-05-24 — Plan 02-05 completed: extracted editor-navigation.ts + editor-lifecycle.ts, rewrote editor.ts as thin orchestrator (121 lines, down from 496) — 26 new tests, all 173 passing
 
-Progress: [███████░░░░░░░░░░░░░] 67% (4 of 6 plans)
+Progress: [████████████░░░░░░░] 83% (5 of 6 plans)
 
 ## Performance Metrics
 
@@ -28,7 +28,7 @@ Progress: [███████░░░░░░░░░░░░░] 67% (4 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. Production Infra & Test | 6 | 41m 26s | 6m 55s |
-| 2. Architecture Refactoring | 4 | 23m 17s | 5m 49s |
+| 2. Architecture Refactoring | 5 | 32m 31s | 6m 30s |
 
 **Recent Trend:**
 - 01-01: 5m 55s — Toolchain installation, Vite upgrade, config creation
@@ -41,6 +41,7 @@ Progress: [███████░░░░░░░░░░░░░] 67% (4 
 - 02-02: 3m 53s — Extracted editor-dom.ts from editor.ts: createEditorDOM factory, EditorDOM interface, private el() helper, DEFAULT_CSS + injectStyles, zero imports
 - 02-04: 5m 4s — Added 15 cursor edge case tests: empty docs, multi-byte Unicode, line boundaries, data-raw boundaries, forced offsets — 28 total passing tests
 - 02-03: 9m 46s — Extracted editor-render.ts: createEditorRender factory, EditorRenderAPI interface, 15 tests, render pipeline + breadcrumb + URL sync, type-only imports for editor-* modules
+- 02-05: 9m 14s — Extracted editor-navigation.ts (12 tests) + editor-lifecycle.ts (14 tests), rewrote editor.ts as thin orchestrator delegating to 5 sub-modules — all 173 tests pass, public API unchanged
 
 *Updated after each plan completion*
 
@@ -77,6 +78,7 @@ Recent decisions affecting current work:
 - [02-02]: DOM construction extracted as createEditorDOM() pure factory — zero imports, zero state dependency, el() kept private. Prettier singleQuote config (Phase 1) overrides pre-refactor CONVENTIONS.md double-quote analysis.
 - [02-04]: 15 new cursor edge case tests added across 6 new describe blocks — all passing against existing cursor.ts with zero production code changes. 13 existing tests discovered (plan assumed 12). Pre-existing editor-render test failure from uncommitted Plan 02-03 logged to deferred-items.
 - [02-03]: navigateFn passed through EditorRenderOptions (not hardcoded) so orchestrator wires it after navigation module creation. toContext() called inside each render() for fresh trail/world snapshot. Type-only imports for editor-state and editor-dom enforce zero runtime cycles.
+- [02-05]: Two-phase construction pattern (setRenderAPI) avoids circular dependency between navigation and render. insertTextAtSelection dispatches 'input' on same editorDiv used for addEventListener — preserving direct feedback loop. DAG-ordered construction in mountEditor (state → dom → navigation → render → lifecycle → mount). DEFAULT_HOME kept in editor.ts per plan spec despite now being unused (nav has its own copy). EditorBuilder line-count constraint (max_lines: 100) not achievable due to 56-line class body required to remain unchanged; achieved 121 lines (76% reduction).
 
 ### Pending Todos
 
@@ -97,6 +99,6 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-05-24
-Stopped at: Completed 02-03-PLAN.md — Editor render extraction (1 task, 9m 46s)
-Resume file: .planning/phases/02-architecture-refactoring/02-03-PLAN.md (completed)
-Next: Plan 02-05 (extract editor-navigation.ts) or Plan 02-06 (extract editor-lifecycle.ts) — remaining Phase 2 plans
+Stopped at: Completed 02-05-PLAN.md — Monolith decomposition complete (3 tasks, 9m 14s)
+Resume file: .planning/phases/02-architecture-refactoring/02-05-PLAN.md (completed)
+Next: Plan 02-06 (demo.ts extraction + docs/architecture.md update) — final Phase 2 plan
