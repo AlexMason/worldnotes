@@ -19,6 +19,10 @@ export type {
 export { LocalStorageAdapter } from './storage/localStorage'
 export { IndexedDBAdapter } from './storage/indexedDB'
 
+// ─── Undo/Redo ────────────────────────────────────────────────────────────────
+export { EditorHistory } from './editor-history'
+export type { EditorHistoryOptions } from './editor-history'
+
 // ─── Import / Export ─────────────────────────────────────────────────────────
 export { exportWorld, importWorld } from './export-import'
 export type { ConflictStrategy, ImportResult } from './export-import'

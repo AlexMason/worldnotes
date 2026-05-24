@@ -3,7 +3,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type {
   ContentPlugin,
-  UIPlugin,
   StorageAdapter,
   EditorOptions,
   EditorContext,
@@ -15,7 +14,6 @@ import type { EditorRenderAPI } from '../editor-render'
 import type { EditorNavigationAPI } from '../editor-navigation'
 import { createEditorLifecycle } from '../editor-lifecycle'
 import { EditorHistory } from '../editor-history'
-import { extractText } from '../cursor'
 
 function mockStorage(): StorageAdapter {
   const store: Record<string, string> = {}

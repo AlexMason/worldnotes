@@ -25,6 +25,7 @@ Creates an `EditorBuilder` for an existing `HTMLElement`.
 | `storage` | `StorageAdapter` | `LocalStorageAdapter` | Persistence backend for page content. |
 | `initialPage` | `string` | `'home'` | Page loaded when no URL trail exists. |
 | `saveDebounceMs` | `number` | `600` | Delay before persisting content after input. |
+| `historyDepth` | `number` | `50` | Maximum number of undo states per page. Older states are evicted via FIFO. |
 | `onTrailChange` | `(trail: string[]) => void` | `undefined` | Called whenever breadcrumbs change. |
 | `onPageLoad` | `(page: string, content: string) => void` | `undefined` | Called after content loads into the editor. |
 | `onSave` | `(page: string, content: string) => void` | `undefined` | Called after debounced persistence completes. |
@@ -50,6 +51,8 @@ editor.getCurrentPage()
 editor.getTrail()
 editor.getContent()
 editor.setContent('# Updated')
+editor.undo()
+editor.redo()
 editor.destroy()
 ```
 
@@ -60,7 +63,23 @@ editor.destroy()
 | `getTrail()` | Returns a copy of the breadcrumb trail. |
 | `getContent()` | Returns the current raw Markdown content. |
 | `setContent(content)` | Replaces the current page content in the editor and in-memory cache. |
+| `undo()` | Undoes the last change. Returns `true` if an undo was performed. |
+| `redo()` | Redoes the last undone change. Returns `true` if a redo was performed. |
+| `canUndo()` | Returns `true` if there is at least one undoable state. |
+| `canRedo()` | Returns `true` if there is at least one redoable state. |
 | `destroy()` | Clears the mounted container and pending save timer. |
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl+Z` / `Cmd+Z` | Undo the last change |
+| `Ctrl+Shift+Z` / `Cmd+Shift+Z` | Redo the last undone change |
+| `Ctrl+Y` | Redo (Windows alternative) |
+| `Tab` | Insert 2 spaces |
+| `Enter` | Insert newline |
+
+Undo/redo history is per-page. Navigating to a different page or clicking a breadcrumb clears the history for the destination page.
 
 ## Plugins
 
