@@ -89,6 +89,18 @@ export function createEditorLifecycle(
   function mount(): EditorInstance {
     const saveDebounce = options.saveDebounceMs ?? 600
 
+    const saveContent = (content: string): void => {
+      const trail = state.getTrail()
+      const page = trail[trail.length - 1]
+      state.setWorldPage(page, content)
+      state.clearSaveTimer()
+      const timer = setTimeout(async () => {
+        await storage.set(page, content)
+        options.onSave?.(page, content)
+      }, saveDebounce)
+      state.setSaveTimer(timer)
+    }
+
     // ── Input handler ──────────────────────────────────────────────────────
 
     dom.editorDiv.addEventListener('input', () => {
@@ -138,6 +150,7 @@ export function createEditorLifecycle(
           } catch {
             /* best-effort */
           }
+          saveContent(content)
           dom.editorDiv.focus()
         }
         return
@@ -156,6 +169,7 @@ export function createEditorLifecycle(
           } catch {
             /* best-effort */
           }
+          saveContent(content)
           dom.editorDiv.focus()
         }
         return
@@ -174,6 +188,7 @@ export function createEditorLifecycle(
           } catch {
             /* best-effort */
           }
+          saveContent(content)
           dom.editorDiv.focus()
         }
         return
@@ -263,6 +278,7 @@ export function createEditorLifecycle(
         if (content !== null) {
           dom.editorDiv.textContent = content
           render.render()
+          saveContent(content)
           return true
         }
         return false
@@ -273,6 +289,7 @@ export function createEditorLifecycle(
         if (content !== null) {
           dom.editorDiv.textContent = content
           render.render()
+          saveContent(content)
           return true
         }
         return false

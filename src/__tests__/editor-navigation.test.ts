@@ -122,7 +122,7 @@ describe('createEditorNavigation', () => {
   })
 
   it('exports createEditorNavigation factory function', () => {
-    const nav = createEditorNavigation(state, storage, dom, options, state.history)
+    const nav = createEditorNavigation(state, storage, dom, options)
     expect(nav).toBeDefined()
     expect(typeof nav.navigateToPage).toBe('function')
     expect(typeof nav.loadPage).toBe('function')
@@ -133,7 +133,7 @@ describe('createEditorNavigation', () => {
 
   describe('navigateToPage', () => {
     it('creates page in world cache when not present and calls loadPage', async () => {
-      const nav = createEditorNavigation(state, storage, dom, options, state.history)
+      const nav = createEditorNavigation(state, storage, dom, options)
       nav.setRenderAPI(render)
 
       await nav.navigateToPage('new-page')
@@ -148,7 +148,7 @@ describe('createEditorNavigation', () => {
       const getSpy = vi.spyOn(storage, 'get')
       // Pre-populate the world cache
       state.setWorldPage('cached-page', '# Cached\n\nsome content')
-      const nav = createEditorNavigation(state, storage, dom, options, state.history)
+      const nav = createEditorNavigation(state, storage, dom, options)
       nav.setRenderAPI(render)
 
       await nav.navigateToPage('cached-page')
@@ -159,7 +159,7 @@ describe('createEditorNavigation', () => {
 
     it('fetches from storage when page is not in cache', async () => {
       const storageWithData = mockStorage({ 'stored-page': '# Stored Page\n\ncontent' })
-      const nav = createEditorNavigation(state, storageWithData, dom, options, state.history)
+      const nav = createEditorNavigation(state, storageWithData, dom, options)
       nav.setRenderAPI(render)
 
       await nav.navigateToPage('stored-page')
@@ -173,7 +173,7 @@ describe('createEditorNavigation', () => {
 
   describe('loadPage', () => {
     it('sets isNavigating=true during load', async () => {
-      const nav = createEditorNavigation(state, storage, dom, options, state.history)
+      const nav = createEditorNavigation(state, storage, dom, options)
       nav.setRenderAPI(render)
 
       // isNavigating should start false
@@ -190,7 +190,7 @@ describe('createEditorNavigation', () => {
     })
 
     it('sets editorDiv.textContent to page content', async () => {
-      const nav = createEditorNavigation(state, storage, dom, options, state.history)
+      const nav = createEditorNavigation(state, storage, dom, options)
       nav.setRenderAPI(render)
 
       const content = '# hello\n\ntest content'
@@ -202,7 +202,7 @@ describe('createEditorNavigation', () => {
     })
 
     it('calls render() and renderBreadcrumb() via setRenderAPI', async () => {
-      const nav = createEditorNavigation(state, storage, dom, options, state.history)
+      const nav = createEditorNavigation(state, storage, dom, options)
       nav.setRenderAPI(render)
 
       await nav.loadPage('home')
@@ -212,7 +212,7 @@ describe('createEditorNavigation', () => {
     })
 
     it('calls onPageLoad callback with page and content', async () => {
-      const nav = createEditorNavigation(state, storage, dom, options, state.history)
+      const nav = createEditorNavigation(state, storage, dom, options)
       nav.setRenderAPI(render)
 
       const content = '# Test\n\ncontent'
@@ -224,7 +224,7 @@ describe('createEditorNavigation', () => {
     })
 
     it('does not call onPageLoad if not provided in options', async () => {
-      const nav = createEditorNavigation(state, storage, dom, {}, state.history)
+      const nav = createEditorNavigation(state, storage, dom, {})
       nav.setRenderAPI(render)
 
       await nav.loadPage('home')
@@ -236,7 +236,7 @@ describe('createEditorNavigation', () => {
       // Use fresh state with empty world (no home page cached)
       const freshState = mockState(['home'])
       const freshStorage = mockStorage({}) // empty storage
-      const nav = createEditorNavigation(freshState, freshStorage, dom, options, freshState.history)
+      const nav = createEditorNavigation(freshState, freshStorage, dom, options)
       nav.setRenderAPI(render)
 
       await nav.loadPage('home')
@@ -251,7 +251,7 @@ describe('createEditorNavigation', () => {
 
   describe('setRenderAPI', () => {
     it('allows render callbacks to be wired after construction', () => {
-      const nav = createEditorNavigation(state, storage, dom, options, state.history)
+      const nav = createEditorNavigation(state, storage, dom, options)
 
       // setRenderAPI should not throw
       expect(() => nav.setRenderAPI(render)).not.toThrow()
@@ -264,7 +264,7 @@ describe('createEditorNavigation', () => {
         renderBreadcrumb: vi.fn(),
         syncUrlToTrail: vi.fn(),
       }
-      const nav = createEditorNavigation(state, storage, dom, options, state.history)
+      const nav = createEditorNavigation(state, storage, dom, options)
       nav.setRenderAPI(trackingRender)
 
       state.setWorldPage('home', '# test')

@@ -4,7 +4,6 @@ import type { StorageAdapter, EditorOptions } from './types'
 import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
 import type { EditorRenderAPI } from './editor-render'
-import type { EditorHistory } from './editor-history'
 
 /**
  * Default content shown on first load when 'home' doesn't exist in storage.
@@ -62,7 +61,6 @@ export function createEditorNavigation(
   storage: StorageAdapter,
   dom: EditorDOM,
   options: EditorOptions,
-  history: EditorHistory,
 ): EditorNavigationAPI {
   let _render: EditorRenderAPI | null = null
 
@@ -102,7 +100,7 @@ export function createEditorNavigation(
    */
   async function loadPage(page: string): Promise<void> {
     state.setNavigating(true)
-    history.clear()
+    state.history.clear()
 
     if (!state.world[page]) {
       const stored = await storage.get(page)

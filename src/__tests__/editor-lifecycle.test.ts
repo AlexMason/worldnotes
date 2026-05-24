@@ -175,7 +175,7 @@ describe('createEditorLifecycle', () => {
   // ── mount() ───────────────────────────────────────────────────────────────
 
   describe('mount()', () => {
-    it('returns EditorInstance with all 6 required methods', () => {
+    it('returns EditorInstance with all required methods', () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
