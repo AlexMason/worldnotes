@@ -67,7 +67,7 @@ Plans:
 
 Plans:
 - [ ] 02-01-PLAN.md — Extract editor-state.ts (world cache, trail, save timer, context)
-- [ ] 02-02-PLAN.md — Extract editor-dom.ts (DOM construction, injectStyles, DEFAULT_CSS)
+- [x] 02-02-PLAN.md — Extract editor-dom.ts (DOM construction, injectStyles, DEFAULT_CSS)
 - [ ] 02-03-PLAN.md — Extract editor-render.ts (render pipeline, breadcrumb, URL sync)
 - [ ] 02-04-PLAN.md — Cursor Edge Case Tests (15 new tests: empty docs, multi-byte, line boundaries, data-raw)
 - [ ] 02-05-PLAN.md — Extract editor-navigation.ts + editor-lifecycle.ts + Wire editor.ts (thin orchestrator)
