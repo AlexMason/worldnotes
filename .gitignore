@@ -18,6 +18,7 @@ coverage/
 .vite/
 .cache/
 *.tsbuildinfo
+dist/__tests__/
 
 # Editor and OS files
 .DS_Store

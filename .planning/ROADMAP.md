@@ -25,7 +25,7 @@ Phase 4 is parallel-ready (depends only on Phase 2) but sequenced after Phase 3 
 
 ## Phases
 
-- [ ] **Phase 1: Production Infrastructure & Test Foundation** - Vitest, ESLint, CI/CD, and baseline test coverage for all existing modules
+- [x] **Phase 1: Production Infrastructure & Test Foundation** - Vitest, ESLint, CI/CD, and baseline test coverage for all existing modules
 - [ ] **Phase 2: Architecture Refactoring** - Decompose editor monolith into focused, independently testable modules
 - [ ] **Phase 3: Plugin System & Content Extensions** - Declarative plugin manifests, lifecycle hooks, strikethrough, and URL links
 - [ ] **Phase 4: Theming System** - CSS custom property design tokens with full theme replacement escape hatch
@@ -51,7 +51,7 @@ Plans:
 - [x] 01-03-PLAN.md — Renderer & Navigation Test Migration (convert remaining .mjs tests + remove test/)
 - [x] 01-04-PLAN.md — Tokenizer Tests (15-20 test cases, pure logic, no DOM)
 - [x] 01-05-PLAN.md — Plugin, Storage & Editor Tests (headings, inline, wikiLink, localStorage, IndexedDB, editor lifecycle)
-- [ ] 01-06-PLAN.md — Coverage Thresholds & Documentation (80% thresholds, AGENTS.md update)
+- [x] 01-06-PLAN.md — Coverage Thresholds & Documentation (80% thresholds, AGENTS.md update)
 
 ### Phase 2: Architecture Refactoring
 **Goal**: The editor codebase is composed of focused, independently testable modules with clear responsibilities and no circular dependencies.

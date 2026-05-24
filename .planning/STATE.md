@@ -9,25 +9,25 @@ See: .planning/PROJECT.md (updated 2026-05-23)
 
 ## Current Position
 
-Phase: 1 of 5 (Production Infrastructure & Test Foundation)
-Plan: 05 of 06 (Plugin, Storage & Editor Tests) — COMPLETED
-Status: In progress
-Last activity: 2026-05-24 — Plan 01-05 completed: 35 new test cases across plugins (16), storage adapters (11), and editor lifecycle (8)
+Phase: 1 of 5 (Production Infrastructure & Test Foundation) — COMPLETE
+Plan: 06 of 06 (Coverage Thresholds & Documentation) — COMPLETED
+Status: Ready for review
+Last activity: 2026-05-24 — Plan 01-06 completed: 80% coverage thresholds set, AGENTS.md updated with full command documentation, 103 tests + 83.02% branch coverage
 
-Progress: [████████░░] 83%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 5m 53s
-- Total execution time: 0h 29m
+- Total plans completed: 6
+- Average duration: 6m 55s
+- Total execution time: 0h 41m
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. Production Infra & Test | 5 | 29m 26s | 5m 53s |
+| 1. Production Infra & Test | 6 | 41m 26s | 6m 55s |
 
 **Recent Trend:**
 - 01-01: 5m 55s — Toolchain installation, Vite upgrade, config creation
@@ -35,6 +35,7 @@ Progress: [████████░░] 83%
 - 01-03: 3m 42s — Renderer & Navigation test migration, test/ directory cleanup
 - 01-04: 12m 22s — Tokenizer unit tests: 20 cases covering line-level, inline, edge cases, and document-level
 - 01-05: 4m 41s — Plugin, storage, and editor tests: 35 cases reaching INFRA-02 coverage for 9 source modules
+- 01-06: 12m 00s — Coverage thresholds (80% branches), AGENTS.md documentation, 36 new test cases, 103 total passing
 
 *Updated after each plan completion*
 
@@ -60,6 +61,10 @@ Recent decisions affecting current work:
 - [01-04]: Tokenizer needs no DOM — tests run in default happy-dom environment without @vitest-environment override (no document.* or DOM API calls)
 - [01-05]: Used fake-indexeddb polyfill for IndexedDB testing — happy-dom does not provide the indexedDB global
 - [01-05]: Added renderPlugin() helper to safely cast Plugin.render() return from HTMLElement | Text to HTMLElement for test assertions
+- [01-06]: Coverage thresholds set to 80% for all metrics (branches 83.02%, statements 92.57%, functions 90.82%, lines 94.55%) — exceeding all requirements
+- [01-06]: src/plugins/defaults.ts excluded from coverage (20-line constant array with no executable logic)
+- [01-06]: 36 new test cases added for nullish coalescing (??) branches, editor keyboard/paste handlers, renderer fallbacks, and navigation edge cases — total now 103 tests
+- [01-06]: AGENTS.md updated with comprehensive Development Commands table, CI Pipeline description, Test Infrastructure docs, and CI Setup Note
 - [Init]: Theming (Phase 4) is parallel-ready with Plugin System (Phase 3) but sequenced after — plugin manifest is the higher-priority lynchpin.
 - [Init]: FORMAT requirements (strikethrough, URL links) grouped with Plugin System (Phase 3) so they use the new PluginManifest format from day one rather than requiring a separate migration step.
 - [Init]: Cursor module testing (ARCH-03) placed in Phase 2 alongside the refactoring, since comprehensive cursor tests are a prerequisite to touching the renderer internals.
@@ -83,5 +88,6 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-05-24
-Stopped at: Completed 01-05-PLAN.md — Plugin, Storage & Editor Tests (3 tasks, 4m 41s)
-Resume file: .planning/phases/01-production-infrastructure/01-05-PLAN.md (completed)
+Stopped at: Completed 01-06-PLAN.md — Coverage Thresholds & Documentation (2 tasks, 12m)
+Resume file: .planning/phases/01-production-infrastructure/01-06-PLAN.md (completed)
+Next: Phase 2 - Architecture Refactoring (gated by Phase 1 completion)

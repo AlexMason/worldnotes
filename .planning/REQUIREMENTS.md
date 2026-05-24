@@ -13,7 +13,7 @@ Requirements for first production milestone. Each maps to roadmap phases.
 - [x] **INFRA-02**: Every existing source module (cursor, tokenizer, renderer, navigation, editor, plugins, storage) has test coverage for its public API surface
 - [x] **INFRA-03**: ESLint flat config in place with TypeScript rules, error on commit or CI failure
 - [x] **INFRA-04**: CI pipeline (GitHub Actions) runs typecheck, lint, and tests on every push and PR
-- [ ] **INFRA-05**: Coverage thresholds enforced in CI (80%+ branch coverage)
+- [x] **INFRA-05**: Coverage thresholds enforced in CI (80%+ branch coverage)
 - [x] **INFRA-06**: Test and typecheck commands documented in AGENTS.md and package.json scripts
 
 ### Architecture (ARCH)
