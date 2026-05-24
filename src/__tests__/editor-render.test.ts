@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { Plugin, StorageAdapter, EditorContext, Token } from '../types'
+import type { ContentPlugin, StorageAdapter, EditorContext, Token } from '../types'
 import { createEditorState } from '../editor-state'
 import type { EditorDOM } from '../editor-dom'
 
@@ -64,9 +64,11 @@ const TEXT_TOKEN_DEF = {
 /**
  * A no-op plugin that renders text tokens as-is.
  */
-function testPlugin(): Plugin {
+function testPlugin(): ContentPlugin {
   return {
     name: 'test',
+    version: '1.0.0',
+    kind: 'content' as const,
     tokens: [TEXT_TOKEN_DEF],
     render(token: Token, _context: EditorContext): HTMLElement | Text {
       return document.createTextNode(token.raw)
@@ -78,7 +80,7 @@ function testPlugin(): Plugin {
 
 describe('createEditorRender: render()', () => {
   let dom: EditorDOM
-  let plugins: Plugin[]
+  let plugins: ContentPlugin[]
   let state: ReturnType<typeof createEditorState>
 
   beforeEach(() => {
@@ -170,8 +172,10 @@ describe('createEditorRender: render()', () => {
     const contextSpy = vi.spyOn(testState, 'toContext')
 
     // A plugin that calls context.navigate during rendering
-    const navPlugin: Plugin = {
+    const navPlugin: ContentPlugin = {
       name: 'nav-test',
+      version: '1.0.0',
+      kind: 'content' as const,
       tokens: [{ type: 'nav-trigger', pattern: /trigger/ }],
       render(_token: Token, context: EditorContext): HTMLElement | Text {
         context.navigate('linked-page')
@@ -195,7 +199,7 @@ describe('createEditorRender: render()', () => {
 
 describe('createEditorRender: renderBreadcrumb()', () => {
   let dom: EditorDOM
-  let plugins: Plugin[]
+  let plugins: ContentPlugin[]
   let state: ReturnType<typeof createEditorState>
 
   beforeEach(() => {
@@ -293,7 +297,7 @@ describe('createEditorRender: renderBreadcrumb()', () => {
 
 describe('createEditorRender: syncUrlToTrail()', () => {
   let dom: EditorDOM
-  let plugins: Plugin[]
+  let plugins: ContentPlugin[]
   let state: ReturnType<typeof createEditorState>
 
   beforeEach(() => {
@@ -337,7 +341,7 @@ describe('createEditorRender: syncUrlToTrail()', () => {
 describe('createEditorRender: module shape', () => {
   it('returns EditorRenderAPI with render, renderBreadcrumb, syncUrlToTrail', () => {
     const dom = createTestDOM()
-    const plugins: Plugin[] = [testPlugin()]
+    const plugins: ContentPlugin[] = [testPlugin()]
     const state = createEditorState(mockStorage(), { initialPage: 'test' })
 
     const api = createEditorRender(dom, plugins, state, {})

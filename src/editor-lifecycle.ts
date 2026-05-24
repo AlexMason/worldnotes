@@ -1,6 +1,6 @@
 // ─── Editor Lifecycle ──────────────────────────────────────────────────────────
 
-import type { Plugin, StorageAdapter, EditorOptions, EditorInstance } from './types'
+import type { ContentPlugin, StorageAdapter, EditorOptions, EditorInstance } from './types'
 import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
 import type { EditorRenderAPI } from './editor-render'
@@ -25,25 +25,24 @@ export interface EditorLifecycleAPI {
  * render pipeline on input, manages save debouncing, and returns the
  * public {@link EditorInstance} object.
  *
- * @param dom        - Editor DOM references (editorDiv for event listeners)
- * @param _plugins   - Registered plugins (accepted for signature consistency;
- *                     render already holds the plugin list)
- * @param state      - Editor state (world, trail, save timer, nav flag)
- * @param render     - Render pipeline (render, renderBreadcrumb)
- * @param navigation - Page navigation (navigateToPage, loadPage)
- * @param storage    - Storage adapter for persisting saves
- * @param options    - Editor options (saveDebounceMs, onSave, onPageLoad)
+ * @param dom             - Editor DOM references (editorDiv for event listeners)
+ * @param contentPlugins  - Registered ContentPlugin instances (used for lifecycle hooks)
+ * @param state           - Editor state (world, trail, save timer, nav flag)
+ * @param render          - Render pipeline (render, renderBreadcrumb)
+ * @param navigation      - Page navigation (navigateToPage, loadPage)
+ * @param storage         - Storage adapter for persisting saves
+ * @param options         - Editor options (saveDebounceMs, onSave, onPageLoad)
  *
  * @returns Lifecycle API with a single mount() method that returns EditorInstance
  *
  * @example
- * const lifecycle = createEditorLifecycle(dom, plugins, state, render, nav, storage, opts)
+ * const lifecycle = createEditorLifecycle(dom, contentPlugins, state, render, nav, storage, opts)
  * const editor = lifecycle.mount()
  * editor.setContent('# new page')
  */
 export function createEditorLifecycle(
   dom: EditorDOM,
-  _plugins: Plugin[],
+  contentPlugins: ContentPlugin[],
   state: EditorStateAPI,
   render: EditorRenderAPI,
   navigation: EditorNavigationAPI,
@@ -87,6 +86,12 @@ export function createEditorLifecycle(
     dom.editorDiv.addEventListener('input', () => {
       if (state.isNavigating()) return
       render.render()
+
+      // Call onUpdate on each content plugin after render (D-03)
+      for (const plugin of contentPlugins) {
+        plugin.onUpdate?.()
+      }
+
       const raw = extractText(dom.editorDiv)
       const trail = state.getTrail()
       const page = trail[trail.length - 1]
@@ -131,6 +136,14 @@ export function createEditorLifecycle(
     return {
       destroy() {
         state.clearSaveTimer()
+        // Call onDestroy on each plugin, wrapped in try/catch (Pitfall 3)
+        for (const plugin of contentPlugins) {
+          try {
+            plugin.onDestroy?.()
+          } catch (e) {
+            console.error(`Plugin "${plugin.name}" onDestroy failed:`, e)
+          }
+        }
         dom.container.innerHTML = ''
       },
 

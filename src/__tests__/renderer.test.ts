@@ -2,12 +2,14 @@
 
 import { describe, it, expect } from 'vitest'
 import { renderLine } from '../renderer'
-import type { EditorContext, Plugin, Token } from '../types'
+import type { EditorContext, ContentPlugin, Token } from '../types'
 
 // ─── Plugin Mock ──────────────────────────────────────────────────────────────
 
-const previewPlugin: Plugin = {
+const previewPlugin: ContentPlugin = {
   name: 'preview',
+  version: '1.0.0',
+  kind: 'content' as const,
   tokens: [{ type: 'preview', pattern: /\[\[([^\]]+)\]\]/ }],
   render(token: Token): HTMLElement {
     const el = document.createElement('span')
@@ -47,8 +49,10 @@ describe('renderLine', () => {
   })
 
   it('renders token with onNavigate handler as clickable element', () => {
-    const navPlugin: Plugin = {
+    const navPlugin: ContentPlugin = {
       name: 'navigable',
+      version: '1.0.0',
+      kind: 'content' as const,
       tokens: [{ type: 'nav', pattern: /\[\[([^\]]+)\]\]/ }],
       render(_token: Token): HTMLElement {
         const el = document.createElement('span')
@@ -60,9 +64,7 @@ describe('renderLine', () => {
       },
     }
 
-    const navTokens: Token[] = [
-      { type: 'nav', raw: '[[test]]', groups: ['test'] },
-    ]
+    const navTokens: Token[] = [{ type: 'nav', raw: '[[test]]', groups: ['test'] }]
 
     const result = renderLine(navTokens, [navPlugin], {} as EditorContext, -1)
     expect(result.childNodes[0].textContent).toBe('click me')

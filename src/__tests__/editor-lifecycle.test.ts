@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { Plugin, StorageAdapter, EditorOptions, EditorContext, Token } from '../types'
+import type { ContentPlugin, StorageAdapter, EditorOptions, EditorContext, Token } from '../types'
 import type { EditorStateAPI } from '../editor-state'
 import type { EditorDOM } from '../editor-dom'
 import type { EditorRenderAPI } from '../editor-render'
@@ -81,9 +81,11 @@ function mockNavigation(): EditorNavigationAPI {
   }
 }
 
-function mockPlugins(): Plugin[] {
+function mockPlugins(): ContentPlugin[] {
   return [{
     name: 'test-plugin',
+    version: '1.0.0',
+    kind: 'content' as const,
     tokens: [{ type: 'test', pattern: /./ }],
     render(token: Token, _context: EditorContext): HTMLElement | Text {
       return document.createTextNode(token.raw)
@@ -99,7 +101,7 @@ describe('createEditorLifecycle', () => {
   let dom: EditorDOM
   let render: EditorRenderAPI
   let navigation: EditorNavigationAPI
-  let plugins: Plugin[]
+  let plugins: ContentPlugin[]
   let options: EditorOptions
 
   beforeEach(() => {
@@ -250,7 +252,7 @@ describe('Editor lifecycle event handlers', () => {
   let dom: EditorDOM
   let render: EditorRenderAPI
   let navigation: EditorNavigationAPI
-  let plugins: Plugin[]
+  let plugins: ContentPlugin[]
   let options: EditorOptions
 
   beforeEach(() => {

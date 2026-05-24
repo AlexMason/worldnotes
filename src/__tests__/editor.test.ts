@@ -2,7 +2,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createEditor } from '../editor'
-import type { Plugin, Token, EditorContext, StorageAdapter } from '../types'
+import type { ContentPlugin, Token, EditorContext, StorageAdapter } from '../types'
 
 // ─── Test Helpers ─────────────────────────────────────────────────────────────
 
@@ -15,8 +15,10 @@ beforeEach(() => {
 
 // ─── Mock Plugin ──────────────────────────────────────────────────────────────
 
-const mockPlugin: Plugin = {
+const mockPlugin: ContentPlugin = {
   name: 'test-plugin',
+  version: '1.0.0',
+  kind: 'content' as const,
   tokens: [{ type: 'test', pattern: /test/ }],
   render(token: Token, _context: EditorContext): HTMLElement {
     const el = document.createElement('span')
@@ -25,8 +27,10 @@ const mockPlugin: Plugin = {
   },
 }
 
-const mockPluginB: Plugin = {
+const mockPluginB: ContentPlugin = {
   name: 'test-plugin', // Same name — should replace
+  version: '1.0.0',
+  kind: 'content' as const,
   tokens: [{ type: 'test-b', pattern: /test-b/ }],
   render(token: Token, _context: EditorContext): HTMLElement {
     const el = document.createElement('span')
