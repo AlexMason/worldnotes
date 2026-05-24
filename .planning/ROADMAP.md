@@ -83,7 +83,13 @@ Plans:
   3. Typing `~~strikethrough~~` in the editor renders crossed-out text following the existing TokenDef → render pipeline pattern
   4. Typing `[text](url)` renders a clickable link — external URLs open in a new tab, internal `[[Page]]` links navigate within the editor
   5. Plugin author imports `PluginManifest`, `ContentPlugin`, `UIPlugin`, and `StoragePlugin` types from the library's public API, all documented in `docs/api.md`
-**Plans**: TBD
+**Plans**: 4 plans in 4 waves
+
+Plans:
+- [ ] 03-01-PLAN.md — PluginManifest Types + PluginRegistry (discriminated union, conflict detection, semver validation)
+- [ ] 03-02-PLAN.md — Migrate Existing 7 Plugins to ContentPlugin (in-place rewrite, version + kind fields)
+- [ ] 03-03-PLAN.md — Wire EditorBuilder + Pipeline to PluginRegistry (registry integration, lifecycle hooks)
+- [ ] 03-04-PLAN.md — New Formatting Plugins + Public API + Docs (strikethrough, link, type exports)
 
 ### Phase 4: Theming System
 **Goal**: Consumers can customize the editor's appearance by overriding CSS custom properties or replacing the entire stylesheet, and the editor DOM uses only prefixed, token-driven classes.
@@ -118,6 +124,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Production Infrastructure & Test Foundation | 6/6 | Complete | 2026-05-24 — All 6 plans completed |
 | 2. Architecture Refactoring | 6/6 | Complete | 2026-05-24 — All 6 plans completed |
-| 3. Plugin System & Content Extensions | 0/TBD | Not started | - |
+| 3. Plugin System & Content Extensions | 0/4 | Planned | 2026-05-24 — 4 plans created |
 | 4. Theming System | 0/TBD | Not started | - |
 | 5. UI Extension Slots | 0/TBD | Not started | - |
