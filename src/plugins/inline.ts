@@ -1,4 +1,4 @@
-import type { Plugin, Token, EditorContext } from '../types'
+import type { ContentPlugin, Token, EditorContext } from '../types'
 
 /**
  * Helper: wrap inner text with dimmed punctuation markers on either side.
@@ -28,8 +28,10 @@ function withPunct(cls: string, marker: string, inner: string): HTMLElement {
  * Built-in plugin: **bold** text.
  * Renders the ** markers as dimmed punctuation flanking styled bold text.
  */
-export const boldPlugin: Plugin = {
+export const boldPlugin: ContentPlugin = {
   name: 'bold',
+  version: '1.0.0',
+  kind: 'content' as const,
   tokens: [{ type: 'bold', pattern: /\*\*([^*]+)\*\*/ }],
   render(token: Token, _ctx: EditorContext): HTMLElement {
     return withPunct('wn-bold', '**', token.groups[0] ?? '')
@@ -40,8 +42,10 @@ export const boldPlugin: Plugin = {
  * Built-in plugin: *italic* text.
  * Renders the * markers as dimmed punctuation flanking styled italic text.
  */
-export const italicPlugin: Plugin = {
+export const italicPlugin: ContentPlugin = {
   name: 'italic',
+  version: '1.0.0',
+  kind: 'content' as const,
   tokens: [{ type: 'italic', pattern: /\*([^*]+)\*/ }],
   render(token: Token, _ctx: EditorContext): HTMLElement {
     return withPunct('wn-italic', '*', token.groups[0] ?? '')
@@ -52,8 +56,10 @@ export const italicPlugin: Plugin = {
  * Built-in plugin: `inline code` spans.
  * Renders backticks as dimmed punctuation flanking a styled code span.
  */
-export const inlineCodePlugin: Plugin = {
+export const inlineCodePlugin: ContentPlugin = {
   name: 'inline-code',
+  version: '1.0.0',
+  kind: 'content' as const,
   tokens: [{ type: 'inline-code', pattern: /`([^`]+)`/ }],
   render(token: Token, _ctx: EditorContext): HTMLElement {
     const wrap = document.createElement('span')
@@ -80,8 +86,10 @@ export const inlineCodePlugin: Plugin = {
  * Built-in plugin: > blockquote lines.
  * Line-level (anchored) — matches the whole line and renders it as a quote block.
  */
-export const blockquotePlugin: Plugin = {
+export const blockquotePlugin: ContentPlugin = {
   name: 'blockquote',
+  version: '1.0.0',
+  kind: 'content' as const,
   tokens: [{ type: 'blockquote', pattern: /^(> )(.*)$/ }],
   render(token: Token, _ctx: EditorContext): HTMLElement {
     const wrap = document.createElement('span')
@@ -105,8 +113,10 @@ export const blockquotePlugin: Plugin = {
  * Built-in plugin: --- horizontal rules.
  * Line-level — matches --- (or more dashes) on its own line.
  */
-export const hrPlugin: Plugin = {
+export const hrPlugin: ContentPlugin = {
   name: 'hr',
+  version: '1.0.0',
+  kind: 'content' as const,
   tokens: [{ type: 'hr', pattern: /^---+$/ }],
   render(_token: Token, _ctx: EditorContext): HTMLElement {
     const el = document.createElement('span')

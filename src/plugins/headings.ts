@@ -1,4 +1,4 @@
-import type { Plugin, Token, EditorContext } from '../types'
+import type { ContentPlugin, Token, EditorContext } from '../types'
 
 /**
  * Render a heading span with dimmed punctuation and styled content.
@@ -33,8 +33,10 @@ function renderHeading(token: Token, punctText: string, levelCls: string): HTMLE
  * Renders:
  *   # Title  → <span class="wn-h1"><span class="wn-punct"># </span><span>Title</span></span>
  */
-export const headingsPlugin: Plugin = {
+export const headingsPlugin: ContentPlugin = {
   name: 'headings',
+  version: '1.0.0',
+  kind: 'content' as const,
 
   tokens: [
     { type: 'h1', pattern: /^# (.*)$/ },

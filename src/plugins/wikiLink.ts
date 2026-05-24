@@ -1,4 +1,4 @@
-import type { Plugin, Token, EditorContext } from '../types'
+import type { ContentPlugin, Token, EditorContext } from '../types'
 import { parseWikiLink } from '../navigation'
 
 /**
@@ -12,8 +12,10 @@ import { parseWikiLink } from '../navigation'
  *   [[projects/acme]] → <span class="wn-wiki-link">acme</span>
  *   [[projects/acme|Client Portal]] → <span class="wn-wiki-link">Client Portal</span>
  */
-export const wikiLinkPlugin: Plugin = {
+export const wikiLinkPlugin: ContentPlugin = {
   name: 'wiki-link',
+  version: '1.0.0',
+  kind: 'content' as const,
 
   tokens: [
     {
