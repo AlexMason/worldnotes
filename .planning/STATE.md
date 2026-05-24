@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-05-23)
 
 ## Current Position
 
-Phase: 2 of 5 (Architecture Refactoring) — COMPLETE
-Plan: 06 of 06 (Demo extraction + architecture docs) — COMPLETED
-Status: Complete (6 of 6 plans complete)
-Last activity: 2026-05-24 — Plan 02-06 completed: moved demo.ts to demo/ directory (excluded from build), updated docs/architecture.md with 5-module DAG and API surfaces — Phase 2 complete
+Phase: 3 of 5 (Plugin System & Content Extensions) — IN PROGRESS
+Plan: 01 of 04 (PluginManifest Types + PluginRegistry) — COMPLETED
+Status: In Progress (1 of 4 plans complete)
+Last activity: 2026-05-24 — Plan 03-01 completed: defined PluginManifest discriminated union types (ContentPlugin, UIPlugin, StoragePlugin), built PluginRegistry class with Map-based O(1) conflict detection, semver validation, and lifecycle hooks — 36 unit tests passing, 209 total tests, zero existing-code changes
 
-Progress: [████████████████████] 100% (6 of 6 plans)
+Progress: [█████░░░░░░░░░░░░░░░░░] 25% (1 of 4 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12
-- Average duration: 5m 52s
-- Total execution time: 1h 10m
+- Total plans completed: 13
+- Average duration: 5m 41s
+- Total execution time: 1h 17m
 
 **By Phase:**
 
@@ -29,6 +29,7 @@ Progress: [████████████████████] 100% (6
 |-------|-------|-------|----------|
 | 1. Production Infra & Test | 6 | 41m 26s | 6m 55s |
 | 2. Architecture Refactoring | 6 | 35m 16s | 5m 53s |
+| 3. Plugin System & Content Extensions | 1 | ~7m | ~7m |
 
 **Recent Trend:**
 - 01-01: 5m 55s — Toolchain installation, Vite upgrade, config creation
@@ -43,6 +44,7 @@ Progress: [████████████████████] 100% (6
 - 02-03: 9m 46s — Extracted editor-render.ts: createEditorRender factory, EditorRenderAPI interface, 15 tests, render pipeline + breadcrumb + URL sync, type-only imports for editor-* modules
 - 02-05: 9m 14s — Extracted editor-navigation.ts (12 tests) + editor-lifecycle.ts (14 tests), rewrote editor.ts as thin orchestrator delegating to 5 sub-modules — all 173 tests pass, public API unchanged
 - 02-06: 2m 45s — Moved demo.ts to demo/ directory (excluded from build, no demo.d.ts leak), updated docs/architecture.md with 5-module DAG, construction order, circular dependency prevention, and API surfaces — Phase 2 complete
+- 03-01: ~7m — Defined PluginManifest discriminated union types (ContentPlugin, UIPlugin, StoragePlugin), built PluginRegistry class with Map-based O(1) conflict detection, semver validation, lifecycle hooks — 36 new unit tests, 209 total tests passing, zero existing-code changes
 
 *Updated after each plan completion*
 
@@ -81,6 +83,7 @@ Recent decisions affecting current work:
 - [02-03]: navigateFn passed through EditorRenderOptions (not hardcoded) so orchestrator wires it after navigation module creation. toContext() called inside each render() for fresh trail/world snapshot. Type-only imports for editor-state and editor-dom enforce zero runtime cycles.
 - [02-05]: Two-phase construction pattern (setRenderAPI) avoids circular dependency between navigation and render. insertTextAtSelection dispatches 'input' on same editorDiv used for addEventListener — preserving direct feedback loop. DAG-ordered construction in mountEditor (state → dom → navigation → render → lifecycle → mount). DEFAULT_HOME kept in editor.ts per plan spec despite now being unused (nav has its own copy). EditorBuilder line-count constraint (max_lines: 100) not achievable due to 56-line class body required to remain unchanged; achieved 121 lines (76% reduction).
 - [02-06]: demo.ts moved to top-level demo/ directory (outside src/) to leverage existing tsconfig include: ["src"] exclusion — simpler than Vite config exclusion. Vite dev server resolves relative imports (../src/index → /src/index.ts) automatically. Architecture docs structured with DAG diagram showing strict 6-tier dependency flow from state root to orchestrator, with import type and setRenderAPI() documented as circular dependency prevention strategies.
+- [03-01]: PluginRegistry uses 5 internal Maps (contentPlugins, uiPlugins, storagePlugins, tokenTypeOwners, slotAssignments) for O(1) conflict detection. onInit rollback: if a plugin's onInit throws, the plugin is fully removed from all Maps (atomic registration). clear() does NOT call onDestroy — caller manages lifecycle teardown separately. Content plugin self-overlap (same name, same token types) is allowed — only cross-plugin conflicts throw. Legacy Plugin interface retained with @deprecated notice for migration compatibility.
 
 ### Pending Todos
 
@@ -101,6 +104,6 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-05-24
-Stopped at: Completed 02-06-PLAN.md — Demo extraction + architecture docs complete. Phase 2 fully complete.
-Resume file: None (Phase 2 complete)
-Next: Phase 3 — Plugin System & Content Extensions (plans TBD)
+Stopped at: Completed 03-01-PLAN.md — PluginManifest types + PluginRegistry class complete. Phase 3 in progress (1/4 plans).
+Resume file: .planning/phases/03-plugin-system/03-02-PLAN.md
+Next: Plan 03-02 — Migrate Existing 7 Plugins to ContentPlugin
