@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-05-23)
 
 **Core value:** Developers and users can extend the editor with custom blocks, UI panels, and storage backends without touching core code — the plugin surface is the product.
-**Current focus:** Phase 4 — Theming System
+**Current focus:** Phase 5 — UI Extension Slots
 
 ## Current Position
 
-Phase: 4 of 5 (Theming System) — COMPLETE
-Plan: 02 of 02 (Theme option + documentation) — COMPLETE
-Status: Complete (2 of 2 plans complete)
-Last activity: 2026-05-24 — Plan 04-02 completed: added EditorOptions.theme full-replacement escape hatch, threaded theme through EditorBuilder → mountEditor → createEditorDOM → injectStyles, 4 new tests (247 total), docs/theming.md with complete 46-token reference and CSS class guide, all CI gates green
+Phase: 5 of 5 (UI Extension Slots) — IN PROGRESS
+Plan: 01 of 01 (Toolbar slot + UI plugin lifecycle) — COMPLETE
+Status: Complete (1 of 1 plans complete)
+Last activity: 2026-05-24 — Plan 05-01 completed: added toolbar slot to editor DOM, PluginRegistry.getUIPluginsForSlot priority-sorted accessor, UI plugin lifecycle wiring (onMount/onDestroy), post-mount registration in EditorBuilder, 14 new tests (261 total), docs/architecture.md updated with toolbar slot and UI extension boundary, all CI gates green
 
-Progress: [████████████████████████████████████████████████████████████] 100% (2 of 2 plans)
+Progress: [████████████████████████████████████████████████████████████] 100% (1 of 1 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 18
-- Average duration: 5m 28s
-- Total execution time: 1h 46m
+- Total plans completed: 19
+- Average duration: 5m 40s
+- Total execution time: 1h 54m
 
 **By Phase:**
 
@@ -31,6 +31,7 @@ Progress: [███████████████████████
 | 2. Architecture Refactoring | 6 | 35m 16s | 5m 53s |
 | 3. Plugin System & Content Extensions | 4 | ~24m 30s | ~6m 8s |
 | 4. Theming System | 2 | 12m 14s | 6m 7s |
+| 5. UI Extension Slots | 1 | 8m 11s | 8m 11s |
 
 **Recent Trend:**
 - 01-01: 5m 55s — Toolchain installation, Vite upgrade, config creation
@@ -51,6 +52,7 @@ Progress: [███████████████████████
 - 03-04: ~10m — Created strikethroughPlugin (~~text~~ with punct markers) and linkPlugin ([text](url) external anchor / internal wiki span), 17 new tests (plugins, tokenizer, renderer), exported PluginManifest/ContentPlugin/UIPlugin/StoragePlugin types, updated docs/api.md — 226 tests pass, coverage thresholds met, Phase 3 complete
 - 04-01: 6m 1s — Extracted 46 --wn-* CSS custom properties into DEFAULT_TOKENS constant (7 categories), replaced all hardcoded design values in DEFAULT_CSS with var() references, 17 new tests (editor-dom.test.ts), 243 total tests pass, all CI gates green — token-driven theming foundation complete
 - 04-02: 6m 13s — Added EditorOptions.theme full-replacement escape hatch, threaded theme through EditorBuilder → mountEditor → createEditorDOM → injectStyles, 4 new tests (247 total), docs/theming.md with complete 46-token reference and CSS class guide, all CI gates green — Phase 4 complete
+- 05-01: 8m 11s — Added toolbar slot to editor DOM, PluginRegistry.getUIPluginsForSlot priority-sorted accessor, UI plugin lifecycle wiring (onMount/onDestroy), post-mount registration in EditorBuilder, 14 new tests (261 total), docs/architecture.md updated — Phase 5 complete
 
 *Updated after each plan completion*
 
@@ -95,6 +97,7 @@ Recent decisions affecting current work:
 - [03-04]: Strikethrough follows bold/italic pattern with exported withPunct helper and dataset.raw for cursor fidelity (Pitfall 4). Link internal detection based on absence of :// or // prefix (D-11). Internal links reuse wn-wiki-link class for consistent styling. Link registration order: after wikiLinkPlugin so [[page]] matches before [text](url) (Pitfall 1). Removed deprecated Plugin type from public API — PluginManifest union is the migration point (D-08).
 - [04-01]: 46 --wn-* CSS custom properties across 7 categories (Colors 23, Typography 8, Spacing 6, Radii 3, Shadows 2, Transitions 2, Misc 2) defined in DEFAULT_TOKENS constant. Tokens injected on .wn-root via template literal concatenation (DEFAULT_CSS = DEFAULT_TOKENS + ...). All var() references include fallbacks matching token defaults. Wiki-link font-size (13px) and code-text font-size (12.5px) shifted to unified --wn-font-size-small (12px) — intentional ~1px visual change.
 - [04-02]: EditorOptions.theme is an optional string that replaces the entire <style id="worldnotes-styles"> content. Threaded through EditorBuilder → mountEditor → createEditorDOM → injectStyles using nullish coalescing (theme ?? DEFAULT_CSS). When theme is provided and a style element already exists, content is replaced (not appended) — enables future dynamic theme switching. docs/theming.md documents all 46 tokens with default values, CSS property mappings, and visual impact descriptions. Two-tier theming: token overrides (80% of use cases via CSS cascade) + full replacement (20% via EditorOptions.theme).
+- [05-01]: Toolbar div rendered unconditionally with zero-height when empty (D-02). CSS: flex row with gap 6px, flex-shrink 0. Priority sorting in mountEditor rather than lifecycle (keeps lifecycle generic). Post-mount slot elements captured via querySelector on EditorBuilder.el. onDestroy teardown ordered: content plugins first, then UI plugins, then DOM clear. Same-name UIPlugin replacement handled by PluginRegistry.removeByName (old onDestroy before new onMount).
 
 ### Pending Todos
 
@@ -115,6 +118,6 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-05-24
-Stopped at: Completed 04-02-PLAN.md — EditorOptions.theme full replacement, theme threading through pipeline, docs/theming.md with 46-token reference, 4 new tests, 247 total tests pass. Phase 4 complete.
-Resume file: None (Phase 4 complete)
-Next: Phase 5 — Deployment & Distribution
+Stopped at: Completed 05-01-PLAN.md — toolbar slot, getUIPluginsForSlot, UI plugin lifecycle wiring, post-mount registration, 14 new tests (261 total), docs/architecture.md updated. Phase 5 complete. All 5 phases complete.
+Resume file: None (all phases complete)
+Next: None — project complete

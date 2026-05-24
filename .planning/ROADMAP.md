@@ -29,7 +29,7 @@ Phase 4 is parallel-ready (depends only on Phase 2) but sequenced after Phase 3 
 - [x] **Phase 2: Architecture Refactoring** - Decompose editor monolith into focused, independently testable modules
 - [x] **Phase 3: Plugin System & Content Extensions** - Declarative plugin manifests, lifecycle hooks, strikethrough, and URL links
 - [x] **Phase 4: Theming System** - CSS custom property design tokens with full theme replacement escape hatch
-- [ ] **Phase 5: UI Extension Slots** - Toolbar slot for UI plugin mounting with conflict detection
+- [x] **Phase 5: UI Extension Slots** - Toolbar slot for UI plugin mounting with conflict detection
 
 ## Phase Details
 
@@ -120,7 +120,7 @@ Plans:
 **Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 05-01-PLAN.md — Toolbar slot, priority-sorted UI accessor, lifecycle wiring, post-mount registration
+- [x] 05-01-PLAN.md — Toolbar slot, priority-sorted UI accessor, lifecycle wiring, post-mount registration
 
 **UI hint**: yes
 
@@ -134,4 +134,4 @@ Plans:
 | 2. Architecture Refactoring | 6/6 | Complete | 2026-05-24 — All 6 plans completed |
 | 3. Plugin System & Content Extensions | 4/4 | Complete | 2026-05-24 — All 4 plans completed |
 | 4. Theming System | 2/2 | Complete | 2026-05-24 — All 2 plans completed |
-| 5. UI Extension Slots | 0/TBD | Not started | - |
+| 5. UI Extension Slots | 1/1 | Complete | 2026-05-24 — All 1 plan completed |

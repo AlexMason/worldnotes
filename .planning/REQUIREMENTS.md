@@ -49,10 +49,10 @@ Requirements for first production milestone. Each maps to roadmap phases.
 
 ### UI Extension (UI)
 
-- [ ] **UI-01**: Editor DOM provides a minimal toolbar slot (`wn-toolbar`) where UI plugins can mount content
-- [ ] **UI-02**: `PluginManifest.slots` array declares which DOM slots a UI plugin populates
-- [ ] **UI-03**: Plugin lifecycle `onMount` receives the slot container element for DOM rendering
-- [ ] **UI-04**: UI plugin conflict detection — two plugins claiming the same slot with same priority errors at registration
+- [x] **UI-01**: Editor DOM provides a minimal toolbar slot (`wn-toolbar`) where UI plugins can mount content
+- [x] **UI-02**: `PluginManifest.slots` array declares which DOM slots a UI plugin populates
+- [x] **UI-03**: Plugin lifecycle `onMount` receives the slot container element for DOM rendering
+- [x] **UI-04**: UI plugin conflict detection — two plugins claiming the same slot with same priority errors at registration
 
 ## v2 Requirements
 
@@ -132,10 +132,10 @@ Deferred to subsequent milestone. Tracked but not in current roadmap.
 | THEME-03 | Phase 4 | Complete |
 | THEME-04 | Phase 4 | Complete |
 | THEME-05 | Phase 4 | Complete |
-| UI-01 | Phase 5 | Pending |
-| UI-02 | Phase 5 | Pending |
-| UI-03 | Phase 5 | Pending |
-| UI-04 | Phase 5 | Pending |
+| UI-01 | Phase 5 | Complete |
+| UI-02 | Phase 5 | Complete |
+| UI-03 | Phase 5 | Complete |
+| UI-04 | Phase 5 | Complete |
 
 **Coverage:**
 - v1 requirements: 29 total
@@ -144,4 +144,4 @@ Deferred to subsequent milestone. Tracked but not in current roadmap.
 
 ---
 *Requirements defined: 2026-05-23*
-*Last updated: 2026-05-24 after Plan 03-04 completion*
+*Last updated: 2026-05-24 after Plan 05-01 completion*
