@@ -1,5 +1,5 @@
-import { createEditor } from './index'
-import type { Plugin, Token, EditorContext } from './types'
+import { createEditor } from '../src/index'
+import type { Plugin, Token, EditorContext } from '../src/types'
 
 // ─── Example custom plugin: @mentions ─────────────────────────────────────────
 //
