@@ -11,24 +11,24 @@ See: .planning/PROJECT.md (updated 2026-05-23)
 
 Phase: 2 of 5 (Architecture Refactoring) — IN PROGRESS
 Plan: 02 of 06 (Extract editor-dom.ts) — COMPLETED
-Status: In progress (1 of 6 plans complete)
-Last activity: 2026-05-24 — Plan 02-02 completed: editor-dom.ts extracted from editor.ts monolith — 205 lines, zero imports, pure DOM construction factory
+Status: In progress (2 of 6 plans complete)
+Last activity: 2026-05-24 — Plan 02-01 completed: editor-state.ts extracted from editor.ts — 135 lines, factory-function pattern, zero editor-* imports, 14 unit tests
 
-Progress: [██░░░░░░░░░░░░░░░░░░] 17% (1 of 6 plans)
+Progress: [███░░░░░░░░░░░░░░░░░] 33% (2 of 6 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 6m 29s
-- Total execution time: 0h 45m
+- Total plans completed: 8
+- Average duration: 6m 15s
+- Total execution time: 0h 50m
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. Production Infra & Test | 6 | 41m 26s | 6m 55s |
-| 2. Architecture Refactoring | 1 | 3m 53s | 3m 53s |
+| 2. Architecture Refactoring | 2 | 8m 27s | 4m 14s |
 
 **Recent Trend:**
 - 01-01: 5m 55s — Toolchain installation, Vite upgrade, config creation
@@ -37,6 +37,7 @@ Progress: [██░░░░░░░░░░░░░░░░░░] 17% (1 
 - 01-04: 12m 22s — Tokenizer unit tests: 20 cases covering line-level, inline, edge cases, and document-level
 - 01-05: 4m 41s — Plugin, storage, and editor tests: 35 cases reaching INFRA-02 coverage for 9 source modules
 - 01-06: 12m 00s — Coverage thresholds (80% branches), AGENTS.md documentation, 36 new test cases, 103 total passing
+- 02-01: 4m 34s — Extracted editor-state.ts from editor.ts: createEditorState factory, EditorStateAPI interface, 14 unit tests, DAG root with zero editor-* imports
 - 02-02: 3m 53s — Extracted editor-dom.ts from editor.ts: createEditorDOM factory, EditorDOM interface, private el() helper, DEFAULT_CSS + injectStyles, zero imports
 
 *Updated after each plan completion*
@@ -70,6 +71,7 @@ Recent decisions affecting current work:
 - [Init]: Theming (Phase 4) is parallel-ready with Plugin System (Phase 3) but sequenced after — plugin manifest is the higher-priority lynchpin.
 - [Init]: FORMAT requirements (strikethrough, URL links) grouped with Plugin System (Phase 3) so they use the new PluginManifest format from day one rather than requiring a separate migration step.
 - [Init]: Cursor module testing (ARCH-03) placed in Phase 2 alongside the refactoring, since comprehensive cursor tests are a prerequisite to touching the renderer internals.
+- [02-01]: Editor mutable state extracted as createEditorState() factory — zero editor-* imports (DAG root), all getters return defensive copies. Unused `saveDebounce` variable removed (belongs in lifecycle module's input handler).
 - [02-02]: DOM construction extracted as createEditorDOM() pure factory — zero imports, zero state dependency, el() kept private. Prettier singleQuote config (Phase 1) overrides pre-refactor CONVENTIONS.md double-quote analysis.
 
 ### Pending Todos
@@ -91,6 +93,6 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-05-24
-Stopped at: Completed 02-02-PLAN.md — Extract editor-dom.ts (1 task, 3m 53s)
-Resume file: .planning/phases/02-architecture-refactoring/02-02-PLAN.md (completed)
-Next: Plan 02-03 (extract editor-render.ts) or continuation of parallel Plan 02-01 (editor-state)
+Stopped at: Completed 02-01-PLAN.md — Extract editor-state.ts (1 task, 4m 34s)
+Resume file: .planning/phases/02-architecture-refactoring/02-01-PLAN.md (completed)
+Next: Plan 02-03 (extract editor-render.ts) — depends on 02-01 (EditorStateAPI) and 02-02 (EditorDOM)
