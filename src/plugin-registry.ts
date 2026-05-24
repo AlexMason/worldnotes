@@ -141,8 +141,15 @@ export class PluginRegistry {
         break
     }
 
-    // 4. Lifecycle hook — called after successful registration
-    manifest.onInit?.()
+    // 4. Lifecycle hook — called after successful registration.
+    // If onInit throws, roll back the registration so the plugin
+    // is not left partially registered.
+    try {
+      manifest.onInit?.()
+    } catch (e) {
+      this.removeByName(manifest.name)
+      throw e
+    }
   }
 
   /** Register a content plugin with token type conflict detection. */
