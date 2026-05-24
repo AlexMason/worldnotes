@@ -88,7 +88,7 @@ Plans:
 Plans:
 - [x] 03-01-PLAN.md — PluginManifest Types + PluginRegistry (discriminated union, conflict detection, semver validation)
 - [x] 03-02-PLAN.md — Migrate Existing 7 Plugins to ContentPlugin (in-place rewrite, version + kind fields)
-- [ ] 03-03-PLAN.md — Wire EditorBuilder + Pipeline to PluginRegistry (registry integration, lifecycle hooks)
+- [x] 03-03-PLAN.md — Wire EditorBuilder + Pipeline to PluginRegistry (registry integration, lifecycle hooks)
 - [ ] 03-04-PLAN.md — New Formatting Plugins + Public API + Docs (strikethrough, link, type exports)
 
 ### Phase 4: Theming System
@@ -124,6 +124,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Production Infrastructure & Test Foundation | 6/6 | Complete | 2026-05-24 — All 6 plans completed |
 | 2. Architecture Refactoring | 6/6 | Complete | 2026-05-24 — All 6 plans completed |
-| 3. Plugin System & Content Extensions | 2/4 | In Progress | 2026-05-24 — 2 of 4 plans completed |
+| 3. Plugin System & Content Extensions | 3/4 | In Progress | 2026-05-24 — 3 of 4 plans completed |
 | 4. Theming System | 0/TBD | Not started | - |
 | 5. UI Extension Slots | 0/TBD | Not started | - |

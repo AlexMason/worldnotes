@@ -21,13 +21,13 @@ Requirements for first production milestone. Each maps to roadmap phases.
 - [x] **ARCH-01**: Editor monolith (`src/editor.ts`) split into cohesive modules — state management, DOM construction, input handling, navigation, persistence, and lifecycle
 - [x] **ARCH-02**: Render pipeline (tokenizer → renderer) remains intact but is modularized with clear boundaries
 - [x] **ARCH-03**: Cursor module tested comprehensively for caret edge cases before renderer changes
-- [ ] **ARCH-04**: `src/demo.ts` extracted to a separate entry point (not compiled into library build output)
-- [ ] **ARCH-05**: Module responsibilities documented in `docs/architecture.md`
+- [x] **ARCH-04**: `src/demo.ts` extracted to a separate entry point (not compiled into library build output)
+- [x] **ARCH-05**: Module responsibilities documented in `docs/architecture.md`
 
 ### Plugin System (PLUG)
 
 - [x] **PLUG-01**: Plugin authors declare capabilities via a `PluginManifest` interface with explicit `kind` (block, ui, storage)
-- [ ] **PLUG-02**: Plugins have lifecycle hooks — `onInit`, `onMount`, `onUpdate`, `onDestroy`
+- [x] **PLUG-02**: Plugins have lifecycle hooks — `onInit`, `onMount`, `onUpdate`, `onDestroy`
 - [x] **PLUG-03**: Plugin conflict detection at registration time — two plugins claiming the same slot/pattern error at registration, not at runtime
 - [x] **PLUG-04**: Existing built-in plugins (headings, bold, italic, code, wiki links, hr, blockquote) migrated to the new manifest format
 - [ ] **PLUG-05**: Plugin API types exported from `src/index.ts` and documented in `docs/api.md`
@@ -111,7 +111,7 @@ Deferred to subsequent milestone. Tracked but not in current roadmap.
 | INFRA-02 | Phase 1 | Complete |
 | INFRA-03 | Phase 1 | Complete |
 | INFRA-04 | Phase 1 | Complete |
-| INFRA-05 | Phase 1 | Pending |
+| INFRA-05 | Phase 1 | Complete |
 | INFRA-06 | Phase 1 | Complete |
 | ARCH-01 | Phase 2 | Pending |
 | ARCH-02 | Phase 2 | Pending |
@@ -119,7 +119,7 @@ Deferred to subsequent milestone. Tracked but not in current roadmap.
 | ARCH-04 | Phase 2 | Complete |
 | ARCH-05 | Phase 2 | Complete |
 | PLUG-01 | Phase 3 | Complete |
-| PLUG-02 | Phase 3 | Pending |
+| PLUG-02 | Phase 3 | Complete |
 | PLUG-03 | Phase 3 | Complete |
 | PLUG-04 | Phase 3 | Complete |
 | PLUG-05 | Phase 3 | Pending |
@@ -144,4 +144,4 @@ Deferred to subsequent milestone. Tracked but not in current roadmap.
 
 ---
 *Requirements defined: 2026-05-23*
-*Last updated: 2026-05-24 after Plan 03-01 completion*
+*Last updated: 2026-05-24 after Plan 03-03 completion*
