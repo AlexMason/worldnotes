@@ -1,10 +1,4 @@
-import type {
-  Plugin,
-  StorageAdapter,
-  EditorOptions,
-  EditorInstance,
-  EditorContext,
-} from './types'
+import type { Plugin, StorageAdapter, EditorOptions, EditorInstance, EditorContext } from './types'
 import { LocalStorageAdapter } from './storage/localStorage'
 import { defaultPlugins } from './plugins/defaults'
 import { tokenizeDocument } from './tokenizer'
@@ -50,7 +44,7 @@ export class EditorBuilder {
    */
   use(plugin: Plugin): this {
     // Replace existing plugin with same name, or append
-    const idx = this.plugins.findIndex(p => p.name === plugin.name)
+    const idx = this.plugins.findIndex((p) => p.name === plugin.name)
     if (idx !== -1) {
       this.plugins[idx] = plugin
     } else {
@@ -133,10 +127,10 @@ function mountEditor(
   container.innerHTML = ''
   container.className = 'wn-root'
 
-  const topbar    = el('div', 'wn-topbar')
+  const topbar = el('div', 'wn-topbar')
   const breadcrumb = el('div', 'wn-breadcrumb')
   const editorWrap = el('div', 'wn-editor-wrap')
-  const editorDiv  = el('div', 'wn-editor') as HTMLDivElement
+  const editorDiv = el('div', 'wn-editor') as HTMLDivElement
   const placeholder = el('div', 'wn-placeholder')
 
   placeholder.textContent = 'Start writing… use [[page name]] to link deeper'
@@ -161,9 +155,12 @@ function mountEditor(
 
   function render(): void {
     const offset = getCaretOffset(editorDiv)
-    const raw    = extractText(editorDiv)
-    const lines  = tokenizeDocument(raw, plugins.flatMap(p => p.tokens))
-    const frags  = renderDocument(lines, plugins, context, offset)
+    const raw = extractText(editorDiv)
+    const lines = tokenizeDocument(
+      raw,
+      plugins.flatMap((p) => p.tokens),
+    )
+    const frags = renderDocument(lines, plugins, context, offset)
 
     editorDiv.innerHTML = ''
     frags.forEach((frag, i) => {
@@ -173,7 +170,11 @@ function mountEditor(
 
     placeholder.style.display = raw.length ? 'none' : 'block'
 
-    try { setCaretOffset(editorDiv, offset) } catch {}
+    try {
+      setCaretOffset(editorDiv, offset)
+    } catch {
+      /* noop */
+    }
   }
 
   // ── Breadcrumb ────────────────────────────────────────────────────────────
@@ -205,7 +206,11 @@ function mountEditor(
 
   function syncUrlToTrail(): void {
     const search = encodePathSearch(window.location.search, trail)
-    window.history.replaceState(null, '', `${window.location.pathname}${search}${window.location.hash}`)
+    window.history.replaceState(
+      null,
+      '',
+      `${window.location.pathname}${search}${window.location.hash}`,
+    )
   }
 
   // ── Navigation ────────────────────────────────────────────────────────────
@@ -241,14 +246,16 @@ function mountEditor(
     // Move cursor to start
     try {
       const range = document.createRange()
-      const sel   = window.getSelection()
+      const sel = window.getSelection()
       if (sel) {
         range.setStart(editorDiv, 0)
         range.collapse(true)
         sel.removeAllRanges()
         sel.addRange(range)
       }
-    } catch {}
+    } catch {
+      /* caret restore failed — best-effort */
+    }
 
     options.onPageLoad?.(page, content)
     isNavigating = false

@@ -30,7 +30,7 @@ export class IndexedDBAdapter implements StorageAdapter {
         req.result.createObjectStore(STORE_NAME)
       }
       req.onsuccess = () => resolve(req.result)
-      req.onerror   = () => reject(req.error)
+      req.onerror = () => reject(req.error)
     })
   }
 
@@ -42,30 +42,30 @@ export class IndexedDBAdapter implements StorageAdapter {
   async get(page: string): Promise<string | null> {
     const db = await this.ensureOpen()
     return new Promise((resolve, reject) => {
-      const tx  = db.transaction(STORE_NAME, 'readonly')
+      const tx = db.transaction(STORE_NAME, 'readonly')
       const req = tx.objectStore(STORE_NAME).get(page)
       req.onsuccess = () => resolve((req.result as string) ?? null)
-      req.onerror   = () => reject(req.error)
+      req.onerror = () => reject(req.error)
     })
   }
 
   async set(page: string, content: string): Promise<void> {
     const db = await this.ensureOpen()
     return new Promise((resolve, reject) => {
-      const tx  = db.transaction(STORE_NAME, 'readwrite')
+      const tx = db.transaction(STORE_NAME, 'readwrite')
       const req = tx.objectStore(STORE_NAME).put(content, page)
       req.onsuccess = () => resolve()
-      req.onerror   = () => reject(req.error)
+      req.onerror = () => reject(req.error)
     })
   }
 
   async keys(): Promise<string[]> {
     const db = await this.ensureOpen()
     return new Promise((resolve, reject) => {
-      const tx  = db.transaction(STORE_NAME, 'readonly')
+      const tx = db.transaction(STORE_NAME, 'readonly')
       const req = tx.objectStore(STORE_NAME).getAllKeys()
       req.onsuccess = () => resolve(req.result as string[])
-      req.onerror   = () => reject(req.error)
+      req.onerror = () => reject(req.error)
     })
   }
 }

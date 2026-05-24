@@ -10,11 +10,11 @@ import { boldPlugin, italicPlugin, inlineCodePlugin, blockquotePlugin, hrPlugin 
  * inline code, blockquotes, and horizontal rules.
  */
 export const defaultPlugins: Plugin[] = [
-  headingsPlugin,    // line-level — must come before inline plugins
-  hrPlugin,          // line-level
-  blockquotePlugin,  // line-level
-  wikiLinkPlugin,    // inline
-  boldPlugin,        // inline — ** before * to avoid partial match
-  italicPlugin,      // inline
-  inlineCodePlugin,  // inline
+  headingsPlugin, // line-level — must come before inline plugins
+  hrPlugin, // line-level
+  blockquotePlugin, // line-level
+  wikiLinkPlugin, // inline
+  boldPlugin, // inline — ** before * to avoid partial match
+  italicPlugin, // inline
+  inlineCodePlugin, // inline
 ]

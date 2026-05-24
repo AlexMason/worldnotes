@@ -1,5 +1,5 @@
-export { wikiLinkPlugin }   from './wikiLink'
-export { headingsPlugin }   from './headings'
+export { wikiLinkPlugin } from './wikiLink'
+export { headingsPlugin } from './headings'
 export { boldPlugin, italicPlugin, inlineCodePlugin, blockquotePlugin, hrPlugin } from './inline'
 
 /**

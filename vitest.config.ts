@@ -9,6 +9,9 @@ export default defineConfig({
     // Test file discovery — matches co-located tests in src/__tests__/
     include: ['src/__tests__/**/*.test.ts'],
 
+    // Allow CI to pass when no test files exist yet (tests added in Plans 02-05)
+    passWithNoTests: true,
+
     // Coverage configuration (v8 provider per D-03)
     coverage: {
       provider: 'v8',

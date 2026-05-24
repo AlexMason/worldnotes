@@ -1,2 +1,2 @@
 export { LocalStorageAdapter } from './localStorage'
-export { IndexedDBAdapter }   from './indexedDB'
+export { IndexedDBAdapter } from './indexedDB'

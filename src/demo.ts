@@ -1,4 +1,4 @@
-import { createEditor, defaultPlugins } from './index'
+import { createEditor } from './index'
 import type { Plugin, Token, EditorContext } from './types'
 
 // ─── Example custom plugin: @mentions ─────────────────────────────────────────

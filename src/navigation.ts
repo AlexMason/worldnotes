@@ -22,7 +22,7 @@ export function encodePathSearch(search: string, trail: string[]): string {
     const [name = ''] = param.split('=', 1)
     return decodeURIComponent(name.replace(/\+/g, ' ')) !== 'path'
   })
-  const path = trail.map(page => encodeURIComponent(page)).join('/')
+  const path = trail.map((page) => encodeURIComponent(page)).join('/')
   const next = [...withoutPath, `path=${path}`]
   return `?${next.join('&')}`
 }
@@ -38,5 +38,8 @@ export function decodePathSearch(search: string): string[] {
   const equalsIndex = pathParam.indexOf('=')
   const rawPath = equalsIndex === -1 ? '' : pathParam.slice(equalsIndex + 1)
   if (!rawPath) return []
-  return rawPath.split('/').filter(Boolean).map(page => decodeURIComponent(page))
+  return rawPath
+    .split('/')
+    .filter(Boolean)
+    .map((page) => decodeURIComponent(page))
 }

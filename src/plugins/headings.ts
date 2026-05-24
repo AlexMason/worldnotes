@@ -44,10 +44,14 @@ export const headingsPlugin: Plugin = {
 
   render(token: Token, _context: EditorContext): HTMLElement {
     switch (token.type) {
-      case 'h1': return renderHeading(token, '# ',   'wn-h1')
-      case 'h2': return renderHeading(token, '## ',  'wn-h2')
-      case 'h3': return renderHeading(token, '### ', 'wn-h3')
-      default:   return renderHeading(token, '',     'wn-h1')
+      case 'h1':
+        return renderHeading(token, '# ', 'wn-h1')
+      case 'h2':
+        return renderHeading(token, '## ', 'wn-h2')
+      case 'h3':
+        return renderHeading(token, '### ', 'wn-h3')
+      default:
+        return renderHeading(token, '', 'wn-h1')
     }
   },
 }

@@ -23,14 +23,14 @@ function textToken(raw: string): Token {
  */
 export function tokenizeLine(line: string, defs: TokenDef[]): Token[] {
   // Separate line-level patterns (anchored at ^) from inline patterns
-  const lineDefs  = defs.filter(d => d.pattern.source.startsWith('^'))
-  const inlineDefs = defs.filter(d => !d.pattern.source.startsWith('^'))
+  const lineDefs = defs.filter((d) => d.pattern.source.startsWith('^'))
+  const inlineDefs = defs.filter((d) => !d.pattern.source.startsWith('^'))
 
   // Test line-level patterns first — they consume the whole line
   for (const def of lineDefs) {
     const m = line.match(def.pattern)
     if (m) {
-      return [{ type: def.type, raw: m[0], groups: m.slice(1).map(g => g ?? '') }]
+      return [{ type: def.type, raw: m[0], groups: m.slice(1).map((g) => g ?? '') }]
     }
   }
 
@@ -75,7 +75,7 @@ function scanInline(input: string, defs: TokenDef[]): Token[] {
     tokens.push({
       type: earliest.def.type,
       raw: earliest.match[0],
-      groups: earliest.match.slice(1).map(g => g ?? ''),
+      groups: earliest.match.slice(1).map((g) => g ?? ''),
     })
 
     remaining = remaining.slice(earliest.index + earliest.match[0].length)
@@ -93,5 +93,5 @@ function scanInline(input: string, defs: TokenDef[]): Token[] {
  * @returns    - Array of per-line token arrays
  */
 export function tokenizeDocument(text: string, defs: TokenDef[]): Token[][] {
-  return text.split('\n').map(line => tokenizeLine(line, defs))
+  return text.split('\n').map((line) => tokenizeLine(line, defs))
 }

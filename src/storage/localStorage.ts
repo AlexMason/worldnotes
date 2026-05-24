@@ -30,7 +30,7 @@ export class LocalStorageAdapter implements StorageAdapter {
   async keys(): Promise<string[]> {
     const prefix = `${this.namespace}::`
     return Object.keys(localStorage)
-      .filter(k => k.startsWith(prefix))
-      .map(k => k.slice(prefix.length))
+      .filter((k) => k.startsWith(prefix))
+      .map((k) => k.slice(prefix.length))
   }
 }

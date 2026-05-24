@@ -14,12 +14,12 @@ export type {
 
 // ─── Storage adapters ─────────────────────────────────────────────────────────
 export { LocalStorageAdapter } from './storage/localStorage'
-export { IndexedDBAdapter }    from './storage/indexedDB'
+export { IndexedDBAdapter } from './storage/indexedDB'
 
 // ─── Built-in plugins ─────────────────────────────────────────────────────────
-export { defaultPlugins }    from './plugins/defaults'
-export { wikiLinkPlugin }    from './plugins/wikiLink'
-export { headingsPlugin }    from './plugins/headings'
+export { defaultPlugins } from './plugins/defaults'
+export { wikiLinkPlugin } from './plugins/wikiLink'
+export { headingsPlugin } from './plugins/headings'
 export {
   boldPlugin,
   italicPlugin,
