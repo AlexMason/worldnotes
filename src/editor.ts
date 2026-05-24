@@ -1,6 +1,7 @@
-import type { Plugin, StorageAdapter, EditorOptions, EditorInstance } from './types'
+import type { ContentPlugin, PluginManifest, StorageAdapter, EditorOptions, EditorInstance } from './types'
 import { LocalStorageAdapter } from './storage/localStorage'
 import { defaultPlugins } from './plugins/defaults'
+import { PluginRegistry } from './plugin-registry'
 import { createEditorState } from './editor-state'
 import { createEditorDOM } from './editor-dom'
 import { createEditorRender } from './editor-render'
@@ -29,7 +30,7 @@ Start writing here. Use [[page name]] to link into new pages.
  */
 export class EditorBuilder {
   private readonly el: HTMLElement
-  private plugins: Plugin[] = [...defaultPlugins]
+  private registry = new PluginRegistry()
   private storage: StorageAdapter = new LocalStorageAdapter()
   private options: EditorOptions = {}
 
@@ -37,31 +38,31 @@ export class EditorBuilder {
     this.el = el
     this.options = options
     if (options.storage) this.storage = options.storage
+    // Register default plugins via registry (D-09: order preserved, conflict-free)
+    for (const plugin of defaultPlugins) {
+      this.registry.register(plugin)
+    }
   }
 
   /**
-   * Register a plugin (or replace a built-in by matching name).
-   * Plugins are applied in registration order during tokenization.
+   * Register a plugin manifest (or replace a built-in by matching name).
+   * Validates semver, detects conflicts, and fires lifecycle hooks.
    *
-   * @param plugin - Plugin instance to register
+   * @param manifest - PluginManifest to register
+   * @throws Error if version is invalid or a token/slot conflict is detected
    */
-  use(plugin: Plugin): this {
-    // Replace existing plugin with same name, or append
-    const idx = this.plugins.findIndex((p) => p.name === plugin.name)
-    if (idx !== -1) {
-      this.plugins[idx] = plugin
-    } else {
-      this.plugins.push(plugin)
-    }
+  use(manifest: PluginManifest): this {
+    this.registry.register(manifest)
     return this
   }
 
   /**
-   * Remove all default plugins and start with an empty plugin set.
-   * Useful when you want full control over which tokens are supported.
+   * Remove all registered plugins and start fresh.
+   * Note: does NOT call onDestroy on removed plugins.
+   * Call mount() afterward to re-initialize the editor.
    */
   clearPlugins(): this {
-    this.plugins = []
+    this.registry.clear()
     return this
   }
 
@@ -80,7 +81,7 @@ export class EditorBuilder {
    * Injects required styles, sets up event listeners, and loads the initial page.
    */
   mount(): EditorInstance {
-    return mountEditor(this.el, this.plugins, this.storage, this.options)
+    return mountEditor(this.el, this.registry.allContentPlugins(), this.storage, this.options)
   }
 }
 
@@ -104,7 +105,7 @@ export function createEditor(el: HTMLElement, options: EditorOptions = {}): Edit
 
 function mountEditor(
   container: HTMLElement,
-  plugins: Plugin[],
+  contentPlugins: ContentPlugin[],
   storage: StorageAdapter,
   options: EditorOptions,
 ): EditorInstance {
@@ -116,7 +117,7 @@ function mountEditor(
     onBreadcrumbNavigate: (page: string) => { navigation.loadPage(page) },
     onTrailChange: options.onTrailChange,
   }
-  const render = createEditorRender(dom, plugins, state, renderOpts)
+  const render = createEditorRender(dom, contentPlugins, state, renderOpts)
   navigation.setRenderAPI(render)
-  return createEditorLifecycle(dom, plugins, state, render, navigation, storage, options).mount()
+  return createEditorLifecycle(dom, contentPlugins, state, render, navigation, storage, options).mount()
 }
