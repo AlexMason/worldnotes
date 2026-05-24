@@ -49,7 +49,7 @@ Plans:
 - [x] 01-01-PLAN.md — Dependencies, Config & CI (install tooling, create vitest/eslint/prettier/CI config)
 - [x] 01-02-PLAN.md — Cursor Test Migration (convert cursor.test.mjs → Vitest .test.ts)
 - [x] 01-03-PLAN.md — Renderer & Navigation Test Migration (convert remaining .mjs tests + remove test/)
-- [ ] 01-04-PLAN.md — Tokenizer Tests (15-20 test cases, pure logic, no DOM)
+- [x] 01-04-PLAN.md — Tokenizer Tests (15-20 test cases, pure logic, no DOM)
 - [ ] 01-05-PLAN.md — Plugin, Storage & Editor Tests (headings, inline, wikiLink, localStorage, IndexedDB, editor lifecycle)
 - [ ] 01-06-PLAN.md — Coverage Thresholds & Documentation (80% thresholds, AGENTS.md update)
 
@@ -108,7 +108,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Production Infrastructure & Test Foundation | 3/6 | In progress | 2026-05-24 — Plans 01-03 completed |
+| 1. Production Infrastructure & Test Foundation | 4/6 | In progress | 2026-05-24 — Plans 01-04 completed |
 | 2. Architecture Refactoring | 0/TBD | Not started | - |
 | 3. Plugin System & Content Extensions | 0/TBD | Not started | - |
 | 4. Theming System | 0/TBD | Not started | - |

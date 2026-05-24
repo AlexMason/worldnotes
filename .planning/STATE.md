@@ -10,29 +10,30 @@ See: .planning/PROJECT.md (updated 2026-05-23)
 ## Current Position
 
 Phase: 1 of 5 (Production Infrastructure & Test Foundation)
-Plan: 03 of 06 (Test Migration Completion) — COMPLETED
+Plan: 04 of 06 (Tokenizer Tests) — COMPLETED
 Status: In progress
-Last activity: 2026-05-24 — Plan 01-03 completed: Renderer & Navigation tests migrated to Vitest, test/ directory removed (12 tests, 3 suites)
+Last activity: 2026-05-24 — Plan 01-04 completed: 20 tokenizer unit tests (tokenizeLine, tokenizeDocument) with line-level, inline, edge case, and document-level coverage
 
-Progress: [█████░░░░░] 50%
+Progress: [███████░░░] 67%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: 4m 5s
-- Total execution time: 0h 12m
+- Total plans completed: 4
+- Average duration: 6m 6s
+- Total execution time: 0h 24m
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. Production Infra & Test | 3 | 12m 23s | 4m 5s |
+| 1. Production Infra & Test | 4 | 24m 45s | 6m 6s |
 
 **Recent Trend:**
 - 01-01: 5m 55s — Toolchain installation, Vite upgrade, config creation
 - 01-02: 2m 46s — Cursor test migration to Vitest + happy-dom
 - 01-03: 3m 42s — Renderer & Navigation test migration, test/ directory cleanup
+- 01-04: 12m 22s — Tokenizer unit tests: 20 cases covering line-level, inline, edge cases, and document-level
 
 *Updated after each plan completion*
 
@@ -53,6 +54,9 @@ Recent decisions affecting current work:
 - [01-03]: Renderer test uses happy-dom real DOM (document.createElement/createTextNode) — FakeElement/FakeText stubs fully replaced
 - [01-03]: Navigation test uses default Node environment (no @vitest-environment directive needed) — pure logic, zero DOM dependency
 - [01-03]: Old test/ directory fully removed — all 3 migrated suites co-located in src/__tests__/ following Vitest convention
+- [01-04]: Tokenizer tests use inline TokenDef definitions matching built-in plugin patterns rather than importing plugin modules — keeps tests decoupled from plugin implementation details
+- [01-04]: scanInline tested indirectly through tokenizeLine with inline-only defs since the function is not exported
+- [01-04]: Tokenizer needs no DOM — tests run in default happy-dom environment without @vitest-environment override (no document.* or DOM API calls)
 - [Init]: Theming (Phase 4) is parallel-ready with Plugin System (Phase 3) but sequenced after — plugin manifest is the higher-priority lynchpin.
 - [Init]: FORMAT requirements (strikethrough, URL links) grouped with Plugin System (Phase 3) so they use the new PluginManifest format from day one rather than requiring a separate migration step.
 - [Init]: Cursor module testing (ARCH-03) placed in Phase 2 alongside the refactoring, since comprehensive cursor tests are a prerequisite to touching the renderer internals.
@@ -76,5 +80,5 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-05-24
-Stopped at: Completed 01-03-PLAN.md — Test Migration Completion (3 tasks, 3m 42s)
-Resume file: .planning/phases/01-production-infrastructure/01-03-PLAN.md (completed)
+Stopped at: Completed 01-04-PLAN.md — Tokenizer Tests (1 task, 12m 22s)
+Resume file: .planning/phases/01-production-infrastructure/01-04-PLAN.md (completed)
