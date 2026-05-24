@@ -33,6 +33,8 @@ export class EditorBuilder {
   private registry = new PluginRegistry()
   private storage: StorageAdapter = new LocalStorageAdapter()
   private options: EditorOptions = {}
+  private _mounted = false
+  private _slotElements: Record<string, HTMLElement> | null = null
 
   constructor(el: HTMLElement, options: EditorOptions = {}) {
     this.el = el
@@ -53,6 +55,17 @@ export class EditorBuilder {
    */
   use(manifest: PluginManifest): this {
     this.registry.register(manifest)
+
+    // Post-mount: call onMount for UI plugins immediately (D-08)
+    if (this._mounted && manifest.kind === 'ui' && this._slotElements) {
+      for (const slot of manifest.slots) {
+        const el = this._slotElements[slot]
+        if (el) {
+          manifest.onMount(el)
+        }
+      }
+    }
+
     return this
   }
 
@@ -84,13 +97,21 @@ export class EditorBuilder {
     const uiPlugins = this.registry.allUIPlugins()
       .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
 
-    return mountEditor(
+    const instance = mountEditor(
       this.el,
       this.registry.allContentPlugins(),
       uiPlugins,
       this.storage,
       this.options,
     )
+
+    // Store slot element references for post-mount plugin registration
+    this._mounted = true
+    this._slotElements = {
+      'wn-toolbar': this.el.querySelector('.wn-toolbar') as HTMLElement,
+    }
+
+    return instance
   }
 }
 

@@ -9,7 +9,7 @@
 | `src/index.ts`             | Public export surface for editor creation, types, plugins, and storage adapters.                                                                                                                                                          |
 | `src/editor.ts`            | Thin orchestrator: wires the 5 sub-modules together in DAG order and exposes `createEditor()` and `EditorBuilder`. (~100 lines, down from 496)                                                                                            |
 | `src/editor-state.ts`      | Owns all mutable editor state: `world` page cache, `trail` breadcrumb array, `saveTimer`, and `isNavigating` flag. Exports `createEditorState()` factory returning `EditorStateAPI`.                                                      |
-| `src/editor-dom.ts`        | Builds the editor DOM tree (`wn-root`, `wn-topbar`, `wn-editor-wrap`, `wn-editor`), injects default styles once, and holds the `DEFAULT_CSS` template. Exports `createEditorDOM()` factory returning `EditorDOM`.                         |
+| `src/editor-dom.ts`        | Builds the editor DOM tree (`wn-root`, `wn-topbar`, `wn-toolbar`, `wn-editor-wrap`, `wn-editor`), injects default styles once, and holds the `DEFAULT_CSS` template. Exports `createEditorDOM()` factory returning `EditorDOM`.                         |
 | `src/editor-render.ts`     | Coordinates the extract→tokenize→render→caret pipeline. Manages breadcrumb rendering and URL synchronization. Exports `createEditorRender()` factory returning `EditorRenderAPI`.                                                         |
 | `src/editor-navigation.ts` | Handles page navigation (`navigateToPage`, `loadPage`), world cache population, storage reads/writes during transitions, and caret placement after page load. Exports `createEditorNavigation()` factory returning `EditorNavigationAPI`. |
 | `src/editor-lifecycle.ts`  | Wires DOM event listeners (input, paste, keydown), exposes `insertTextAtSelection()`, assembles the public `EditorInstance`, and manages teardown. Exports `createEditorLifecycle()` factory returning `EditorLifecycleAPI`.              |
@@ -45,7 +45,7 @@ editor.ts                ← imports all editor-* modules; thin orchestrator (~4
 3. `createEditorNavigation(state, storage, dom, options)` — page navigation (no render yet)
 4. `createEditorRender(dom, plugins, state, renderOptions)` — render pipeline with navigate callbacks
 5. `navigation.setRenderAPI(render)` — two-phase wiring: navigation now has render access
-6. `createEditorLifecycle(dom, plugins, state, render, navigation, storage, options)` — event listeners + EditorInstance
+6. `createEditorLifecycle(dom, contentPlugins, uiPlugins, state, render, navigation, storage, options)` — event listeners, UI plugin mounting, EditorInstance
 7. `lifecycle.mount()` — calls `loadPage(initialPage)`, returns live `EditorInstance`
 
 **Circular dependency prevention:** All cross-module communication uses `import type` (type-only imports erased at compile time). Value imports only flow from editor-_ modules into the orchestrator (`editor.ts`), never between editor-_ modules. The single exception is `src/editor-lifecycle.ts` importing `extractText` from `src/cursor.ts` (an existing pipeline module, not an editor-\* module). Navigation receives its render API via `setRenderAPI()` to avoid a circular dependency with the render module.
@@ -61,7 +61,7 @@ Mounting delegates to `mountEditor()`, which orchestrates the 5 sub-modules in c
 3. `createEditorNavigation` provides page navigation and loading, using the storage adapter for persistence.
 4. `createEditorRender` connects the render pipeline (extract→tokenize→render→caret) and breadcrumb rendering.
 5. Two-phase wiring: `navigation.setRenderAPI(render)` enables loadPage to trigger re-renders.
-6. `createEditorLifecycle` attaches input/paste/keydown event handlers to the contentEditable div and returns the `EditorInstance`.
+6. `createEditorLifecycle(dom, contentPlugins, uiPlugins, state, render, navigation, storage, options)` attaches input/paste/keydown event handlers, mounts UI plugins into slots, and returns the `EditorInstance`.
 7. `lifecycle.mount()` loads the initial page (from URL trail or `options.initialPage`), triggers the first render, and returns the live API surface.
 
 On input, the lifecycle module's event handler calls `render()`, updates the world cache in `editor-state`, and schedules a debounced save through the storage adapter.
@@ -83,6 +83,12 @@ Nested page names are display-friendly: `projects/acme` renders as `acme` in bre
 ## Extension Boundaries
 
 Plugins should stay focused on syntax recognition, rendering, and optional click behavior. Storage adapters should only implement persistence. App-level concerns such as routing shells, sidebars, authentication, synchronization, and export workflows should live outside the library and communicate through the public editor API.
+
+UI plugins populate named DOM slots through their `onMount(slotEl)` lifecycle hook.
+The only v1 slot is `wn-toolbar` — a horizontal flex container between the topbar
+and editor area. Plugins append their own DOM children and are responsible for
+cleanup in `onDestroy`. Slot+priority conflicts are detected at registration time
+by the PluginRegistry.
 
 ## Contributor Notes
 
