@@ -7,7 +7,7 @@ import type { ContentPlugin, Token, EditorContext } from '../types'
  * @param marker - The punctuation character(s) to show on each side
  * @param inner  - The text content between the markers
  */
-function withPunct(cls: string, marker: string, inner: string): HTMLElement {
+export function withPunct(cls: string, marker: string, inner: string): HTMLElement {
   const wrap = document.createElement('span')
   wrap.className = cls
 

@@ -120,6 +120,20 @@ const DEFAULT_CSS = `
   transition: background 0.12s;
 }
 .wn-wiki-link:hover { background: #221e42; color: #bbb3f8; }
+
+/* Strikethrough */
+.wn-strikethrough {
+  text-decoration: line-through;
+}
+
+/* External link */
+.wn-link {
+  color: #9b8fe8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.wn-link:hover { color: #bbb3f8; }
 `
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

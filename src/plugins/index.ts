@@ -1,6 +1,8 @@
 export { wikiLinkPlugin } from './wikiLink'
 export { headingsPlugin } from './headings'
 export { boldPlugin, italicPlugin, inlineCodePlugin, blockquotePlugin, hrPlugin } from './inline'
+export { linkPlugin } from './link'
+export { strikethroughPlugin } from './strikethrough'
 
 /**
  * The default plugin set — everything you need for a fully functional
