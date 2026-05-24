@@ -174,6 +174,10 @@ export interface Plugin {
  * @property storage         - StorageAdapter instance (defaults to localStorage)
  * @property initialPage     - Page name to load on mount (defaults to 'home')
  * @property saveDebounceMs  - Milliseconds to debounce saves after input (default 600)
+ * @property theme           - Optional CSS string that replaces the entire default stylesheet.
+ *                            When provided, the injected <style id="worldnotes-styles"> element
+ *                            contains this CSS instead of the default token-driven stylesheet.
+ *                            When omitted (default), the --wn-* design token stylesheet is used.
  * @property onTrailChange   - Called whenever the breadcrumb trail changes
  * @property onPageLoad      - Called after a page is loaded into the editor
  * @property onSave          - Called after a page is successfully persisted
@@ -182,6 +186,22 @@ export interface EditorOptions {
   storage?: StorageAdapter
   initialPage?: string
   saveDebounceMs?: number
+  /**
+   * Optional CSS string that replaces the entire default stylesheet.
+   * When provided, the injected <style id="worldnotes-styles"> element
+   * contains this CSS instead of the default token-driven stylesheet.
+   * When omitted (default), the --wn-* design token stylesheet is used.
+   *
+   * Use this for complete visual customization when token overrides
+   * are insufficient.
+   *
+   * @example
+   * // Replace the entire stylesheet with a custom theme
+   * createEditor(el, {
+   *   theme: '.wn-root { --wn-color-bg: #fff; --wn-color-fg: #111; } ...'
+   * })
+   */
+  theme?: string
   onTrailChange?: (trail: string[]) => void
   onPageLoad?: (page: string, content: string) => void
   onSave?: (page: string, content: string) => void

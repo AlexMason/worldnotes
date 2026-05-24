@@ -110,7 +110,7 @@ function mountEditor(
   options: EditorOptions,
 ): EditorInstance {
   const state = createEditorState(storage, options)
-  const dom = createEditorDOM(container)
+  const dom = createEditorDOM(container, options.theme)
   const navigation = createEditorNavigation(state, storage, dom, options)
   const renderOpts: EditorRenderOptions = {
     navigateFn: (page: string) => { navigation.navigateToPage(page) },

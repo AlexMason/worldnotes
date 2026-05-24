@@ -216,14 +216,25 @@ function el(tag: string, cls: string): HTMLElement {
 /**
  * Inject the default CSS for all wn-* classes into <head> once.
  * Users can override any rule by targeting the same class with higher specificity.
+ *
+ * @param theme - Optional CSS string that replaces the default stylesheet entirely.
+ *                When omitted, the token-driven DEFAULT_CSS is injected.
  */
-function injectStyles(): void {
+function injectStyles(theme?: string): void {
   const STYLE_ID = 'worldnotes-styles'
-  if (document.getElementById(STYLE_ID)) return
+  const existing = document.getElementById(STYLE_ID)
+  if (existing) {
+    // If a theme is provided, update the existing style element
+    // to support potential future dynamic theme switching
+    if (theme !== undefined) {
+      existing.textContent = theme
+    }
+    return
+  }
 
   const style = document.createElement('style')
   style.id = STYLE_ID
-  style.textContent = DEFAULT_CSS
+  style.textContent = theme ?? DEFAULT_CSS
   document.head.appendChild(style)
 }
 
@@ -258,10 +269,12 @@ export interface EditorDOM {
  * keyboard navigation.
  *
  * @param container - The host element that will receive the editor DOM
+ * @param theme     - Optional CSS string that replaces the default stylesheet.
+ *                    When omitted, the token-driven DEFAULT_CSS is injected.
  * @returns Typed references to every major editor element
  */
-export function createEditorDOM(container: HTMLElement): EditorDOM {
-  injectStyles()
+export function createEditorDOM(container: HTMLElement, theme?: string): EditorDOM {
+  injectStyles(theme)
 
   container.innerHTML = ''
   container.className = 'wn-root'
