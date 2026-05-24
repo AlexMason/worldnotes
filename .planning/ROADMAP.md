@@ -63,7 +63,15 @@ Plans:
   3. Running `npm run build` produces a library bundle free of demo code — no `demo.ts` symbols in `dist/` output
   4. `docs/architecture.md` describes each module's responsibility, public API surface, and connection points to other modules
   5. Cursor module has comprehensive test coverage for caret edge cases: line boundaries, empty documents, forced offsets, and multi-byte characters
-**Plans**: TBD
+**Plans**: 6 plans in 4 waves
+
+Plans:
+- [ ] 02-01-PLAN.md — Extract editor-state.ts (world cache, trail, save timer, context)
+- [ ] 02-02-PLAN.md — Extract editor-dom.ts (DOM construction, injectStyles, DEFAULT_CSS)
+- [ ] 02-03-PLAN.md — Extract editor-render.ts (render pipeline, breadcrumb, URL sync)
+- [ ] 02-04-PLAN.md — Cursor Edge Case Tests (15 new tests: empty docs, multi-byte, line boundaries, data-raw)
+- [ ] 02-05-PLAN.md — Extract editor-navigation.ts + editor-lifecycle.ts + Wire editor.ts (thin orchestrator)
+- [ ] 02-06-PLAN.md — demo.ts Extraction + docs/architecture.md Update
 
 ### Phase 3: Plugin System & Content Extensions
 **Goal**: Plugin authors can register plugins via declarative manifests with lifecycle hooks and category-based dispatch, and `~~strikethrough~~` and `[text](url)` render correctly in the editor.
@@ -109,7 +117,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Production Infrastructure & Test Foundation | 4/6 | In progress | 2026-05-24 — Plans 01-04 completed |
-| 2. Architecture Refactoring | 0/TBD | Not started | - |
+| 2. Architecture Refactoring | 0/6 | Planned | - |
 | 3. Plugin System & Content Extensions | 0/TBD | Not started | - |
 | 4. Theming System | 0/TBD | Not started | - |
 | 5. UI Extension Slots | 0/TBD | Not started | - |
