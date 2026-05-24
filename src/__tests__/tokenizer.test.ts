@@ -12,8 +12,10 @@ const headingDefs: TokenDef[] = [
 
 const inlineDefs: TokenDef[] = [
   { type: 'wiki-link', pattern: /\[\[([^\]]+)\]\]/ },
+  { type: 'link', pattern: /\[([^\]]+)\]\(([^)]+)\)/ },
   { type: 'bold', pattern: /\*\*([^*]+)\*\*/ },
   { type: 'italic', pattern: /\*([^*]+)\*/ },
+  { type: 'strikethrough', pattern: /~~([^~]+)~~/ },
   { type: 'inline-code', pattern: /`([^`]+)`/ },
   { type: 'blockquote', pattern: /^(> )(.*)$/ },
   { type: 'hr', pattern: /^---+$/ },
@@ -182,6 +184,78 @@ describe('tokenizeLine edge cases', () => {
     expect(result[1].groups).toEqual(['bold-italic'])
     expect(result[2].type).toBe('text')
     expect(result[2].raw).toBe('*')
+  })
+})
+
+// ─── Strikethrough Tokenization ───────────────────────────────────────────────
+
+describe('strikethrough tokenization', () => {
+  it('matches strikethrough pattern with correct token shape', () => {
+    const result = tokenizeLine('~~deleted text~~', inlineDefs)
+    expect(result).toHaveLength(1)
+    expect(result[0].type).toBe('strikethrough')
+    expect(result[0].raw).toBe('~~deleted text~~')
+    expect(result[0].groups).toEqual(['deleted text'])
+  })
+
+  it('does not match single tilde ~text~', () => {
+    const result = tokenizeLine('~not strikethrough~', inlineDefs)
+    expect(result).toHaveLength(1)
+    expect(result[0].type).toBe('text')
+  })
+
+  it('does not match triple tilde ~~~', () => {
+    const result = tokenizeLine('~~~', inlineDefs)
+    expect(result).toHaveLength(1)
+    expect(result[0].type).toBe('text')
+  })
+
+  it('tokenizes strikethrough inline with surrounding text', () => {
+    const result = tokenizeLine('keep ~~remove~~ done', inlineDefs)
+    expect(result).toHaveLength(3)
+    expect(result[0].type).toBe('text')
+    expect(result[0].raw).toBe('keep ')
+    expect(result[1].type).toBe('strikethrough')
+    expect(result[1].raw).toBe('~~remove~~')
+    expect(result[2].type).toBe('text')
+    expect(result[2].raw).toBe(' done')
+  })
+})
+
+// ─── Link Tokenization ────────────────────────────────────────────────────────
+
+describe('link tokenization', () => {
+  it('matches external link pattern with correct token shape', () => {
+    const result = tokenizeLine('[Example](https://example.com)', inlineDefs)
+    expect(result).toHaveLength(1)
+    expect(result[0].type).toBe('link')
+    expect(result[0].raw).toBe('[Example](https://example.com)')
+    expect(result[0].groups).toEqual(['Example', 'https://example.com'])
+  })
+
+  it('matches internal page link pattern', () => {
+    const result = tokenizeLine('[Projects](projects/acme)', inlineDefs)
+    expect(result).toHaveLength(1)
+    expect(result[0].type).toBe('link')
+    expect(result[0].raw).toBe('[Projects](projects/acme)')
+    expect(result[0].groups).toEqual(['Projects', 'projects/acme'])
+  })
+
+  it('wiki-link pattern takes priority over link pattern for [[page]]', () => {
+    // Per Pitfall 1: [[page]] must match wiki-link, not link
+    const result = tokenizeLine('[[projects/acme]]', inlineDefs)
+    expect(result).toHaveLength(1)
+    expect(result[0].type).toBe('wiki-link')
+    expect(result[0].raw).toBe('[[projects/acme]]')
+  })
+
+  it('tokenizes link inline with surrounding text', () => {
+    const result = tokenizeLine('see [docs](https://docs.example.com) for more', inlineDefs)
+    expect(result).toHaveLength(3)
+    expect(result[0].type).toBe('text')
+    expect(result[1].type).toBe('link')
+    expect(result[1].raw).toBe('[docs](https://docs.example.com)')
+    expect(result[2].type).toBe('text')
   })
 })
 

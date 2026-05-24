@@ -10,6 +10,8 @@ import {
   hrPlugin,
 } from '../plugins/inline'
 import { wikiLinkPlugin } from '../plugins/wikiLink'
+import { strikethroughPlugin } from '../plugins/strikethrough'
+import { linkPlugin } from '../plugins/link'
 import type { Token, EditorContext } from '../types'
 
 // ─── Test Helpers ─────────────────────────────────────────────────────────────
@@ -340,5 +342,108 @@ describe('wikiLinkPlugin', () => {
 
     expect(navigate).toHaveBeenCalledWith('')
     expect(result).toBe(true)
+  })
+})
+
+// ─── Strikethrough Plugin ─────────────────────────────────────────────────────
+
+describe('strikethroughPlugin', () => {
+  it('renders strikethrough text with punct markers on both sides', () => {
+    const token = createToken('strikethrough', '~~deleted text~~', ['deleted text'])
+    const el = renderPlugin(strikethroughPlugin, token, createContext())
+
+    expect(el.className).toBe('wn-strikethrough')
+    expect(el.dataset.raw).toBe('~~deleted text~~')
+    expect(el.childNodes).toHaveLength(3)
+
+    // First: punct span with ~~
+    expect(el.childNodes[0].nodeType).toBe(1)
+    expect((el.childNodes[0] as HTMLElement).className).toBe('wn-punct')
+    expect(el.childNodes[0].textContent).toBe('~~')
+
+    // Middle: text node
+    expect(el.childNodes[1].nodeType).toBe(3)
+    expect(el.childNodes[1].textContent).toBe('deleted text')
+
+    // Last: punct span with ~~
+    expect(el.childNodes[2].nodeType).toBe(1)
+    expect((el.childNodes[2] as HTMLElement).className).toBe('wn-punct')
+    expect(el.childNodes[2].textContent).toBe('~~')
+  })
+
+  it('handles empty content between tildes', () => {
+    const token = createToken('strikethrough', '~~~~', [''])
+    const el = renderPlugin(strikethroughPlugin, token, createContext())
+
+    expect(el.className).toBe('wn-strikethrough')
+    expect(el.dataset.raw).toBe('~~~~')
+    expect(el.childNodes[1].textContent).toBe('')
+  })
+})
+
+// ─── Link Plugin ──────────────────────────────────────────────────────────────
+
+describe('linkPlugin', () => {
+  it('renders external URL as anchor tag with target _blank', () => {
+    const token = createToken('link', '[Example](https://example.com)', ['Example', 'https://example.com'])
+    const el = renderPlugin(linkPlugin, token, createContext())
+
+    expect(el.tagName).toBe('A')
+    expect(el.className).toBe('wn-link')
+    expect((el as HTMLAnchorElement).href).toBe('https://example.com/')
+    expect((el as HTMLAnchorElement).target).toBe('_blank')
+    expect((el as HTMLAnchorElement).rel).toBe('noopener noreferrer')
+    expect(el.dataset.raw).toBe('[Example](https://example.com)')
+    expect(el.textContent).toBe('Example')
+  })
+
+  it('renders internal page link as wiki-link span', () => {
+    const token = createToken('link', '[Projects](projects/acme)', ['Projects', 'projects/acme'])
+    const el = renderPlugin(linkPlugin, token, createContext())
+
+    expect(el.tagName).toBe('SPAN')
+    expect(el.className).toBe('wn-wiki-link')
+    expect((el as HTMLElement).dataset.page).toBe('projects/acme')
+    expect(el.dataset.raw).toBe('[Projects](projects/acme)')
+    expect(el.textContent).toBe('Projects')
+  })
+
+  it('onNavigate navigates to internal page and returns true', () => {
+    const navigate = vi.fn()
+    const context = createContext({ navigate })
+    const token = createToken('link', '[Projects](projects/acme)', ['Projects', 'projects/acme'])
+
+    const result = linkPlugin.onNavigate!(token, context)
+
+    expect(navigate).toHaveBeenCalledWith('projects/acme')
+    expect(navigate).toHaveBeenCalledTimes(1)
+    expect(result).toBe(true)
+  })
+
+  it('onNavigate returns false for external URLs', () => {
+    const navigate = vi.fn()
+    const context = createContext({ navigate })
+    const token = createToken('link', '[Example](https://example.com)', ['Example', 'https://example.com'])
+
+    const result = linkPlugin.onNavigate!(token, context)
+
+    expect(navigate).not.toHaveBeenCalled()
+    expect(result).toBe(false)
+  })
+
+  it('detects protocol-relative URLs as external', () => {
+    const token = createToken('link', '[CDN](//cdn.example.com/lib.js)', ['CDN', '//cdn.example.com/lib.js'])
+    const el = renderPlugin(linkPlugin, token, createContext())
+
+    expect(el.tagName).toBe('A')
+    expect(el.className).toBe('wn-link')
+  })
+
+  it('handles empty group content gracefully', () => {
+    const token = createToken('link', '[]()', ['', ''])
+    const el = renderPlugin(linkPlugin, token, createContext())
+
+    expect(el.dataset.raw).toBe('[]()')
+    expect(el.textContent).toBe('')
   })
 })

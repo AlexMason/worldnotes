@@ -71,4 +71,32 @@ describe('renderLine', () => {
     // The element should have a mousedown event listener attached
     // (we can verify the element exists; the listener is attached internally)
   })
+
+  it('renders link token through correct plugin (external)', () => {
+    const linkContentPlugin: ContentPlugin = {
+      name: 'link-test',
+      version: '1.0.0',
+      kind: 'content' as const,
+      tokens: [{ type: 'link', pattern: /\[([^\]]+)\]\(([^)]+)\)/ }],
+      render(token: Token): HTMLElement {
+        const el = document.createElement('a')
+        el.className = 'wn-link'
+        el.href = token.groups[1] ?? ''
+        el.target = '_blank'
+        el.textContent = token.groups[0] ?? ''
+        return el
+      },
+    }
+
+    const linkTokens: Token[] = [
+      { type: 'link', raw: '[Example](https://example.com)', groups: ['Example', 'https://example.com'] },
+    ]
+
+    const result = renderLine(linkTokens, [linkContentPlugin], {} as EditorContext, -1)
+    const anchor = result.childNodes[0] as HTMLAnchorElement
+    expect(anchor.tagName).toBe('A')
+    expect(anchor.className).toBe('wn-link')
+    expect(anchor.target).toBe('_blank')
+    expect(anchor.textContent).toBe('Example')
+  })
 })
