@@ -43,7 +43,15 @@ Phase 4 is parallel-ready (depends only on Phase 2) but sequenced after Phase 3 
   3. Every push triggers a GitHub Actions workflow (typecheck → lint → test → build) with visible status on commits and PRs
   4. Test coverage report shows 80%+ branch coverage and fails CI if below threshold
   5. AGENTS.md and package.json scripts document the test, lint, and typecheck commands for all contributors
-**Plans**: TBD
+**Plans**: 6 plans in 4 waves
+
+Plans:
+- [x] 01-01-PLAN.md — Dependencies, Config & CI (install tooling, create vitest/eslint/prettier/CI config)
+- [ ] 01-02-PLAN.md — Cursor Test Migration (convert cursor.test.mjs → Vitest .test.ts)
+- [ ] 01-03-PLAN.md — Renderer & Navigation Test Migration (convert remaining .mjs tests + remove test/)
+- [ ] 01-04-PLAN.md — Tokenizer Tests (15-20 test cases, pure logic, no DOM)
+- [ ] 01-05-PLAN.md — Plugin, Storage & Editor Tests (headings, inline, wikiLink, localStorage, IndexedDB, editor lifecycle)
+- [ ] 01-06-PLAN.md — Coverage Thresholds & Documentation (80% thresholds, AGENTS.md update)
 
 ### Phase 2: Architecture Refactoring
 **Goal**: The editor codebase is composed of focused, independently testable modules with clear responsibilities and no circular dependencies.
@@ -100,7 +108,7 @@ Phase 4 is parallel-ready (depends only on Phase 2) but sequenced after Phase 3 
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Production Infrastructure & Test Foundation | 0/TBD | Not started | - |
+| 1. Production Infrastructure & Test Foundation | 1/6 | In progress | 2026-05-24 — Plan 01 completed |
 | 2. Architecture Refactoring | 0/TBD | Not started | - |
 | 3. Plugin System & Content Extensions | 0/TBD | Not started | - |
 | 4. Theming System | 0/TBD | Not started | - |

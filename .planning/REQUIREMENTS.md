@@ -9,12 +9,12 @@ Requirements for first production milestone. Each maps to roadmap phases.
 
 ### Infrastructure (INFRA)
 
-- [ ] **INFRA-01**: Test suite runs with a real test framework (Vitest) and happy-dom browser environment, not raw Node assert with manual transpilation
+- [x] **INFRA-01**: Test suite runs with a real test framework (Vitest) and happy-dom browser environment, not raw Node assert with manual transpilation
 - [ ] **INFRA-02**: Every existing source module (cursor, tokenizer, renderer, navigation, editor, plugins, storage) has test coverage for its public API surface
-- [ ] **INFRA-03**: ESLint flat config in place with TypeScript rules, error on commit or CI failure
-- [ ] **INFRA-04**: CI pipeline (GitHub Actions) runs typecheck, lint, and tests on every push and PR
+- [x] **INFRA-03**: ESLint flat config in place with TypeScript rules, error on commit or CI failure
+- [x] **INFRA-04**: CI pipeline (GitHub Actions) runs typecheck, lint, and tests on every push and PR
 - [ ] **INFRA-05**: Coverage thresholds enforced in CI (80%+ branch coverage)
-- [ ] **INFRA-06**: Test and typecheck commands documented in AGENTS.md and package.json scripts
+- [x] **INFRA-06**: Test and typecheck commands documented in AGENTS.md and package.json scripts
 
 ### Architecture (ARCH)
 
@@ -107,12 +107,12 @@ Deferred to subsequent milestone. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 1 | Pending |
+| INFRA-01 | Phase 1 | Complete |
 | INFRA-02 | Phase 1 | Pending |
-| INFRA-03 | Phase 1 | Pending |
-| INFRA-04 | Phase 1 | Pending |
+| INFRA-03 | Phase 1 | Complete |
+| INFRA-04 | Phase 1 | Complete |
 | INFRA-05 | Phase 1 | Pending |
-| INFRA-06 | Phase 1 | Pending |
+| INFRA-06 | Phase 1 | Complete |
 | ARCH-01 | Phase 2 | Pending |
 | ARCH-02 | Phase 2 | Pending |
 | ARCH-03 | Phase 2 | Pending |
@@ -144,4 +144,4 @@ Deferred to subsequent milestone. Tracked but not in current roadmap.
 
 ---
 *Requirements defined: 2026-05-23*
-*Last updated: 2026-05-23 after initial definition*
+*Last updated: 2026-05-24 after Plan 01-01 completion*
