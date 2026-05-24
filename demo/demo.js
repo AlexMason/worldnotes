@@ -1,4 +1,4 @@
-import { createEditor, createImportExportPlugin, LocalStorageAdapter } from '../src/index'
+import { createEditor, createImportExportPlugin, LocalStorageAdapter } from '../dist/worldnotes.js'
 
 // ─── Example custom plugin: @mentions ─────────────────────────────────────────
 
