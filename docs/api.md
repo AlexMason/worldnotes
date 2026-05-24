@@ -2,6 +2,9 @@
 
 This page summarizes the public API exported from `worldnotes`.
 
+> **Dependencies:** The import/export utilities require `jszip`. Install it alongside
+> worldnotes: `npm install jszip`.
+
 ## Editor Creation
 
 ```ts
@@ -140,8 +143,95 @@ class RemoteStorage implements StorageAdapter {
 > when the storage-as-plugin feature lands in a future release. For now, use
 > `editor.withStorage(adapter)`.
 
+## Import / Export
+
+Standalone utilities for exporting and importing all pages as a `.zip` of nested
+markdown files.
+
+```ts
+import { exportWorld, importWorld } from 'worldnotes'
+
+// Export all pages to a downloadable Blob
+const blob = await exportWorld(storage, { filename: 'my-world.zip' })
+
+// Import pages from a zip file
+const result = await importWorld(storage, file, { strategy: 'overwrite' })
+console.log(result.imported) // ['home', 'projects/acme']
+console.log(result.skipped)  // []
+```
+
+### `exportWorld(storage, options?)`
+
+| Param | Type | Description |
+|---|---|---|
+| `storage` | `StorageAdapter` | Storage backend to read pages from |
+| `options.filename` | `string` | Suggested download filename (default: `'worldnotes-export.zip'`) |
+
+Returns `Promise<Blob>` — a zip Blob containing all pages as `.md` files in nested folders.
+Page name `a/b/c` maps to zip entry `a/b/c.md`. Use `URL.createObjectURL(blob)` with
+an `<a download>` element to trigger a browser download.
+
+### `importWorld(storage, file, options?)`
+
+| Param | Type | Description |
+|---|---|---|
+| `storage` | `StorageAdapter` | Storage backend to write pages into |
+| `file` | `File \| Blob` | Zip file or blob to import |
+| `options.strategy` | `ConflictStrategy` | Conflict resolution: `'overwrite'` (default), `'skip'`, or `'merge'` |
+
+Returns `Promise<ImportResult>` with `{ imported: string[], skipped: string[] }` arrays
+of page names. Non-`.md` files and empty page names are silently skipped.
+
+### `ConflictStrategy`
+
+```ts
+type ConflictStrategy = 'overwrite' | 'skip' | 'merge'
+```
+
+| Value | Behavior |
+|---|---|
+| `'overwrite'` | Always write, replace existing pages |
+| `'skip'` | Only import pages that don't already exist in storage |
+| `'merge'` | Overwrites existing pages (same as overwrite for now) |
+
+### `ImportResult`
+
+```ts
+interface ImportResult {
+  imported: string[]  // Pages successfully written to storage
+  skipped: string[]   // Pages skipped (strategy='skip' and already existed)
+}
+```
+
+### `createImportExportPlugin(options)`
+
+Returns a `UIPlugin` that adds Export and Import buttons to the `wn-toolbar` slot.
+
+```ts
+import { createImportExportPlugin } from 'worldnotes'
+
+const storage = new LocalStorageAdapter()
+
+const editor = createEditor(el, { storage })
+  .use(createImportExportPlugin({
+    storage,
+    onImportComplete: () => editor.navigate(editor.getCurrentPage()),
+  }))
+  .mount()
+```
+
+| Option | Type | Required | Description |
+|---|---|---|---|
+| `storage` | `StorageAdapter` | Yes | Same adapter the editor uses |
+| `onImportComplete` | `() => void` | Yes | Called after import finishes; typically refreshes the editor |
+| `exportFilename` | `string` | No | Custom download filename (default: `'worldnotes-export.zip'`) |
+| `importStrategy` | `ConflictStrategy` | No | Conflict resolution for imports (default: `'overwrite'`) |
+
+The Export button downloads all pages as a `.zip`. The Import button opens a file picker
+for `.zip` files, imports `.md` entries as pages, then calls `onImportComplete`.
+
 ## Exported Types
 
 The package exports `Token`, `TokenDef`, `PluginManifest`, `ContentPlugin`, `UIPlugin`,
-`StoragePlugin`, `StorageAdapter`, `EditorContext`, `EditorOptions`, and `EditorInstance`
-for TypeScript consumers.
+`StoragePlugin`, `StorageAdapter`, `EditorContext`, `EditorOptions`, `EditorInstance`,
+`ConflictStrategy`, `ImportResult`, and `ImportExportPluginOptions` for TypeScript consumers.
