@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { Plugin, StorageAdapter, EditorOptions, EditorInstance, EditorContext, Token } from '../types'
+import type { Plugin, StorageAdapter, EditorOptions, EditorContext, Token } from '../types'
 import type { EditorStateAPI } from '../editor-state'
 import type { EditorDOM } from '../editor-dom'
 import type { EditorRenderAPI } from '../editor-render'
@@ -75,8 +75,8 @@ function mockRender(): EditorRenderAPI {
 
 function mockNavigation(): EditorNavigationAPI {
   return {
-    navigateToPage: vi.fn(async (_page: string) => {}),
-    loadPage: vi.fn(async (_page: string) => {}),
+    navigateToPage: vi.fn(async (_page: string) => { /* noop */ }),
+    loadPage: vi.fn(async (_page: string) => { /* noop */ }),
     setRenderAPI: vi.fn(),
   }
 }
@@ -305,7 +305,6 @@ describe('Editor lifecycle event handlers', () => {
         },
       })
 
-      const prevented = !dom.editorDiv.dispatchEvent(pasteEvent)
       // In happy-dom, dispatchEvent always returns true, but the handler
       // should not throw — that's the key assertion
       expect(() => {

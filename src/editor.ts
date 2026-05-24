@@ -10,6 +10,7 @@ import { createEditorLifecycle } from './editor-lifecycle'
 
 // ─── Default content shown on first load when 'home' doesn't exist ───────────
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const DEFAULT_HOME = `# Welcome to your world
 
 Start writing here. Use [[page name]] to link into new pages.
