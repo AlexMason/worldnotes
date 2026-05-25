@@ -1,6 +1,6 @@
 # worldnotes Overview
 
-`worldnotes` is a browser-based inline Markdown editor for building small, linked writing spaces. It renders formatting as you type, treats `[[wiki links]]` as navigable pages, and persists page content through a pluggable storage adapter. It supports real-time multi-user editing via WebSocket-based CRDT sync.
+`worldnotes` is a browser-based inline Markdown editor for building small, linked writing spaces. It renders formatting as you type, treats `[[wiki links]]` as navigable pages, and persists page content through a pluggable storage adapter. A static HTML render pipeline (`renderDocumentToHTML`) produces the same output as strings — usable in Node.js, SSR, or build pipelines. Supports real-time multi-user editing via WebSocket-based CRDT sync.
 
 ## When to Use It
 
@@ -59,4 +59,4 @@ The editor injects default `--wn-*` CSS design tokens on first mount. Override t
 
 ## Where to Go Next
 
-Read [`api.md`](./api.md) for exported functions, types, plugin authoring, storage adapters, sync, and import/export. Read [`architecture.md`](./architecture.md) if you want to contribute to the library or understand how the editor pipeline works. Read [`theming.md`](./theming.md) for the design token system and full theme replacement.
+Read [`api.md`](./api.md) for exported functions, types, plugin authoring, storage adapters, sync, import/export, and static HTML rendering. Read [`architecture.md`](./architecture.md) if you want to contribute to the library or understand how the editor pipeline works. Read [`theming.md`](./theming.md) for the design token system and full theme replacement.

@@ -1,6 +1,6 @@
 # worldnotes Architecture
 
-`worldnotes` is organized around a small editing pipeline: raw editable text is extracted from the DOM, tokenized by registered plugins, rendered back into decorated DOM fragments, and saved through a storage adapter. The document model is backed by a CRDT (`Y.Doc`) enabling local undo/redo and optional real-time multiplayer sync.
+`worldnotes` is organized around a small editing pipeline: raw editable text is extracted from the DOM, tokenized by registered plugins, rendered back into decorated DOM fragments, and saved through a storage adapter. A parallel static render path (`renderDocumentToHTML`) produces HTML strings from the same token stream for SSR and build-time use. The document model is backed by a CRDT (`Y.Doc`) enabling local undo/redo and optional real-time multiplayer sync.
 
 ## Main Modules
 
@@ -13,8 +13,8 @@
 | `src/editor-render.ts`         | Coordinates the extract→tokenize→render→caret pipeline using line-granular re-rendering. Manages breadcrumb rendering and URL synchronization. Exports `createEditorRender()`.                                                            |
 | `src/editor-navigation.ts`     | Handles page navigation (`navigateToPage`, `loadPage`), reads/writes `Y.Text` for page content, populates pages into the CRDT docs, and positions the caret after load. Exports `createEditorNavigation()`.                              |
 | `src/editor-lifecycle.ts`      | Wires DOM event listeners (input, paste, keydown), syncs DOM content → `Y.Text` on input, connects `WebsocketProvider` for sync, creates `Y.UndoManager` for undo/redo, mounts UI plugins, assembles `EditorInstance`.                   |
-| `src/tokenizer.ts`             | Converts raw text into per-line token arrays using plugin token definitions.                                                                                                                                                              |
-| `src/renderer.ts`              | Converts tokens into DOM fragments by calling the plugin that owns each token type.                                                                                                                                                       |
+| `src/tokenizer.ts`             | Pure functions: converts raw text into per-line token arrays using plugin token definitions. No DOM dependency — exported for standalone use in SSR/build pipelines.                                                                        |
+| `src/renderer.ts`              | Dual rendering: converts tokens into DOM fragments (`renderLine`, `renderDocument`, `renderInlineContent`) for the live editor, and into HTML strings (`renderLineToHTML`, `renderDocumentToHTML`, `renderInlineHTML`) for static output.  |
 | `src/navigation.ts`            | Parses wiki links, derives display names, and encodes or decodes breadcrumb state in the URL.                                                                                                                                             |
 | `src/line-renderer.ts`         | Line-granular re-renderer using stable `div[data-line]` containers. Diffs by line text hash; only replaces changed lines and prunes stale containers.                                                                                    |
 | `src/awareness-cursor.ts`      | Cursor tracking aware of the `[data-line]` container structure. Computes raw-text offsets by walking line containers instead of arbitrary DOM. `getLineOffset()`, `setLineOffset()`.                                                      |
@@ -84,6 +84,14 @@ The tokenizer receives all registered token definitions in plugin order. Line-le
 
 The renderer builds a token-to-plugin map, then renders each token into a `DocumentFragment`. Text tokens become `TextNode`s. Plugin tokens call `plugin.render(token, context)`. If the plugin defines `onNavigate` and returns an `HTMLElement`, the renderer wires a `mousedown` handler so the plugin can intercept navigation before the editor loses focus.
 
+### Static HTML Rendering
+
+The tokenizer is pure and DOM-free, so it can be used standalone. `renderer.ts` provides a parallel string-based rendering path via `renderDocumentToHTML()`, `renderLineToHTML()`, and `renderInlineHTML()`. These functions walk the same token arrays but produce HTML strings instead of DOM.
+
+Content plugins implement an optional `renderToHTML(token, context)` method that mirrors `render()` with string output. The `StaticRenderContext` provides a `renderInline(text): string` callback for plugins (like headings and blockquotes) that need to render inline markdown within their content. HTML special characters in text content and attribute values are automatically escaped.
+
+This enables server-side rendering, static site generation, build-time pre-rendering, and any use case where a DOM is unavailable.
+
 Cursor position is preserved across re-renders via `awareness-cursor.ts`, which computes raw-text offsets by walking `[data-line]` containers instead of arbitrary DOM tree traversal. This is more reliable than the legacy `cursor.ts` approach because the line-container structure is stable across renders.
 
 ## Navigation and World State
@@ -142,7 +150,7 @@ A standalone WebSocket server using `y-protocols`:
 
 ## Extension Boundaries
 
-Plugins should stay focused on syntax recognition, rendering, and optional click behavior. Storage adapters should only implement persistence. App-level concerns such as routing shells, sidebars, authentication, synchronization, and export workflows should live outside the library and communicate through the public editor API.
+Plugins should stay focused on syntax recognition, rendering, and optional click behavior. Content plugins may implement `renderToHTML(token, context): string` to support the static HTML rendering pipeline alongside their DOM `render()` method. Storage adapters should only implement persistence. App-level concerns such as routing shells, sidebars, authentication, synchronization, and export workflows should live outside the library and communicate through the public editor API.
 
 UI plugins populate named DOM slots through their `onMount(slotEl)` lifecycle hook.
 The v1 slots are `wn-toolbar` (horizontal flex container between the topbar and editor area)
@@ -160,4 +168,4 @@ npm test
 npm run build
 ```
 
-Prefer small changes that preserve the plugin contract. If you add a new token type, update the built-in plugin list, tests for tokenization or rendering behavior, and the API documentation when the export surface changes.
+Prefer small changes that preserve the plugin contract. If you add a new token type, update the built-in plugin list, tests for tokenization or rendering behavior, and the API documentation when the export surface changes. When adding a content plugin, implement `renderToHTML` alongside `render` to keep the static render pipeline complete.
