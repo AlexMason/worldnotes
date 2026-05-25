@@ -2,7 +2,7 @@ import { UIPlugin, StorageAdapter } from '../types';
 import { ConflictStrategy } from '../export-import';
 export interface ImportExportPluginOptions {
     storage: StorageAdapter;
-    onImportComplete: () => void;
+    onImportComplete: () => void | Promise<void>;
     exportFilename?: string;
     importStrategy?: ConflictStrategy;
 }
@@ -13,7 +13,7 @@ export interface ImportExportPluginOptions {
  * Import: reads a .zip, imports .md files as pages, then calls onImportComplete.
  *
  * @example
- * const editor = createEditor(el, { storage: adapter })
+ * const editor = await createEditor(el, { storage: adapter })
  *   .use(createImportExportPlugin({
  *     storage: adapter,
  *     onImportComplete: () => editor.navigate(editor.getCurrentPage()),

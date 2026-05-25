@@ -7,5 +7,7 @@
  * raw length (e.g. 9 for "[[hello]]") rather than their DOM text length
  * (e.g. 5 for "hello").
  */
+/** Raw-text length of one [data-line] container (respects data-raw). */
+export declare function rawLineLength(lineEl: HTMLElement): number;
 export declare function getLineOffset(el: HTMLElement): number;
 export declare function setLineOffset(el: HTMLElement, targetOffset: number): void;

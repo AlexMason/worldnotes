@@ -47,7 +47,7 @@ function getRoom(roomName: string) {
     doc.on('update', (update: Uint8Array) => {
       const encoder = encoding.createEncoder()
       encoding.writeVarUint(encoder, 0) // messageSync
-      encoding.writeVarUint8Array(encoder, update)
+      syncProtocol.writeUpdate(encoder, update)
       const message = encoding.toUint8Array(encoder)
       broadcast(room!, message)
     })
@@ -89,6 +89,7 @@ function setupWSConnection(ws: WebSocket, roomName: string): void {
 
   // Send sync step 1 (current document state)
   const syncEncoder = encoding.createEncoder()
+  encoding.writeVarUint(syncEncoder, 0) // messageSync
   syncProtocol.writeSyncStep1(syncEncoder, room.doc)
   ws.send(encoding.toUint8Array(syncEncoder))
 
@@ -115,6 +116,7 @@ function setupWSConnection(ws: WebSocket, roomName: string): void {
       case 0: {
         // Sync message
         const encoder = encoding.createEncoder()
+        encoding.writeVarUint(encoder, 0) // messageSync
         syncProtocol.readSyncMessage(
           decoder,
           encoder,

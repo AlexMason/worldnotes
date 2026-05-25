@@ -7,7 +7,7 @@ export function renderLines(
   contentPlugins: ContentPlugin[],
   context: EditorContext,
   editorDiv: HTMLElement,
-  activeLine?: number,
+  activeLines?: Set<number>,
 ): { lineCount: number; lineLengths: number[] } {
   const lines = tokenizeDocument(
     text,
@@ -25,7 +25,7 @@ export function renderLines(
     const container = document.createElement('div')
     container.dataset.line = String(i)
 
-    if (i === activeLine) {
+    if (activeLines?.has(i)) {
       // Render raw text for the line the user is actively editing
       container.textContent = lineText
       if (!lineText) {

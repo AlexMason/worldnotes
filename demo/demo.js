@@ -62,6 +62,7 @@ const editor = await createEditor(app, {
   onSave: (page, _content) => {
     console.log(`[worldnotes] saved: ${page}`)
   },
+  syncServer: 'ws://localhost:1234'
 })
   .use(mentionPlugin)
   .use(createImportExportPlugin({

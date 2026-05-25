@@ -81,7 +81,12 @@ export function createEditorLifecycle(
 
       syncProvider.on('status', (event: { status: string }) => {
         if (event.status === 'connected') {
-          // Full re-render on reconnect to pick up remote changes
+          render.render(true)
+        }
+      })
+
+      yDocState.doc.on('update', (_update: Uint8Array, origin: unknown) => {
+        if (origin === syncProvider) {
           render.render(true)
         }
       })
@@ -153,12 +158,17 @@ export function createEditorLifecycle(
         })
       }
 
-      // Update awareness cursor position
       const offset = getLineOffset(dom.editorDiv)
+
+      let activeLine = 0
+      for (let i = 0; i < Math.min(offset, raw.length); i++) {
+        if (raw[i] === '\n') activeLine++
+      }
+
       const aw = yDocState.awareness as {
         setLocalStateField: (field: string, value: unknown) => void
       } | null
-      aw?.setLocalStateField?.('cursor', { offset, page })
+      aw?.setLocalStateField?.('cursor', { offset, page, activeLine })
 
       render.render()
 

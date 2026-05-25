@@ -51,6 +51,22 @@ export function createEditorRender(
 
     activeLine = determineActiveLine(raw, offset)
 
+    const activeLines = new Set<number>([activeLine])
+
+    const aw = yDocState.awareness as {
+      getStates: () => Map<number, { cursor?: { page?: string; activeLine?: number } }>
+    } | null
+    if (aw) {
+      const localId = yDocState.doc.clientID
+      for (const [clientId, state] of aw.getStates().entries()) {
+        if (clientId !== localId && state.cursor?.page === page) {
+          if (state.cursor.activeLine !== undefined) {
+            activeLines.add(state.cursor.activeLine)
+          }
+        }
+      }
+    }
+
     const context = state.toContext(
       options.navigateFn ??
         ((_p: string): void => {
@@ -58,7 +74,7 @@ export function createEditorRender(
         }),
     )
 
-    renderLines(raw, contentPlugins, context, editorDiv, activeLine)
+    renderLines(raw, contentPlugins, context, editorDiv, activeLines)
 
     placeholder.style.display = raw.length ? 'none' : 'block'
 

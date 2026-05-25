@@ -1,4 +1,5 @@
 import type { UIPlugin } from '../types'
+import { rawLineLength } from '../awareness-cursor'
 
 const COLORS = [
   '#f44336',
@@ -89,8 +90,7 @@ export function renderRemoteCursors(
     cursorEl.appendChild(caretEl)
     cursorEl.appendChild(labelEl)
 
-    // Position cursor based on offset
-    const pos = offsetToPixelPosition(editorDiv, state.cursor.offset)
+    const pos = offsetToPixelPosition(editorDiv, state.cursor.offset, overlayEl)
     if (pos) {
       cursorEl.style.left = `${pos.left}px`
       cursorEl.style.top = `${pos.top}px`
@@ -102,11 +102,12 @@ export function renderRemoteCursors(
 
 /**
  * Convert a raw-text character offset to pixel coordinates
- * within the editor div.
+ * within the editor div, relative to the overlay's containing block.
  */
 function offsetToPixelPosition(
   editorDiv: HTMLElement,
   offset: number,
+  overlayEl: HTMLElement,
 ): { left: number; top: number } | null {
   let remaining = offset
 
@@ -120,15 +121,19 @@ function offsetToPixelPosition(
     )
   })
 
+  const container = overlayEl.offsetParent as HTMLElement | null
+  const containerRect = container?.getBoundingClientRect()
+  const containerLeft = containerRect?.left ?? 0
+  const containerTop = containerRect?.top ?? 0
+
   for (const lineEl of allLines) {
-    const lineLen = (lineEl.textContent ?? '').length
+    const lineLen = rawLineLength(lineEl)
 
     if (remaining <= lineLen) {
-      // Found the line — estimate position using first text node
       const rect = lineEl.getBoundingClientRect()
       return {
-        left: rect.left + (remaining * 8), // rough char-width estimate
-        top: rect.top,
+        left: rect.left - containerLeft + (remaining * 8),
+        top: rect.top - containerTop,
       }
     }
 
@@ -140,8 +145,8 @@ function offsetToPixelPosition(
   if (lastLine) {
     const rect = lastLine.getBoundingClientRect()
     return {
-      left: rect.left + (lastLine.textContent ?? '').length * 8,
-      top: rect.top,
+      left: rect.left - containerLeft + rawLineLength(lastLine) * 8,
+      top: rect.top - containerTop,
     }
   }
 

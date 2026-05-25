@@ -27,7 +27,7 @@ function rawSubtreeLength(node: Node): number {
 }
 
 /** Raw-text length of one [data-line] container (respects data-raw). */
-function rawLineLength(lineEl: HTMLElement): number {
+export function rawLineLength(lineEl: HTMLElement): number {
   return rawSubtreeLength(lineEl)
 }
 
