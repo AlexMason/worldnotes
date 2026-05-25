@@ -1,7 +1,7 @@
 # worldnotes
 
-An extensible inline-markdown editor with wiki-style navigation.  
-Type markdown and it renders in place — `[[links]]` navigate between pages, everything persists to your chosen storage backend.
+An extensible inline-markdown editor with wiki-style navigation, real-time sync, and CRDT-backed persistence.  
+Type markdown and it renders in place — `[[links]]` navigate between pages, everything persists to your chosen storage backend. Supports undirected real-time multi-user editing via Yjs WebSocket sync.
 
 ---
 
@@ -16,8 +16,9 @@ npm run build    # Build the library to dist/
 ## Documentation
 
 - [Overview](./docs/overview.md): what `worldnotes` is, setup, core concepts, and typical usage.
-- [API reference](./docs/api.md): editor options, builder methods, instance methods, plugins, storage adapters, and exported types.
-- [Architecture](./docs/architecture.md): module responsibilities, editor lifecycle, rendering pipeline, navigation model, and contributor notes.
+- [API reference](./docs/api.md): editor options, builder methods, instance methods, plugins, storage adapters, sync, import/export, and exported types.
+- [Architecture](./docs/architecture.md): module responsibilities, editor lifecycle, rendering pipeline, CRDT model, navigation model, and contributor notes.
+- [Theming](./docs/theming.md): design token reference, token overrides, and full theme replacement.
 
 ---
 
@@ -26,7 +27,7 @@ npm run build    # Build the library to dist/
 ```ts
 import { createEditor } from 'worldnotes'
 
-const editor = createEditor(document.getElementById('app'))
+const editor = await createEditor(document.getElementById('app'))
   .mount()
 ```
 
@@ -35,7 +36,7 @@ const editor = createEditor(document.getElementById('app'))
 ```ts
 import { createEditor, IndexedDBAdapter } from 'worldnotes'
 
-const editor = createEditor(document.getElementById('app'), {
+const editor = await createEditor(document.getElementById('app'), {
   initialPage: 'home',
   saveDebounceMs: 800,
   onTrailChange: (trail) => console.log('trail:', trail),
@@ -51,13 +52,16 @@ const editor = createEditor(document.getElementById('app'), {
 
 ### `createEditor(el, options?)`
 
-Returns an `EditorBuilder`. Chain `.use()`, `.withStorage()`, then `.mount()`.
+Returns an `EditorBuilder`. Chain `.use()`, `.withStorage()`, then await `.mount()`.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `storage` | `StorageAdapter` | `LocalStorageAdapter` | Where pages are persisted |
 | `initialPage` | `string` | `'home'` | Page to load on mount |
 | `saveDebounceMs` | `number` | `600` | Ms to debounce saves after input |
+| `historyDepth` | `number` | `50` | Max undo states per page (FIFO eviction) |
+| `theme` | `string` | — | CSS string to replace the entire default stylesheet |
+| `syncServer` | `string` | — | WebSocket URL for real-time collaborative sync (e.g. `ws://localhost:1234`) |
 | `onTrailChange` | `(trail: string[]) => void` | — | Called on breadcrumb changes |
 | `onPageLoad` | `(page, content) => void` | — | Called after a page loads |
 | `onSave` | `(page, content) => void` | — | Called after a save completes |
@@ -69,7 +73,7 @@ Returns an `EditorBuilder`. Chain `.use()`, `.withStorage()`, then `.mount()`.
 | `.use(plugin)` | Register or replace a plugin |
 | `.clearPlugins()` | Remove all default plugins |
 | `.withStorage(adapter)` | Swap the storage backend |
-| `.mount()` | Mount the editor and return an `EditorInstance` |
+| `.mount()` | Mount the editor and return a `Promise<EditorInstance>` (must be `await`ed) |
 
 ### `EditorInstance`
 
@@ -79,8 +83,19 @@ editor.getCurrentPage()          // → 'some-page'
 editor.getTrail()                // → ['home', 'some-page']
 editor.getContent()              // raw markdown string
 editor.setContent('# Hello')    // replace current page content
+editor.undo()                    // undo last change (→ true if performed)
+editor.redo()                    // redo last undone change
+editor.canUndo()                 // → true if undo stack non-empty
+editor.canRedo()                 // → true if redo stack non-empty
+editor.insertText('hello')      // insert text at cursor, dispatching input
+editor.deleteForward()           // delete one character after cursor
+editor.deleteBackward()          // delete one character before cursor
+editor.getSelection()            // → { text, start, end } or null
+editor.getDoc()                  // → Y.Doc (for advanced CRDT access)
 editor.destroy()                 // tear down, remove listeners
 ```
+
+Keyboard shortcuts: `Ctrl/⌘+Z` (undo), `Ctrl/⌘+Shift+Z` (redo), `Ctrl+Y` (redo). Tab inserts 2 spaces. Undo/redo history is per-page.
 
 ---
 
@@ -88,13 +103,16 @@ editor.destroy()                 // tear down, remove listeners
 
 | Export | Syntax | Renders |
 |---|---|---|
-| `wikiLinkPlugin` | `[[page name]]`, `[[page name|display text]]` | Clickable navigation link |
+| `wikiLinkPlugin` | `[[page name]]`, `[[page name\|display text]]` | Clickable navigation link |
 | `headingsPlugin` | `# h1` `## h2` `### h3` | Styled heading |
 | `boldPlugin` | `**text**` | Bold |
 | `italicPlugin` | `*text*` | Italic |
+| `strikethroughPlugin` | `~~text~~` | Strikethrough |
 | `inlineCodePlugin` | `` `code` `` | Code span |
 | `blockquotePlugin` | `> text` | Blockquote |
 | `hrPlugin` | `---` | Horizontal rule |
+| `linkPlugin` | URL-like text (autolink) | Clickable external link |
+| `remoteCursorsPlugin` | (no syntax) | Remote user cursors for real-time sync |
 
 `defaultPlugins` is the array containing all of the above, pre-ordered.
 
@@ -137,7 +155,7 @@ const mentionPlugin: Plugin = {
 }
 
 // Register it
-createEditor(el).use(mentionPlugin).mount()
+await createEditor(el).use(mentionPlugin).mount()
 ```
 
 ### Pattern rules
@@ -169,29 +187,39 @@ class MyAdapter implements StorageAdapter {
   async keys(): Promise<string[]> { ... }
 }
 
-createEditor(el).withStorage(new MyAdapter()).mount()
+await createEditor(el).withStorage(new MyAdapter()).mount()
 ```
 
 ---
 
 ## Styling
 
-The library injects default `wn-*` CSS into `<head>` on first mount.  
-Override any rule with higher specificity:
+The library injects a default `--wn-*` design-token-driven stylesheet into `<head>` on first mount.
+Customize via two mechanisms:
+
+### 1. Design token overrides (CSS custom properties)
+
+Override individual `--wn-*` properties on a parent element of the editor container:
 
 ```css
 /* Make wiki links teal instead of purple */
-.wn-wiki-link {
-  color: #2ec4b6;
-  background: #0a2520;
-  border-color: #1a5048;
-}
-
-/* Custom mention style from your plugin */
-.my-mention {
-  color: #5aa6e8;
-  background: #0e1e30;
+.editor-container {
+  --wn-color-wiki-link: #2ec4b6;
+  --wn-color-wiki-link-bg: #0a2520;
+  --wn-color-wiki-link-border: #1a5048;
+  --wn-color-accent: #2ec4b6;
+  --wn-caret-color: #2ec4b6;
 }
 ```
 
-CSS variables are not used internally — override by class name.
+For the full list of design tokens, see [docs/theming.md](./docs/theming.md).
+
+### 2. Full theme replacement
+
+Pass a complete CSS string via the `theme` option to replace the entire default stylesheet:
+
+```ts
+const editor = await createEditor(el, {
+  theme: '.wn-root { --wn-color-bg: #fff; --wn-color-fg: #111; } ...'
+}).mount()
+```

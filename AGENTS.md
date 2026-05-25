@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-`worldnotes` is a TypeScript browser library for an extensible inline Markdown editor with wiki-style page navigation. The public API is exported from `src/index.ts`; source files live under `src/`, tests under `src/__tests__/`, documentation under `docs/`, and generated package output under `dist/`.
+`worldnotes` is a TypeScript browser library for an extensible inline Markdown editor with wiki-style page navigation, real-time collaborative editing via Yjs CRDT sync, and pluggable storage backends. The public API is exported from `src/index.ts`; source files live under `src/`, tests under `src/__tests__/`, documentation under `docs/`, and generated package output under `dist/`.
 
 ## Development Commands
 
@@ -35,6 +35,7 @@ which runs: `typecheck → lint → test:coverage → build`. All steps must pas
 - Preserve the plugin contract defined in `src/types.ts`.
 - Update `docs/api.md` when exported APIs, options, plugins, or storage adapters change.
 - Update `docs/architecture.md` when module responsibilities or the editor pipeline change.
+- Update `docs/theming.md` when `--wn-*` design tokens or the theme system changes.
 - Prefer TypeScript types from the public interfaces instead of introducing parallel shapes.
 - Do not commit `node_modules/`, local environment files, logs, or test/build caches.
 

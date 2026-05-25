@@ -19,7 +19,7 @@ Override the accent color by setting a CSS custom property on the editor's paren
 ```typescript
 import { createEditor } from 'worldnotes'
 
-const editor = createEditor(document.getElementById('editor-container')).mount()
+const editor = await createEditor(document.getElementById('editor-container')).mount()
 ```
 
 All accent-colored elements (links, wiki links, code, crumb hover, caret) will use red instead of purple.
@@ -183,7 +183,7 @@ const myTheme = `
 /* ... more classes ... */
 `
 
-const editor = createEditor(document.getElementById('app'), {
+const editor = await createEditor(document.getElementById('app'), {
   theme: myTheme
 }).mount()
 ```
