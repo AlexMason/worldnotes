@@ -82,8 +82,9 @@ editor.destroy()
 | `Ctrl+Z` / `Cmd+Z` | Undo the last change |
 | `Ctrl+Shift+Z` / `Cmd+Shift+Z` | Redo the last undone change |
 | `Ctrl+Y` | Redo (Windows alternative) |
-| `Tab` | Insert 2 spaces |
-| `Enter` | Insert newline |
+| `Tab` | Insert 2 spaces (or indent list item with `listItemPlugin`) |
+| `Shift+Tab` | Dedent list item with `listItemPlugin` |
+| `Enter` | Insert newline (or auto-continue list with `listItemPlugin`) |
 
 Undo/redo history is per-page. Navigating to a different page or clicking a breadcrumb clears the history for the destination page.
 
@@ -123,12 +124,24 @@ Content plugins support optional lifecycle hooks:
 - `onInit?(): void` — called immediately after plugin registration via `editor.use()`
 - `onUpdate?(): void` — called after each render cycle (every keystroke)
 - `onDestroy?(): void` — called when the plugin is replaced or the editor is destroyed
+- `onKeydown?(event: KeyboardEvent, context: EditorContext): { cursorOffset: number } | false | void` — called for each content plugin on `keydown` events, in registration order. The first plugin to return `{ cursorOffset: number }` consumes the event. Return `false` or `void` to let the next plugin or default handler run. Plugins that handle keydown events must mutate the Y.Doc directly via `context.getDoc()` — DOM-only changes won't persist since there is no `extractContentText` pass in the keydown dispatch loop.
 
 ### Built-in Plugins
 
 Built-in plugin exports include `defaultPlugins`, `wikiLinkPlugin`, `headingsPlugin`,
 `boldPlugin`, `italicPlugin`, `strikethroughPlugin`, `inlineCodePlugin`, `blockquotePlugin`,
-`hrPlugin`, `linkPlugin`, and `remoteCursorsPlugin`.
+`hrPlugin`, `listItemPlugin`, `linkPlugin`, and `remoteCursorsPlugin`.
+
+### `listItemPlugin`
+
+Content plugin for unordered markdown list items. Supports `-`, `*`, and `+` markers
+with 2-space indentation for nested lists.
+
+| Key | Behavior |
+|-----|----------|
+| `Tab` | Indent the list item by 2 spaces |
+| `Shift+Tab` | Dedent the list item by 2 spaces (minimum indent: level 0) |
+| `Enter` | Auto-continue list with a new item at the same indent. Pressing Enter on an empty list item removes the marker and exits the list. |
 
 ### PluginManifest Types
 
