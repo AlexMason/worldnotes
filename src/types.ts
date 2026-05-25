@@ -70,6 +70,15 @@ export interface EditorContext {
   renderInline?(text: string): DocumentFragment
 }
 
+/**
+ * Minimal context for DOM-free static HTML rendering.
+ *
+ * @method renderInline - Render inline markdown text as an HTML string
+ */
+export interface StaticRenderContext {
+  renderInline(text: string): string
+}
+
 // ─── Plugin Lifecycle ──────────────────────────────────────────────────────────
 
 /**
@@ -103,6 +112,15 @@ export interface ContentPlugin extends PluginLifecycle {
   render(token: Token, context: EditorContext): HTMLElement | Text
   onNavigate?(token: Token, context: EditorContext): boolean | void
   onUpdate?(): void
+  /**
+   * Optional: render a token as an HTML string for DOM-free static rendering.
+   * When provided, this enables the `renderDocumentToHTML` pipeline.
+   *
+   * @param token   - The matched token from the tokenizer
+   * @param context - Static render context with renderInline for nested tokens
+   * @returns       - HTML string representation of the token
+   */
+  renderToHTML?(token: Token, context: StaticRenderContext): string
 }
 
 // ─── UI Plugin ─────────────────────────────────────────────────────────────────

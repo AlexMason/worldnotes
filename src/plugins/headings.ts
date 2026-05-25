@@ -1,11 +1,14 @@
-import type { ContentPlugin, Token, EditorContext } from '../types'
+import type { ContentPlugin, Token, EditorContext, StaticRenderContext } from '../types'
+
+function escapeHTML(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
 
 /**
  * Render a heading span with dimmed punctuation and styled content.
- *
- * @param token     - The matched heading token
- * @param punctText - The heading marker (e.g. '# ', '## ')
- * @param levelCls  - CSS class for the heading level (e.g. 'wn-h1')
  */
 function renderHeading(
   token: Token,
@@ -35,14 +38,22 @@ function renderHeading(
   return wrapper
 }
 
+function renderHeadingHTML(
+  token: Token,
+  punctText: string,
+  levelCls: string,
+  context: StaticRenderContext,
+): string {
+  const contentText = token.groups[0] ?? ''
+  const inner = context.renderInline(contentText)
+  return `<span class="${levelCls}"><span class="wn-punct">${escapeHTML(punctText)}</span><span class="${levelCls}-text">${inner}</span></span>`
+}
+
 /**
  * Built-in plugin: markdown headings (h1, h2, h3).
  *
  * Line-level patterns (anchored with ^) match the whole line.
  * Renders the marker as dimmed punctuation and the text at heading scale.
- *
- * Renders:
- *   # Title  → <span class="wn-h1"><span class="wn-punct"># </span><span>Title</span></span>
  */
 export const headingsPlugin: ContentPlugin = {
   name: 'headings',
@@ -65,6 +76,19 @@ export const headingsPlugin: ContentPlugin = {
         return renderHeading(token, '### ', 'wn-h3', context)
       default:
         return renderHeading(token, '', 'wn-h1', context)
+    }
+  },
+
+  renderToHTML(token: Token, context: StaticRenderContext): string {
+    switch (token.type) {
+      case 'h1':
+        return renderHeadingHTML(token, '# ', 'wn-h1', context)
+      case 'h2':
+        return renderHeadingHTML(token, '## ', 'wn-h2', context)
+      case 'h3':
+        return renderHeadingHTML(token, '### ', 'wn-h3', context)
+      default:
+        return renderHeadingHTML(token, '', 'wn-h1', context)
     }
   },
 }

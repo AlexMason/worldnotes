@@ -1,4 +1,4 @@
-import { Token, ContentPlugin, EditorContext } from './types';
+import { Token, ContentPlugin, EditorContext, StaticRenderContext } from './types';
 /**
  * Build a decorated DOM fragment for a single line of tokens.
  * Each token is handed to the plugin that owns its type; unrecognised
@@ -32,3 +32,20 @@ export declare function renderDocument(lines: Token[][], contentPlugins: Content
  * @returns               - DocumentFragment containing rendered inline nodes
  */
 export declare function renderInlineContent(text: string, contentPlugins: ContentPlugin[], context: EditorContext): DocumentFragment;
+/**
+ * Render a single line of tokens as an HTML string.
+ * Falls back to escaped raw text for unknown token types or plugins that
+ * do not implement `renderToHTML`.
+ */
+export declare function renderLineToHTML(tokens: Token[], contentPlugins: ContentPlugin[], context: StaticRenderContext): string;
+/**
+ * Render inline markdown text as an HTML string using only inline-level
+ * token definitions. Used as the `renderInline` implementation within
+ * StaticRenderContext for plugins that need nested rendering.
+ */
+export declare function renderInlineHTML(text: string, contentPlugins: ContentPlugin[]): string;
+/**
+ * Render a full tokenized document as an HTML string.
+ * Each line is wrapped in a div[data-line] container matching the editor DOM.
+ */
+export declare function renderDocumentToHTML(lines: Token[][], contentPlugins: ContentPlugin[]): string;

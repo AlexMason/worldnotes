@@ -347,9 +347,82 @@ are editing the same page. Each connected client is assigned a unique color for
 visual distinction. The plugin uses `y-awareness` under the hood to exchange cursor
 positions and user metadata.
 
+## Static HTML Rendering
+
+Tokenize and render Markdown to an HTML string without a DOM or browser environment.
+Pure functions that take raw text and plugins, returning strings — usable in Node.js,
+SSR, build pipelines, or any non-browser runtime.
+
+```ts
+import {
+  tokenizeDocument,
+  renderDocumentToHTML,
+  renderLineToHTML,
+  renderInlineHTML,
+  headingsPlugin,
+  boldPlugin,
+  italicPlugin,
+  wikiLinkPlugin,
+  linkPlugin,
+} from 'worldnotes'
+
+const plugins = [headingsPlugin, boldPlugin, italicPlugin, wikiLinkPlugin, linkPlugin]
+const tokens = tokenizeDocument(markdownText, plugins.flatMap(p => p.tokens))
+const html = renderDocumentToHTML(tokens, plugins)
+```
+
+### `tokenizeDocument(text, defs)`
+
+Tokenizes a full multi-line document string into per-line token arrays. Pure function,
+no DOM dependency. See `src/tokenizer.ts`.
+
+### `renderDocumentToHTML(lines, contentPlugins)`
+
+Renders pre-tokenized lines as an HTML string. Each line is wrapped in a
+`<div data-line="N">` matching the editor DOM structure.
+
+### `renderLineToHTML(tokens, contentPlugins, context)`
+
+Renders a single line's tokens as an HTML string. The context provides `renderInline`
+for plugins that need nested inline rendering (headings, blockquotes).
+
+### `renderInlineHTML(text, contentPlugins)`
+
+Renders a single line of raw text through inline-level plugins as an HTML string.
+
+### `StaticRenderContext`
+
+```ts
+interface StaticRenderContext {
+  renderInline(text: string): string
+}
+```
+
+Minimal context for DOM-free rendering. Passed to `renderToHTML` on content plugins.
+
+### Plugin `renderToHTML`
+
+Content plugins may implement an optional `renderToHTML(token, context)` method that
+returns a string. All built-in plugins implement it. Custom plugins must implement it
+to be rendered by the static pipeline; otherwise tokens fall back to escaped raw text.
+
+```ts
+const myPlugin: ContentPlugin = {
+  name: 'my-plugin',
+  version: '1.0.0',
+  kind: 'content',
+  tokens: [{ type: 'my-token', pattern: /@@(\w+)/ }],
+  render(token) { /* DOM render */ },
+  renderToHTML(token, ctx): string {
+    return `<span class="my-token">${ctx.renderInline(token.groups[0])}</span>`
+  },
+}
+```
+
 ## Exported Types
 
 The package exports `Token`, `TokenDef`, `PluginManifest`, `ContentPlugin`, `UIPlugin`,
-`StoragePlugin`, `StorageAdapter`, `EditorContext`, `EditorOptions`, `EditorInstance`,
-`ConflictStrategy`, `ImportResult`, `ImportExportPluginOptions`, `YDocState`,
-and the `saveYDoc` / `loadYDoc` / `createYDocState` function signatures for TypeScript consumers.
+`StoragePlugin`, `StorageAdapter`, `EditorContext`, `StaticRenderContext`, `EditorOptions`,
+`EditorInstance`, `ConflictStrategy`, `ImportResult`, `ImportExportPluginOptions`,
+`YDocState`, and the `saveYDoc` / `loadYDoc` / `createYDocState` function signatures
+for TypeScript consumers.

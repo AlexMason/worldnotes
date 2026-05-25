@@ -1,5 +1,21 @@
-import type { ContentPlugin, Token, EditorContext } from '../types'
+import type { ContentPlugin, Token, EditorContext, StaticRenderContext } from '../types'
 import { parseWikiLink } from '../navigation'
+
+function escapeAttr(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function escapeHTML(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
 
 /**
  * Built-in plugin: wiki-style page links.
@@ -35,6 +51,11 @@ export const wikiLinkPlugin: ContentPlugin = {
     el.textContent = display
 
     return el
+  },
+
+  renderToHTML(token: Token, _context: StaticRenderContext): string {
+    const { page, display } = parseWikiLink(token.groups[0] ?? '')
+    return `<span class="wn-wiki-link" data-page="${escapeAttr(page)}" data-raw="${escapeAttr(token.raw)}">${escapeHTML(display)}</span>`
   },
 
   onNavigate(token: Token, context: EditorContext): true {

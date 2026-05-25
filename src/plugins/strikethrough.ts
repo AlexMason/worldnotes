@@ -1,5 +1,21 @@
-import type { ContentPlugin, Token, EditorContext } from '../types'
+import type { ContentPlugin, Token, EditorContext, StaticRenderContext } from '../types'
 import { withPunct } from './inline'
+
+function escapeAttr(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function escapeHTML(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
 
 /**
  * Built-in plugin: ~~strikethrough~~ text.
@@ -14,5 +30,9 @@ export const strikethroughPlugin: ContentPlugin = {
     const el = withPunct('wn-strikethrough', '~~', token.groups[0] ?? '')
     el.dataset.raw = token.raw // FORMAT-03: cursor fidelity (Pitfall 4)
     return el
+  },
+  renderToHTML(token: Token, _ctx: StaticRenderContext): string {
+    const inner = escapeHTML(token.groups[0] ?? '')
+    return `<span class="wn-strikethrough" data-raw="${escapeAttr(token.raw)}"><span class="wn-punct">~~</span>${inner}<span class="wn-punct">~~</span></span>`
   },
 }

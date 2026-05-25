@@ -1,4 +1,11 @@
-import type { ContentPlugin, Token, EditorContext } from '../types'
+import type { ContentPlugin, Token, EditorContext, StaticRenderContext } from '../types'
+
+function escapeHTML(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
 
 /**
  * Helper: wrap inner text with dimmed punctuation markers on either side.
@@ -24,6 +31,12 @@ export function withPunct(cls: string, marker: string, inner: string): HTMLEleme
   return wrap
 }
 
+function withPunctHTML(cls: string, marker: string, inner: string): string {
+  const escapedMarker = escapeHTML(marker)
+  const escapedInner = escapeHTML(inner)
+  return `<span class="${cls}"><span class="wn-punct">${escapedMarker}</span>${escapedInner}<span class="wn-punct">${escapedMarker}</span></span>`
+}
+
 /**
  * Built-in plugin: **bold** text.
  * Renders the ** markers as dimmed punctuation flanking styled bold text.
@@ -35,6 +48,9 @@ export const boldPlugin: ContentPlugin = {
   tokens: [{ type: 'bold', pattern: /\*\*([^*]+)\*\*/ }],
   render(token: Token, _ctx: EditorContext): HTMLElement {
     return withPunct('wn-bold', '**', token.groups[0] ?? '')
+  },
+  renderToHTML(token: Token, _ctx: StaticRenderContext): string {
+    return withPunctHTML('wn-bold', '**', token.groups[0] ?? '')
   },
 }
 
@@ -49,6 +65,9 @@ export const italicPlugin: ContentPlugin = {
   tokens: [{ type: 'italic', pattern: /\*([^*]+)\*/ }],
   render(token: Token, _ctx: EditorContext): HTMLElement {
     return withPunct('wn-italic', '*', token.groups[0] ?? '')
+  },
+  renderToHTML(token: Token, _ctx: StaticRenderContext): string {
+    return withPunctHTML('wn-italic', '*', token.groups[0] ?? '')
   },
 }
 
@@ -79,6 +98,10 @@ export const inlineCodePlugin: ContentPlugin = {
     wrap.appendChild(code)
     wrap.appendChild(p('`'))
     return wrap
+  },
+  renderToHTML(token: Token, _ctx: StaticRenderContext): string {
+    const code = escapeHTML(token.groups[0] ?? '')
+    return `<span class="wn-inline-code"><span class="wn-punct">\`</span><span class="wn-code-text">${code}</span><span class="wn-punct">\`</span></span>`
   },
 }
 
@@ -113,6 +136,11 @@ export const blockquotePlugin: ContentPlugin = {
     wrap.appendChild(content)
     return wrap
   },
+  renderToHTML(token: Token, context: StaticRenderContext): string {
+    const contentText = token.groups[1] ?? ''
+    const inner = context.renderInline(contentText)
+    return `<span class="wn-blockquote"><span class="wn-punct">&gt; </span><span class="wn-blockquote-text">${inner}</span></span>`
+  },
 }
 
 /**
@@ -129,5 +157,8 @@ export const hrPlugin: ContentPlugin = {
     el.className = 'wn-hr'
     el.textContent = '---'
     return el
+  },
+  renderToHTML(_token: Token, _ctx: StaticRenderContext): string {
+    return '<span class="wn-hr">---</span>'
   },
 }

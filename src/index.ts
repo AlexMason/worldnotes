@@ -1,6 +1,16 @@
 // ─── Core ─────────────────────────────────────────────────────────────────────
 export { createEditor, EditorBuilder } from './editor'
 
+// ─── Tokenizer ─────────────────────────────────────────────────────────────────
+export { tokenizeLine, scanInline, tokenizeDocument } from './tokenizer'
+
+// ─── Static HTML Renderer ──────────────────────────────────────────────────────
+export {
+  renderLineToHTML,
+  renderInlineHTML,
+  renderDocumentToHTML,
+} from './renderer'
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type {
   Token,
@@ -11,6 +21,7 @@ export type {
   StoragePlugin,
   StorageAdapter,
   EditorContext,
+  StaticRenderContext,
   EditorOptions,
   EditorInstance,
 } from './types'

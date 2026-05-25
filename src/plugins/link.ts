@@ -1,4 +1,20 @@
-import type { ContentPlugin, Token, EditorContext } from '../types'
+import type { ContentPlugin, Token, EditorContext, StaticRenderContext } from '../types'
+
+function escapeAttr(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function escapeHTML(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
 
 /**
  * Built-in plugin: [text](url) links.
@@ -34,6 +50,17 @@ export const linkPlugin: ContentPlugin = {
     el.dataset.raw = token.raw
     el.textContent = text
     return el
+  },
+  renderToHTML(token: Token, _context: StaticRenderContext): string {
+    const text = token.groups[0] ?? ''
+    const url = token.groups[1] ?? ''
+    const isInternal = !url.includes('://') && !url.startsWith('//')
+
+    if (isInternal) {
+      return `<span class="wn-wiki-link" data-page="${escapeAttr(url)}" data-raw="${escapeAttr(token.raw)}">${escapeHTML(text)}</span>`
+    }
+
+    return `<a class="wn-link" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer" data-raw="${escapeAttr(token.raw)}">${escapeHTML(text)}</a>`
   },
   onNavigate(token: Token, context: EditorContext): boolean | void {
     const url = token.groups[1] ?? ''
