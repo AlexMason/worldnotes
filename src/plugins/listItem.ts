@@ -231,9 +231,6 @@ function handleEnter(context: EditorContext): { cursorOffset: number } | false {
     const cursorPosInLine = cursorOffset - lineStart
     const clamped = Math.max(0, Math.min(cursorPosInLine, lineText.length))
 
-    const leftOfCursor = lineText.slice(0, clamped)
-    const rightOfCursor = lineText.slice(clamped)
-
     const prefix = parsed.indent + parsed.marker + ' '
     const totalContent = parsed.content
 
@@ -245,8 +242,11 @@ function handleEnter(context: EditorContext): { cursorOffset: number } | false {
       return lineStart
     }
 
-    const newFirstLine = prefix + leftOfCursor.slice(prefix.length)
-    const newSecondLine = prefix + rightOfCursor.slice(prefix.length)
+    const contentOffset = Math.max(0, clamped - prefix.length)
+    const leftContent = parsed.content.slice(0, contentOffset)
+    const rightContent = parsed.content.slice(contentOffset)
+    const newFirstLine = prefix + leftContent
+    const newSecondLine = prefix + rightContent
 
     lines.splice(lineIndex, 1, newFirstLine, newSecondLine)
     const newRaw = lines.join('\n')
