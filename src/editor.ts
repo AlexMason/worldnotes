@@ -100,12 +100,12 @@ export class EditorBuilder {
    * Mount the editor into the provided element and return a live EditorInstance.
    * Injects required styles, sets up event listeners, and loads the initial page.
    */
-  mount(): EditorInstance {
+  async mount(): Promise<EditorInstance> {
     const uiPlugins = this.registry
       .allUIPlugins()
       .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
 
-    const instance = mountEditor(
+    const instance = await mountEditor(
       this.el,
       this.registry.allContentPlugins(),
       uiPlugins,
@@ -141,13 +141,13 @@ export function createEditor(el: HTMLElement, options: EditorOptions = {}): Edit
   return new EditorBuilder(el, options)
 }
 
-function mountEditor(
+async function mountEditor(
   container: HTMLElement,
   contentPlugins: ContentPlugin[],
   allUIPlugins: UIPlugin[],
   storage: StorageAdapter,
   options: EditorOptions,
-): EditorInstance {
+): Promise<EditorInstance> {
   const state = createEditorState(storage, options)
   const dom = createEditorDOM(container, options.theme)
   const navigation = createEditorNavigation(state, storage, dom, options)

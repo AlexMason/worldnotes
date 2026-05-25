@@ -1,3 +1,4 @@
+import type * as Y from 'yjs';
 /**
  * A single matched unit of content produced by the tokenizer.
  *
@@ -41,11 +42,13 @@ export interface StorageAdapter {
  * @method navigate  - Push a new page onto the trail and navigate to it
  * @method getTrail  - Return the current breadcrumb trail (page name array)
  * @method getWorld  - Return a snapshot of all in-memory page content
+ * @method getDoc    - Return the Yjs Y.Doc instance for CRDT access
  */
 export interface EditorContext {
     navigate(page: string): void;
     getTrail(): string[];
     getWorld(): Record<string, string>;
+    getDoc(): Y.Doc;
 }
 /**
  * Optional lifecycle hooks shared by all plugin categories.
@@ -155,6 +158,8 @@ export interface EditorOptions {
     onTrailChange?: (trail: string[]) => void;
     onPageLoad?: (page: string, content: string) => void;
     onSave?: (page: string, content: string) => void;
+    /** WebSocket URL for real-time sync via y-websocket (e.g. ws://localhost:1234) */
+    syncServer?: string;
 }
 /**
  * The live editor returned by EditorBuilder.mount().
@@ -187,4 +192,32 @@ export interface EditorInstance {
     canUndo(): boolean;
     /** Returns true if there is at least one redoable state */
     canRedo(): boolean;
+    /**
+     * Insert plain text at the current cursor position, replacing any selection.
+     * Dispatches an 'input' event so the render pipeline and history tracking fire.
+     *
+     * @param text - Plain text to insert at the caret position
+     */
+    insertText(text: string): void;
+    /**
+     * Delete one character after the cursor, or delete the current selection
+     * if one exists. Behaves like the Delete key. Dispatches 'input' event.
+     */
+    deleteForward(): void;
+    /**
+     * Delete one character before the cursor, or delete the current selection
+     * if one exists. Behaves like the Backspace key. Dispatches 'input' event.
+     */
+    deleteBackward(): void;
+    /**
+     * Get the current selection range as raw-text offsets and selected text.
+     * Offsets are in the same coordinate space as getContent().
+     *
+     * @returns Selection info, or null if there is no selection/caret
+     */
+    getSelection(): {
+        text: string;
+        start: number;
+        end: number;
+    } | null;
 }

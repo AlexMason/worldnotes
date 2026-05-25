@@ -5,10 +5,12 @@ export interface ImportResult {
     skipped: string[];
 }
 /**
- * Export all pages from storage into a zip Blob of nested markdown files.
+ * Export all pages from storage into a zip Blob.
+ *
+ * Includes both individual .md files AND a _worldnotes.yjs binary
+ * for lossless Y.Doc round-tripping (preserves undo history, CRDT metadata).
  *
  * Page name `a/b/c` maps to zip entry `a/b/c.md`.
- * Returns a Blob suitable for download via URL.createObjectURL().
  */
 export declare function exportWorld(storage: StorageAdapter, _options?: {
     filename?: string;
@@ -16,9 +18,10 @@ export declare function exportWorld(storage: StorageAdapter, _options?: {
 /**
  * Import pages from a zip File or Blob into storage.
  *
- * Zip entries ending in `.md` are treated as pages — the `.md` suffix is
- * stripped to derive the page name. Non-.md files are silently skipped.
- * Empty page names (from a root `.md` file) are also skipped.
+ * If `_worldnotes.yjs` is present, it is saved as the Y.Doc persistence key.
+ * Individual `.md` files are imported as pages (the `.md` suffix is stripped).
+ * Both formats can coexist in the same zip — .yjs is loaded first for lossless
+ * state, then .md overlays any additional pages.
  *
  * @param storage  StorageAdapter to write pages into
  * @param file     Zip file or blob to import

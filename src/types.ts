@@ -1,3 +1,5 @@
+import type * as Y from 'yjs'
+
 // ─── Token ───────────────────────────────────────────────────────────────────
 
 /**
@@ -52,11 +54,13 @@ export interface StorageAdapter {
  * @method navigate  - Push a new page onto the trail and navigate to it
  * @method getTrail  - Return the current breadcrumb trail (page name array)
  * @method getWorld  - Return a snapshot of all in-memory page content
+ * @method getDoc    - Return the Yjs Y.Doc instance for CRDT access
  */
 export interface EditorContext {
   navigate(page: string): void
   getTrail(): string[]
   getWorld(): Record<string, string>
+  getDoc(): Y.Doc
 }
 
 // ─── Plugin Lifecycle ──────────────────────────────────────────────────────────
@@ -184,6 +188,8 @@ export interface EditorOptions {
   onTrailChange?: (trail: string[]) => void
   onPageLoad?: (page: string, content: string) => void
   onSave?: (page: string, content: string) => void
+  /** WebSocket URL for real-time sync via y-websocket (e.g. ws://localhost:1234) */
+  syncServer?: string
 }
 
 // ─── Editor Instance ──────────────────────────────────────────────────────────

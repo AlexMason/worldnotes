@@ -87,9 +87,9 @@ describe('createEditor', () => {
 // ─── EditorBuilder.mount() ────────────────────────────────────────────────────
 
 describe('EditorBuilder mount lifecycle', () => {
-  it('mount() creates editor DOM with .wn-root class', () => {
+  it('mount() creates editor DOM with .wn-root class', async () => {
     const mockStorage = createMockStorage()
-    const editor = createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { storage: mockStorage }).mount()
 
     // Container gets .wn-root class synchronously
     expect(container.className).toBe('wn-root')
@@ -101,9 +101,9 @@ describe('EditorBuilder mount lifecycle', () => {
     editor.destroy()
   })
 
-  it('mount() returns EditorInstance with required methods', () => {
+  it('mount() returns EditorInstance with required methods', async () => {
     const mockStorage = createMockStorage()
-    const editor = createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { storage: mockStorage }).mount()
 
     expect(typeof editor.destroy).toBe('function')
     expect(typeof editor.navigate).toBe('function')
@@ -116,9 +116,9 @@ describe('EditorBuilder mount lifecycle', () => {
     editor.destroy()
   })
 
-  it('destroy() removes editor DOM from container', () => {
+  it('destroy() removes editor DOM from container', async () => {
     const mockStorage = createMockStorage()
-    const editor = createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { storage: mockStorage }).mount()
 
     expect(container.children.length).toBeGreaterThan(0)
 
@@ -128,9 +128,9 @@ describe('EditorBuilder mount lifecycle', () => {
     expect(container.innerHTML).toBe('')
   })
 
-  it('createEditor accepts custom storage adapter via options', () => {
+  it('createEditor accepts custom storage adapter via options', async () => {
     const mockStorage = createMockStorage()
-    const editor = createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { storage: mockStorage }).mount()
 
     // Should mount without error — custom storage is accepted
     expect(container.className).toBe('wn-root')
@@ -138,9 +138,9 @@ describe('EditorBuilder mount lifecycle', () => {
     editor.destroy()
   })
 
-  it('getContent returns text content from editor', () => {
+  it('getContent returns text content from editor', async () => {
     const mockStorage = createMockStorage()
-    const editor = createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { storage: mockStorage }).mount()
 
     const content = editor.getContent()
     expect(typeof content).toBe('string')
@@ -163,9 +163,9 @@ describe('EditorBuilder mount lifecycle', () => {
     expect(result).toBe(builder)
   })
 
-  it('getCurrentPage() returns the current page name', () => {
+  it('getCurrentPage() returns the current page name', async () => {
     const mockStorage = createMockStorage()
-    const editor = createEditor(container, {
+    const editor = await createEditor(container, {
       storage: mockStorage,
       initialPage: 'test-page',
     }).mount()
@@ -177,9 +177,9 @@ describe('EditorBuilder mount lifecycle', () => {
     editor.destroy()
   })
 
-  it('getTrail() returns a copy of the navigation trail', () => {
+  it('getTrail() returns a copy of the navigation trail', async () => {
     const mockStorage = createMockStorage()
-    const editor = createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { storage: mockStorage }).mount()
 
     const trail = editor.getTrail()
     expect(Array.isArray(trail)).toBe(true)
@@ -188,9 +188,9 @@ describe('EditorBuilder mount lifecycle', () => {
     editor.destroy()
   })
 
-  it('setContent() updates editor content synchronously', () => {
+  it('setContent() updates editor content synchronously', async () => {
     const mockStorage = createMockStorage()
-    const editor = createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { storage: mockStorage }).mount()
 
     editor.setContent('new content')
     const content = editor.getContent()
@@ -202,9 +202,9 @@ describe('EditorBuilder mount lifecycle', () => {
     editor.destroy()
   })
 
-  it('navigate() calls through to internal page navigation', () => {
+  it('navigate() calls through to internal page navigation', async () => {
     const mockStorage = createMockStorage()
-    const editor = createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { storage: mockStorage }).mount()
 
     // navigate should not throw
     expect(() => {
@@ -218,9 +218,9 @@ describe('EditorBuilder mount lifecycle', () => {
 // ─── Keyboard & Paste Handling ────────────────────────────────────────────
 
 describe('Editor keyboard and paste handling', () => {
-  it('handles Tab key by inserting two spaces', () => {
+  it('handles Tab key by inserting two spaces', async () => {
     const mockStorage = createMockStorage()
-    const editor = createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { storage: mockStorage }).mount()
 
     const editorDiv = container.querySelector('.wn-editor') as HTMLElement
     expect(editorDiv).toBeTruthy()
@@ -244,9 +244,9 @@ describe('Editor keyboard and paste handling', () => {
     editor.destroy()
   })
 
-  it('handles Enter key by inserting newline', () => {
+  it('handles Enter key by inserting newline', async () => {
     const mockStorage = createMockStorage()
-    const editor = createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { storage: mockStorage }).mount()
 
     const editorDiv = container.querySelector('.wn-editor') as HTMLElement
     expect(editorDiv).toBeTruthy()
@@ -269,9 +269,9 @@ describe('Editor keyboard and paste handling', () => {
     editor.destroy()
   })
 
-  it('handles paste event by inserting plain text', () => {
+  it('handles paste event by inserting plain text', async () => {
     const mockStorage = createMockStorage()
-    const editor = createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { storage: mockStorage }).mount()
 
     const editorDiv = container.querySelector('.wn-editor') as HTMLElement
 

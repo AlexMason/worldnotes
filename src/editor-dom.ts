@@ -210,6 +210,37 @@ const DEFAULT_CSS =
   cursor: pointer;
 }
 .wn-link:hover { color: var(--wn-color-accent-hover, #bbb3f8); }
+
+/* Remote cursor overlay */
+.wn-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+.wn-remote-cursor {
+  position: absolute;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.wn-remote-cursor-caret {
+  width: 2px;
+  height: 1.2em;
+  display: inline-block;
+  vertical-align: text-bottom;
+  margin-right: 2px;
+}
+.wn-remote-cursor-label {
+  font-size: 10px;
+  color: #fff;
+  padding: 1px 4px;
+  border-radius: 3px;
+  position: absolute;
+  top: -14px;
+  left: 0;
+  white-space: nowrap;
+}
 `
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -268,6 +299,7 @@ export interface EditorDOM {
   editorWrap: HTMLElement
   editorDiv: HTMLDivElement
   placeholder: HTMLElement
+  overlay: HTMLElement
 }
 
 /**
@@ -296,6 +328,7 @@ export function createEditorDOM(container: HTMLElement, theme?: string): EditorD
   const editorWrap = el('div', 'wn-editor-wrap')
   const editorDiv = el('div', 'wn-editor') as HTMLDivElement
   const placeholder = el('div', 'wn-placeholder')
+  const overlay = el('div', 'wn-overlay')
 
   placeholder.textContent = 'Start writing… use [[page name]] to link deeper'
   editorDiv.contentEditable = 'true'
@@ -304,9 +337,10 @@ export function createEditorDOM(container: HTMLElement, theme?: string): EditorD
   topbar.appendChild(breadcrumb)
   editorWrap.appendChild(placeholder)
   editorWrap.appendChild(editorDiv)
+  editorWrap.appendChild(overlay)
   container.appendChild(topbar)
   container.appendChild(toolbar)
   container.appendChild(editorWrap)
 
-  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder }
+  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder, overlay }
 }

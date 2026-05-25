@@ -8,20 +8,32 @@ export interface ImportResult {
   skipped: string[]
 }
 
+const YJS_KEY = '__ync_update__'
+const YJS_EXPORT_NAME = '_worldnotes.yjs'
+
 /**
- * Export all pages from storage into a zip Blob of nested markdown files.
+ * Export all pages from storage into a zip Blob.
+ *
+ * Includes both individual .md files AND a _worldnotes.yjs binary
+ * for lossless Y.Doc round-tripping (preserves undo history, CRDT metadata).
  *
  * Page name `a/b/c` maps to zip entry `a/b/c.md`.
- * Returns a Blob suitable for download via URL.createObjectURL().
  */
 export async function exportWorld(
   storage: StorageAdapter,
   _options?: { filename?: string },
 ): Promise<Blob> {
   const zip = new JSZip()
-  const pageNames = await storage.keys()
 
+  // Include Y.Doc binary snapshot if available
+  const yjsData = await storage.get(YJS_KEY)
+  if (yjsData) {
+    zip.file(YJS_EXPORT_NAME, yjsData)
+  }
+
+  const pageNames = await storage.keys()
   for (const name of pageNames) {
+    if (name === YJS_KEY) continue
     const content = await storage.get(name)
     zip.file(`${name}.md`, content ?? '')
   }
@@ -32,9 +44,10 @@ export async function exportWorld(
 /**
  * Import pages from a zip File or Blob into storage.
  *
- * Zip entries ending in `.md` are treated as pages — the `.md` suffix is
- * stripped to derive the page name. Non-.md files are silently skipped.
- * Empty page names (from a root `.md` file) are also skipped.
+ * If `_worldnotes.yjs` is present, it is saved as the Y.Doc persistence key.
+ * Individual `.md` files are imported as pages (the `.md` suffix is stripped).
+ * Both formats can coexist in the same zip — .yjs is loaded first for lossless
+ * state, then .md overlays any additional pages.
  *
  * @param storage  StorageAdapter to write pages into
  * @param file     Zip file or blob to import
@@ -52,12 +65,20 @@ export async function importWorld(
 
   const zip = await JSZip.loadAsync(file)
 
+  // Handle Y.Doc binary snapshot first (lossless restore)
+  const yjsEntry = zip.file(YJS_EXPORT_NAME)
+  if (yjsEntry) {
+    const yjsContent = await yjsEntry.async('string')
+    await storage.set(YJS_KEY, yjsContent)
+    imported.push(YJS_EXPORT_NAME)
+  }
+
   for (const [path, entry] of Object.entries(zip.files)) {
     if (entry.dir) continue
     if (!path.endsWith('.md')) continue
 
     const pageName = path.slice(0, -3) // strip '.md'
-    if (pageName === '') continue // skip invalid empty page name
+    if (pageName === '') continue
 
     if (strategy === 'skip') {
       const existing = await storage.get(pageName)

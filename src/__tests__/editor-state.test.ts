@@ -23,7 +23,6 @@ function mockStorage(): StorageAdapter {
 }
 
 function setupLocation(search: string): void {
-  // In happy-dom, window.location.search is writable
   Object.defineProperty(window, 'location', {
     value: {
       ...window.location,
@@ -39,18 +38,14 @@ function setupLocation(search: string): void {
 // ─── createEditorState ─────────────────────────────────────────────────────────
 
 describe('createEditorState', () => {
-  // Test 1: Returns object with all required API members
-  it('returns an object with all 12 API members', () => {
+  it('returns an object with all 11 API members', () => {
     const storage = mockStorage()
     const options: EditorOptions = {}
     const state = createEditorState(storage, options)
 
-    // Property
-    expect(state).toHaveProperty('world')
-    // Methods
+    expect(typeof state.getYDocState).toBe('function')
     expect(typeof state.getTrail).toBe('function')
     expect(typeof state.getWorld).toBe('function')
-    expect(typeof state.setWorldPage).toBe('function')
     expect(typeof state.pushTrail).toBe('function')
     expect(typeof state.setTrail).toBe('function')
     expect(typeof state.truncateTrail).toBe('function')
@@ -61,7 +56,6 @@ describe('createEditorState', () => {
     expect(typeof state.toContext).toBe('function')
   })
 
-  // Test 2: getTrail returns defensive copy
   it('getTrail returns a defensive copy (mutation does not affect internal state)', () => {
     const storage = mockStorage()
     const state = createEditorState(storage, { initialPage: 'test' })
@@ -70,26 +64,23 @@ describe('createEditorState', () => {
     trail1.push('tampered')
     const trail2 = state.getTrail()
 
-    // The internal trail should not have been modified
     expect(trail2).not.toContain('tampered')
-    expect(trail1).toContain('tampered') // local copy was mutated
+    expect(trail1).toContain('tampered')
   })
 
-  // Test 3: getWorld returns defensive copy
   it('getWorld returns a defensive copy (mutation does not affect internal state)', () => {
     const storage = mockStorage()
     const state = createEditorState(storage, {})
 
-    state.setWorldPage('test', 'content')
+    state.getYDocState().getPage('test').insert(0, 'content')
     const world1 = state.getWorld()
     world1['tampered'] = 'bad'
     const world2 = state.getWorld()
 
     expect(world2).not.toHaveProperty('tampered')
-    expect(world1).toHaveProperty('tampered') // local copy was mutated
+    expect(world1).toHaveProperty('tampered')
   })
 
-  // Test 4: pushTrail appends page and is reflected in getTrail
   it('pushTrail appends a page and reflects in subsequent getTrail', () => {
     const storage = mockStorage()
     const state = createEditorState(storage, { initialPage: 'home' })
@@ -100,7 +91,6 @@ describe('createEditorState', () => {
     expect(trail).toEqual(['home', 'about'])
   })
 
-  // Test 5: truncateTrail at index 1 on [a,b,c] produces [a,b]
   it('truncateTrail at index 1 on [a,b,c] produces [a,b]', () => {
     const storage = mockStorage()
     const state = createEditorState(storage, { initialPage: 'a' })
@@ -112,7 +102,6 @@ describe('createEditorState', () => {
     expect(state.getTrail()).toEqual(['a', 'b'])
   })
 
-  // Test 6: setNavigating and isNavigating
   it('setNavigating(true) returns true and isNavigating() returns true', () => {
     const storage = mockStorage()
     const state = createEditorState(storage, {})
@@ -133,22 +122,17 @@ describe('createEditorState', () => {
     expect(state.isNavigating()).toBe(false)
   })
 
-  // Test 7: clearSaveTimer clears existing timer
   it('clearSaveTimer clears an existing timer', () => {
     const storage = mockStorage()
     const state = createEditorState(storage, {})
 
-    // Set a valid timer
     const timer = setTimeout(() => {
       /* empty */
     }, 100000)
     state.setSaveTimer(timer)
-    expect(state.isNavigating()).toBeDefined() // sanity check
+    expect(state.isNavigating()).toBeDefined()
 
-    // Clear it
     state.clearSaveTimer()
-
-    // After clearing, setSaveTimer with null should be a no-op
     state.setSaveTimer(null)
   })
 
@@ -156,12 +140,10 @@ describe('createEditorState', () => {
     const storage = mockStorage()
     const state = createEditorState(storage, {})
 
-    // Should not throw when no timer is set
     expect(() => state.clearSaveTimer()).not.toThrow()
   })
 
-  // Test 8: toContext returns EditorContext with navigate, getTrail, getWorld
-  it('toContext returns EditorContext with navigate, getTrail, and getWorld', () => {
+  it('toContext returns EditorContext with navigate, getTrail, getWorld, and getDoc', () => {
     const storage = mockStorage()
     const state = createEditorState(storage, { initialPage: 'start' })
 
@@ -174,34 +156,56 @@ describe('createEditorState', () => {
     expect(typeof ctx.navigate).toBe('function')
     expect(typeof ctx.getTrail).toBe('function')
     expect(typeof ctx.getWorld).toBe('function')
+    expect(typeof ctx.getDoc).toBe('function')
 
-    // navigate delegates to the function
     ctx.navigate('test-page')
     expect(navigateCalled).toBe('test-page')
 
-    // getTrail returns a snapshot
     const trail = ctx.getTrail()
     expect(Array.isArray(trail)).toBe(true)
 
-    // getWorld returns a snapshot
     const world = ctx.getWorld()
     expect(typeof world).toBe('object')
+
+    const doc = ctx.getDoc()
+    expect(doc).toBeDefined()
   })
 
-  // Test 9: setWorldPage updates world and getWorld reflects change
-  it('setWorldPage updates world and getWorld reflects the change', () => {
+  it('getYDocState returns object with getDoc, getPage, hasPage, and getWorld methods', () => {
     const storage = mockStorage()
     const state = createEditorState(storage, {})
 
-    state.setWorldPage('my-page', '# Hello')
-    const world = state.getWorld()
-
-    expect(world['my-page']).toBe('# Hello')
-    // raw world property should also reflect it
-    expect(state.world['my-page']).toBe('# Hello')
+    const yDocState = state.getYDocState()
+    expect(typeof yDocState.getDoc).toBe('function')
+    expect(typeof yDocState.getPage).toBe('function')
+    expect(typeof yDocState.hasPage).toBe('function')
+    expect(typeof yDocState.getWorld).toBe('function')
   })
 
-  // Test 10: Initial trail decoded from URL search via decodePathSearch
+  it('getYDocState getPage creates and returns content', () => {
+    const storage = mockStorage()
+    const state = createEditorState(storage, {})
+
+    const yDocState = state.getYDocState()
+    expect(yDocState.hasPage('my-page')).toBe(false)
+
+    const ytext = yDocState.getPage('my-page')
+    ytext.insert(0, '# Hello')
+    expect(yDocState.hasPage('my-page')).toBe(true)
+    expect(ytext.toString()).toBe('# Hello')
+  })
+
+  it('getWorld delegates to getYDocState and reflects ytext content', () => {
+    const storage = mockStorage()
+    const state = createEditorState(storage, {})
+
+    const yDocState = state.getYDocState()
+    yDocState.getPage('my-page').insert(0, '# Hello')
+
+    const world = state.getWorld()
+    expect(world['my-page']).toBe('# Hello')
+  })
+
   it('initial trail is decoded from URL search via decodePathSearch', () => {
     setupLocation('?path=foo/bar%2Fbaz')
     const storage = mockStorage()
@@ -219,7 +223,6 @@ describe('createEditorState', () => {
     expect(state.getTrail()).toEqual(['custom-start'])
   })
 
-  // Test 11: Initial page defaults to 'home'
   it('initial page defaults to home when URL has no path and options.initialPage is undefined', () => {
     setupLocation('')
     const storage = mockStorage()

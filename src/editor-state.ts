@@ -2,27 +2,18 @@
 
 import type { EditorContext, StorageAdapter, EditorOptions } from './types'
 import { decodePathSearch } from './navigation'
-import { EditorHistory } from './editor-history'
+import { createYDocState, type YDocState } from './y-doc-state'
 
 /**
  * Full API surface for editor mutable state.
- *
- * Properties and methods exposed by the createEditorState factory.
- * The `world` property is the raw mutable cache — modules mutate it directly
- * via setWorldPage. All getter methods return defensive copies to prevent
- * accidental external mutation.
  */
 export interface EditorStateAPI {
-  /** Raw mutable page-content cache. Use setWorldPage to write. */
-  readonly world: Record<string, string>
-  /** EditorHistory instance for undo/redo support */
-  readonly history: EditorHistory
+  /** Return the Yjs-backed document state. */
+  getYDocState(): YDocState
   /** Return a defensive copy of the breadcrumb trail. */
   getTrail(): string[]
-  /** Return a defensive copy of the world cache. */
+  /** Return a defensive copy of the world cache (delegates to YDocState). */
   getWorld(): Record<string, string>
-  /** Store page content in the world cache. */
-  setWorldPage(page: string, content: string): void
   /** Append a page name to the trail. */
   pushTrail(page: string): void
   /** Replace the entire trail in place. */
@@ -39,60 +30,38 @@ export interface EditorStateAPI {
   setSaveTimer(timer: ReturnType<typeof setTimeout> | null): void
   /**
    * Produce a readonly EditorContext for plugins.
-   *
-   * @param navigate - Callback that plugins invoke to trigger page navigation
    */
   toContext(navigate: (page: string) => void): EditorContext
 }
 
-/**
- * Create the editor's mutable state container.
- *
- * Owns the world cache, breadcrumb trail, save-timer reference, and
- * navigation-flag.  Returns an API object whose methods are the only
- * way to read or mutate that state — no global or module-level variables.
- *
- * @param storage - Storage adapter reference (used by downstream modules;
- *                  this module accepts it for signature consistency)
- * @param options - EditorOptions that influence initial trail and initial page
- *
- * @example
- * const state = createEditorState(mockStorage(), { initialPage: "home" })
- * state.pushTrail("about")
- * console.log(state.getTrail()) // ["home", "about"]
- */
 export function createEditorState(
-  storage: StorageAdapter,
+  _storage: StorageAdapter,
   options: EditorOptions = {},
 ): EditorStateAPI {
+  const yDocState = createYDocState()
   const configuredInitialPage = options.initialPage ?? 'home'
   const initialTrail = decodePathSearch(window.location.search)
   const initialPage = initialTrail[initialTrail.length - 1] ?? configuredInitialPage
 
   // ── Mutable state ──────────────────────────────────────────────────────────
 
-  const world: Record<string, string> = {}
   let trail: string[] = initialTrail.length ? [...initialTrail] : [initialPage]
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let isNavigating = false
-  const history = new EditorHistory({ maxDepth: options.historyDepth })
 
   // ── API ────────────────────────────────────────────────────────────────────
 
   return {
-    world,
-    history,
+    getYDocState(): YDocState {
+      return yDocState
+    },
 
     getTrail(): string[] {
       return [...trail]
     },
 
     getWorld(): Record<string, string> {
-      return { ...world }
-    },
-
-    setWorldPage(page: string, content: string): void {
-      world[page] = content
+      return yDocState.getWorld()
     },
 
     pushTrail(page: string): void {
@@ -128,10 +97,10 @@ export function createEditorState(
     },
 
     toContext(navigate: (page: string) => void): EditorContext {
+      const context = yDocState.toContext(navigate)
       return {
-        navigate,
+        ...context,
         getTrail: () => [...trail],
-        getWorld: () => ({ ...world }),
       }
     },
   }

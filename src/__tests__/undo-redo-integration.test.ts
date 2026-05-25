@@ -13,7 +13,7 @@ import type { EditorDOM } from '../editor-dom'
 import type { EditorRenderAPI } from '../editor-render'
 import type { EditorNavigationAPI } from '../editor-navigation'
 import { createEditorLifecycle } from '../editor-lifecycle'
-import { EditorHistory } from '../editor-history'
+import { createYDocState } from '../y-doc-state'
 
 function mockStorage(): StorageAdapter {
   const store: Record<string, string> = {}
@@ -31,20 +31,15 @@ function mockStorage(): StorageAdapter {
 }
 
 function mockState(initialTrail?: string[]): EditorStateAPI {
-  const world: Record<string, string> = {}
+  const yDocState = createYDocState()
   let trail: string[] = initialTrail ? [...initialTrail] : ['home']
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let isNavigating = false
-  const history = new EditorHistory()
 
   return {
-    world,
-    history,
+    getYDocState: () => yDocState,
     getTrail: () => [...trail],
-    getWorld: () => ({ ...world }),
-    setWorldPage: (page: string, content: string) => {
-      world[page] = content
-    },
+    getWorld: () => yDocState.getWorld(),
     pushTrail: (page: string) => {
       trail.push(page)
     },
@@ -71,7 +66,8 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
     toContext: (_navigate: (page: string) => void): EditorContext => ({
       navigate: _navigate,
       getTrail: () => [...trail],
-      getWorld: () => ({ ...world }),
+      getWorld: () => yDocState.getWorld(),
+      getDoc: () => yDocState.doc,
     }),
   }
 }
@@ -95,12 +91,19 @@ function mockDOM(): EditorDOM {
   container.appendChild(toolbar)
   container.appendChild(editorWrap)
 
-  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder }
+  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder, overlay: document.createElement('div') }
 }
 
-function mockRender(): EditorRenderAPI {
+function mockRender(state: EditorStateAPI, dom: EditorDOM): EditorRenderAPI {
   return {
-    render: vi.fn(),
+    render: vi.fn((force?: boolean) => {
+      if (force) {
+        const trail = state.getTrail()
+        const page = trail[trail.length - 1]
+        const ytext = state.getYDocState().getPage(page)
+        dom.editorDiv.textContent = ytext.toString()
+      }
+    }),
     renderBreadcrumb: vi.fn(),
     syncUrlToTrail: vi.fn(),
   }
@@ -147,14 +150,14 @@ describe('undo/redo in editor lifecycle', () => {
     storage = mockStorage()
     state = mockState(['home'])
     dom = mockDOM()
-    render = mockRender()
     navigation = mockNavigation()
     plugins = mockPlugins()
     options = {}
+    render = mockRender(state, dom)
   })
 
   describe('EditorInstance undo/redo methods', () => {
-    it('returns EditorInstance with undo, redo, canUndo, canRedo methods', () => {
+    it('returns EditorInstance with undo, redo, canUndo, canRedo methods', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -165,7 +168,7 @@ describe('undo/redo in editor lifecycle', () => {
         storage,
         options,
       )
-      const instance = lifecycle.mount()
+      const instance = await lifecycle.mount()
 
       expect(typeof instance.undo).toBe('function')
       expect(typeof instance.redo).toBe('function')
@@ -173,7 +176,7 @@ describe('undo/redo in editor lifecycle', () => {
       expect(typeof instance.canRedo).toBe('function')
     })
 
-    it('canUndo returns false immediately after mount', () => {
+    it('canUndo returns false immediately after mount', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -184,12 +187,12 @@ describe('undo/redo in editor lifecycle', () => {
         storage,
         options,
       )
-      const instance = lifecycle.mount()
+      const instance = await lifecycle.mount()
 
       expect(instance.canUndo()).toBe(false)
     })
 
-    it('undo returns false when nothing to undo', () => {
+    it('undo returns false when nothing to undo', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -200,16 +203,14 @@ describe('undo/redo in editor lifecycle', () => {
         storage,
         options,
       )
-      const instance = lifecycle.mount()
+      const instance = await lifecycle.mount()
 
       expect(instance.undo()).toBe(false)
     })
   })
 
-  describe('input handler pushes to history', () => {
-    it('calls history.push with current content when input event fires', () => {
-      const pushSpy = vi.spyOn(state.history, 'push')
-
+  describe('input handler syncs to Y.Text and enables undo', () => {
+    it('syncs DOM content to Y.Text and enables undo after edits', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -220,19 +221,28 @@ describe('undo/redo in editor lifecycle', () => {
         storage,
         options,
       )
-      lifecycle.mount()
-
-      pushSpy.mockClear()
+      const instance = await lifecycle.mount()
+      const ytext = state.getYDocState().getPage('home')
 
       dom.editorDiv.textContent = 'initial content'
       dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
 
-      expect(pushSpy).toHaveBeenCalledWith('initial content')
+      expect(ytext.toString()).toBe('initial content')
+
+      dom.editorDiv.textContent = 'modified content'
+      dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
+
+      expect(ytext.toString()).toBe('modified content')
+      expect(instance.canUndo()).toBe(true)
+
+      instance.undo()
+      expect(ytext.toString()).toBe('initial content')
+      expect(dom.editorDiv.textContent).toBe('initial content')
     })
   })
 
   describe('Ctrl+Z undo via keydown', () => {
-    it('restores previous content on Ctrl+Z', () => {
+    it('restores previous content on Ctrl+Z', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -243,7 +253,7 @@ describe('undo/redo in editor lifecycle', () => {
         storage,
         options,
       )
-      lifecycle.mount()
+      await lifecycle.mount()
 
       dom.editorDiv.textContent = 'first version'
       dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
@@ -262,7 +272,7 @@ describe('undo/redo in editor lifecycle', () => {
       expect(render.render).toHaveBeenCalled()
     })
 
-    it('does nothing when undo stack is empty', () => {
+    it('does nothing when undo stack is empty', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -273,7 +283,7 @@ describe('undo/redo in editor lifecycle', () => {
         storage,
         options,
       )
-      lifecycle.mount()
+      await lifecycle.mount()
 
       const before = 'only content'
       dom.editorDiv.textContent = before
@@ -290,7 +300,7 @@ describe('undo/redo in editor lifecycle', () => {
   })
 
   describe('Ctrl+Shift+Z redo via keydown', () => {
-    it('restores undone content on Ctrl+Shift+Z', () => {
+    it('restores undone content on Ctrl+Shift+Z', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -301,7 +311,7 @@ describe('undo/redo in editor lifecycle', () => {
         storage,
         options,
       )
-      lifecycle.mount()
+      await lifecycle.mount()
 
       dom.editorDiv.textContent = 'state A'
       dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
@@ -331,7 +341,7 @@ describe('undo/redo in editor lifecycle', () => {
   })
 
   describe('Ctrl+Y redo', () => {
-    it('restores undone content on Ctrl+Y', () => {
+    it('restores undone content on Ctrl+Y', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -342,7 +352,7 @@ describe('undo/redo in editor lifecycle', () => {
         storage,
         options,
       )
-      lifecycle.mount()
+      await lifecycle.mount()
 
       dom.editorDiv.textContent = 'alpha'
       dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
@@ -371,7 +381,7 @@ describe('undo/redo in editor lifecycle', () => {
   })
 
   describe('setContent is undoable', () => {
-    it('pushes current content to history before replacing', () => {
+    it('pushes current content to history before replacing', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -382,15 +392,15 @@ describe('undo/redo in editor lifecycle', () => {
         storage,
         options,
       )
-      const instance = lifecycle.mount()
+      const instance = await lifecycle.mount()
 
       dom.editorDiv.textContent = 'before'
       dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
 
       instance.setContent('after')
 
-      // World cache should be updated
-      expect(state.world['home']).toBe('after')
+      // Y.Text should be updated
+      expect(state.getYDocState().getPage('home').toString()).toBe('after')
 
       // Undo should restore 'before'
       const ctrlz = new KeyboardEvent('keydown', {
@@ -405,7 +415,7 @@ describe('undo/redo in editor lifecycle', () => {
   })
 
   describe('programmatic undo/redo via EditorInstance', () => {
-    it('undo() restores previous content and updates world cache', () => {
+    it('undo() restores previous content and updates Y.Text', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -416,7 +426,7 @@ describe('undo/redo in editor lifecycle', () => {
         storage,
         options,
       )
-      const instance = lifecycle.mount()
+      const instance = await lifecycle.mount()
 
       dom.editorDiv.textContent = 'first'
       dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
@@ -426,16 +436,16 @@ describe('undo/redo in editor lifecycle', () => {
 
       expect(instance.undo()).toBe(true)
       expect(dom.editorDiv.textContent).toBe('first')
-      expect(state.world['home']).toBe('first')
+      expect(state.getYDocState().getPage('home').toString()).toBe('first')
 
       expect(instance.redo()).toBe(true)
       expect(dom.editorDiv.textContent).toBe('second')
-      expect(state.world['home']).toBe('second')
+      expect(state.getYDocState().getPage('home').toString()).toBe('second')
     })
   })
 
   describe('canUndo / canRedo reflect stack state', () => {
-    it('reflects empty stacks after mount', () => {
+    it('reflects empty stacks after mount', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -446,13 +456,13 @@ describe('undo/redo in editor lifecycle', () => {
         storage,
         options,
       )
-      const instance = lifecycle.mount()
+      const instance = await lifecycle.mount()
 
       expect(instance.canUndo()).toBe(false)
       expect(instance.canRedo()).toBe(false)
     })
 
-    it('canUndo is true after two edits', () => {
+    it('canUndo is true after two edits', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -463,7 +473,7 @@ describe('undo/redo in editor lifecycle', () => {
         storage,
         options,
       )
-      const instance = lifecycle.mount()
+      const instance = await lifecycle.mount()
 
       dom.editorDiv.textContent = 'edit 1'
       dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
@@ -473,7 +483,7 @@ describe('undo/redo in editor lifecycle', () => {
       expect(instance.canUndo()).toBe(true)
     })
 
-    it('canRedo is true after undo', () => {
+    it('canRedo is true after undo', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -484,7 +494,7 @@ describe('undo/redo in editor lifecycle', () => {
         storage,
         options,
       )
-      const instance = lifecycle.mount()
+      const instance = await lifecycle.mount()
 
       dom.editorDiv.textContent = 'v1'
       dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
@@ -494,12 +504,12 @@ describe('undo/redo in editor lifecycle', () => {
       instance.undo()
 
       expect(instance.canRedo()).toBe(true)
-      expect(instance.canUndo()).toBe(false)
+      expect(instance.canUndo()).toBe(true)
     })
   })
 
   describe('Cmd key support (macOS)', () => {
-    it('undo works with Cmd+Z', () => {
+    it('undo works with Cmd+Z', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -510,7 +520,7 @@ describe('undo/redo in editor lifecycle', () => {
         storage,
         options,
       )
-      lifecycle.mount()
+      await lifecycle.mount()
 
       dom.editorDiv.textContent = 'first'
       dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
@@ -528,7 +538,7 @@ describe('undo/redo in editor lifecycle', () => {
       expect(dom.editorDiv.textContent).toBe('first')
     })
 
-    it('redo works with Cmd+Shift+Z', () => {
+    it('redo works with Cmd+Shift+Z', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -539,7 +549,7 @@ describe('undo/redo in editor lifecycle', () => {
         storage,
         options,
       )
-      lifecycle.mount()
+      await lifecycle.mount()
 
       dom.editorDiv.textContent = 'A'
       dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
@@ -566,7 +576,7 @@ describe('undo/redo in editor lifecycle', () => {
   })
 
   describe('multi-step undo redo sequence', () => {
-    it('handles alternating undo and redo', () => {
+    it('handles alternating undo and redo', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -577,7 +587,7 @@ describe('undo/redo in editor lifecycle', () => {
         storage,
         options,
       )
-      const instance = lifecycle.mount()
+      const instance = await lifecycle.mount()
 
       dom.editorDiv.textContent = 'one'
       dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
@@ -603,7 +613,7 @@ describe('undo/redo in editor lifecycle', () => {
       expect(dom.editorDiv.textContent).toBe('three')
     })
 
-    it('editing after undo clears redo stack', () => {
+    it('editing after undo clears redo stack', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -614,7 +624,7 @@ describe('undo/redo in editor lifecycle', () => {
         storage,
         options,
       )
-      const instance = lifecycle.mount()
+      const instance = await lifecycle.mount()
 
       dom.editorDiv.textContent = 'x'
       dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))

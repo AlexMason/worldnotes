@@ -17,6 +17,7 @@ export interface EditorDOM {
     editorWrap: HTMLElement;
     editorDiv: HTMLDivElement;
     placeholder: HTMLElement;
+    overlay: HTMLElement;
 }
 /**
  * Build the complete editor DOM inside `container`, inject default CSS

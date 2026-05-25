@@ -42,3 +42,9 @@ export {
 } from './plugins/inline'
 export { strikethroughPlugin } from './plugins/strikethrough'
 export { linkPlugin } from './plugins/link'
+export { remoteCursorsPlugin } from './plugins/remoteCursors'
+
+// ─── CRDT / Sync ──────────────────────────────────────────────────────────────
+export { createYDocState } from './y-doc-state'
+export type { YDocState } from './y-doc-state'
+export { saveYDoc, loadYDoc } from './yjs-storage-bridge'

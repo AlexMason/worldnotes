@@ -35,7 +35,7 @@ export declare class EditorBuilder {
      * Mount the editor into the provided element and return a live EditorInstance.
      * Injects required styles, sets up event listeners, and loads the initial page.
      */
-    mount(): EditorInstance;
+    mount(): Promise<EditorInstance>;
 }
 /**
  * Entry point. Returns an EditorBuilder for the given element.

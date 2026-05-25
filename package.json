@@ -27,10 +27,13 @@
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write \"src/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\""
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "dev:server": "npx tsx src/server/index.ts",
+    "dev:server:watch": "npx tsx watch src/server/index.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.1.7",
     "eslint": "^10.4.0",
     "eslint-config-prettier": "^10.1.8",
@@ -44,6 +47,11 @@
     "vitest": "^4.1.7"
   },
   "dependencies": {
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "ws": "^8.21.0",
+    "y-leveldb": "^0.2.0",
+    "y-protocols": "^1.0.7",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.30"
   }
 }

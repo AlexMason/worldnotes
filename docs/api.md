@@ -10,7 +10,7 @@ This page summarizes the public API exported from `worldnotes`.
 ```ts
 import { createEditor } from 'worldnotes'
 
-const editor = createEditor(element, options)
+const editor = await createEditor(element, options)
   .use(plugin)
   .withStorage(adapter)
   .mount()
@@ -25,7 +25,8 @@ Creates an `EditorBuilder` for an existing `HTMLElement`.
 | `storage` | `StorageAdapter` | `LocalStorageAdapter` | Persistence backend for page content. |
 | `initialPage` | `string` | `'home'` | Page loaded when no URL trail exists. |
 | `saveDebounceMs` | `number` | `600` | Delay before persisting content after input. |
-| `historyDepth` | `number` | `50` | Maximum number of undo states per page. Older states are evicted via FIFO. |
+| `historyDepth` | `number` | `50` | Maximum number of undo states per page. Uses `Y.UndoManager` internally. |
+| `syncServer` | `string` | `undefined` | WebSocket URL for real-time collaborative sync via y-websocket (e.g. `ws://localhost:1234`). Enables CRDT-based multi-user editing. |
 | `onTrailChange` | `(trail: string[]) => void` | `undefined` | Called whenever breadcrumbs change. |
 | `onPageLoad` | `(page: string, content: string) => void` | `undefined` | Called after content loads into the editor. |
 | `onSave` | `(page: string, content: string) => void` | `undefined` | Called after debounced persistence completes. |
@@ -39,7 +40,7 @@ The builder configures the editor before mounting.
 | `.use(plugin)` | Adds a plugin or replaces an existing plugin with the same `name`. |
 | `.clearPlugins()` | Removes all default plugins so only explicitly added plugins run. |
 | `.withStorage(adapter)` | Replaces the current storage adapter. |
-| `.mount()` | Creates the DOM, loads content, and returns an `EditorInstance`. |
+| `.mount()` | Creates the DOM, loads content, and returns a `Promise<EditorInstance>`. Must be `await`ed. |
 
 ## `EditorInstance`
 
@@ -72,6 +73,7 @@ editor.destroy()
 | `deleteForward()` | Delete one character after the cursor (like Delete key). Deletes current selection if one exists. |
 | `deleteBackward()` | Delete one character before the cursor (like Backspace key). Deletes current selection if one exists. |
 | `getSelection()` | Returns `{ text, start, end }` with selected text and raw-text character offsets, or `null` if no selection. |
+| `getDoc()` | Returns the underlying `Y.Doc` (Yjs CRDT document) for direct CRDT access. Useful for custom sync or persistence logic. |
 
 ## Keyboard Shortcuts
 
@@ -126,7 +128,7 @@ Content plugins support optional lifecycle hooks:
 
 Built-in plugin exports include `defaultPlugins`, `wikiLinkPlugin`, `headingsPlugin`,
 `boldPlugin`, `italicPlugin`, `strikethroughPlugin`, `inlineCodePlugin`, `blockquotePlugin`,
-`hrPlugin`, and `linkPlugin`.
+`hrPlugin`, `linkPlugin`, and `remoteCursorsPlugin`.
 
 ### PluginManifest Types
 
@@ -169,7 +171,7 @@ class RemoteStorage implements StorageAdapter {
 ## Import / Export
 
 Standalone utilities for exporting and importing all pages as a `.zip` of nested
-markdown files.
+markdown files plus a lossless Yjs binary blob for CRDT round-tripping.
 
 ```ts
 import { exportWorld, importWorld } from 'worldnotes'
@@ -190,7 +192,8 @@ console.log(result.skipped)  // []
 | `storage` | `StorageAdapter` | Storage backend to read pages from |
 | `options.filename` | `string` | Suggested download filename (default: `'worldnotes-export.zip'`) |
 
-Returns `Promise<Blob>` — a zip Blob containing all pages as `.md` files in nested folders.
+Returns `Promise<Blob>` — a zip Blob containing all pages as `.md` files in nested folders
+plus a `_worldnotes.yjs` binary blob for lossless Y.Doc round-tripping.
 Page name `a/b/c` maps to zip entry `a/b/c.md`. Use `URL.createObjectURL(blob)` with
 an `<a download>` element to trigger a browser download.
 
@@ -203,7 +206,9 @@ an `<a download>` element to trigger a browser download.
 | `options.strategy` | `ConflictStrategy` | Conflict resolution: `'overwrite'` (default), `'skip'`, or `'merge'` |
 
 Returns `Promise<ImportResult>` with `{ imported: string[], skipped: string[] }` arrays
-of page names. Non-`.md` files and empty page names are silently skipped.
+of page names. When the zip contains `_worldnotes.yjs`, the binary blob is applied to
+the Y.Doc first, then `.md` entries are overlaid on top. Non-`.md` files (other than
+`_worldnotes.yjs`) and empty page names are silently skipped.
 
 ### `ConflictStrategy`
 
@@ -235,7 +240,7 @@ import { createImportExportPlugin } from 'worldnotes'
 
 const storage = new LocalStorageAdapter()
 
-const editor = createEditor(el, { storage })
+const editor = await createEditor(el, { storage })
   .use(createImportExportPlugin({
     storage,
     onImportComplete: () => editor.navigate(editor.getCurrentPage()),
@@ -253,8 +258,98 @@ const editor = createEditor(el, { storage })
 The Export button downloads all pages as a `.zip`. The Import button opens a file picker
 for `.zip` files, imports `.md` entries as pages, then calls `onImportComplete`.
 
+## CRDT / Sync Utilities
+
+These exports provide low-level access to the Yjs CRDT document used internally by
+the editor, enabling custom persistence bridges and pre-built state containers.
+
+### `createYDocState()`
+
+Creates a `YDocState` container — a `Y.Doc` with a pre-initialized `Y.Text` shared
+type for editor content.
+
+```ts
+import { createYDocState } from 'worldnotes'
+
+const docState = createYDocState()
+// docState.doc is a Y.Doc ready for use with the editor
+```
+
+### `YDocState`
+
+```ts
+interface YDocState {
+  doc: Y.Doc     // The underlying Yjs document
+  text: Y.Text   // The shared text type bound to the editor
+}
+```
+
+### `saveYDoc(doc, storage)` / `loadYDoc(doc, storage)`
+
+Persistence bridge functions that serialize and deserialize a `Y.Doc` to/from a
+storage adapter. These encode the full CRDT state as a binary update blob.
+
+```ts
+import { saveYDoc, loadYDoc } from 'worldnotes'
+
+await saveYDoc(docState.doc, storage)  // Persists the Y.Doc binary state
+await loadYDoc(docState.doc, storage)  // Restores the Y.Doc from storage
+```
+
+## Real-Time Sync
+
+Worldnotes supports real-time collaborative editing via
+[y-websocket](https://github.com/yjs/y-websocket). When `syncServer` is configured,
+the editor connects to a WebSocket signaling server and synchronizes the Yjs CRDT
+document across all connected clients.
+
+### Enabling Sync
+
+Pass the `syncServer` option when creating the editor:
+
+```ts
+const editor = await createEditor(el, {
+  syncServer: 'ws://localhost:1234',
+}).mount()
+```
+
+The editor automatically connects to the sync server, negotiates the document state,
+and begins synchronizing changes in real time. All edits, including undo/redo, are
+propagated across connected peers.
+
+### Running the Sync Server
+
+Start the bundled y-websocket server with:
+
+```bash
+npm run dev:server
+```
+
+This starts a WebSocket server on `localhost:1234` (default port). You can run the
+Vite dev server (`npm run dev`) in a separate terminal to open the editor in a
+browser. Open multiple browser tabs — each tab becomes a collaborator.
+
+### Remote Cursors
+
+Add the `remoteCursorsPlugin` to render colored remote user cursors in the editor
+overlay:
+
+```ts
+import { remoteCursorsPlugin } from 'worldnotes'
+
+const editor = await createEditor(el, { syncServer: 'ws://localhost:1234' })
+  .use(remoteCursorsPlugin)
+  .mount()
+```
+
+Remote cursors appear as colored caret markers with the remote user's name when they
+are editing the same page. Each connected client is assigned a unique color for
+visual distinction. The plugin uses `y-awareness` under the hood to exchange cursor
+positions and user metadata.
+
 ## Exported Types
 
 The package exports `Token`, `TokenDef`, `PluginManifest`, `ContentPlugin`, `UIPlugin`,
 `StoragePlugin`, `StorageAdapter`, `EditorContext`, `EditorOptions`, `EditorInstance`,
-`ConflictStrategy`, `ImportResult`, and `ImportExportPluginOptions` for TypeScript consumers.
+`ConflictStrategy`, `ImportResult`, `ImportExportPluginOptions`, `YDocState`,
+and the `saveYDoc` / `loadYDoc` / `createYDocState` function signatures for TypeScript consumers.

@@ -7,6 +7,7 @@ import type {
   StorageAdapter,
   EditorOptions,
   EditorContext,
+  EditorInstance,
   Token,
 } from '../types'
 import type { EditorStateAPI } from '../editor-state'
@@ -14,7 +15,7 @@ import type { EditorDOM } from '../editor-dom'
 import type { EditorRenderAPI } from '../editor-render'
 import type { EditorNavigationAPI } from '../editor-navigation'
 import { createEditorLifecycle } from '../editor-lifecycle'
-import { EditorHistory } from '../editor-history'
+import { createYDocState } from '../y-doc-state'
 import { extractText } from '../cursor'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -35,20 +36,15 @@ function mockStorage(): StorageAdapter {
 }
 
 function mockState(initialTrail?: string[]): EditorStateAPI {
-  const world: Record<string, string> = {}
+  const yDocState = createYDocState()
   let trail: string[] = initialTrail ? [...initialTrail] : ['home']
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let isNavigating = false
-  const history = new EditorHistory()
 
   return {
-    world,
-    history,
+    getYDocState: () => yDocState,
     getTrail: () => [...trail],
-    getWorld: () => ({ ...world }),
-    setWorldPage: (page: string, content: string) => {
-      world[page] = content
-    },
+    getWorld: () => yDocState.getWorld(),
     pushTrail: (page: string) => {
       trail.push(page)
     },
@@ -75,7 +71,8 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
     toContext: (_navigate: (page: string) => void): EditorContext => ({
       navigate: _navigate,
       getTrail: () => [...trail],
-      getWorld: () => ({ ...world }),
+      getWorld: () => yDocState.getWorld(),
+      getDoc: () => yDocState.doc,
     }),
   }
 }
@@ -99,12 +96,19 @@ function mockDOM(): EditorDOM {
   container.appendChild(toolbar)
   container.appendChild(editorWrap)
 
-  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder }
+  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder, overlay: document.createElement('div') }
 }
 
-function mockRender(): EditorRenderAPI {
+function mockRender(state: EditorStateAPI, dom: EditorDOM): EditorRenderAPI {
   return {
-    render: vi.fn(),
+    render: vi.fn((force?: boolean) => {
+      if (force) {
+        const trail = state.getTrail()
+        const page = trail[trail.length - 1]
+        const ytext = state.getYDocState().getPage(page)
+        dom.editorDiv.textContent = ytext.toString()
+      }
+    }),
     renderBreadcrumb: vi.fn(),
     syncUrlToTrail: vi.fn(),
   }
@@ -151,13 +155,13 @@ describe('createEditorLifecycle', () => {
     storage = mockStorage()
     state = mockState(['home'])
     dom = mockDOM()
-    render = mockRender()
+    render = mockRender(state, dom)
     navigation = mockNavigation()
     plugins = mockPlugins()
     options = {}
   })
 
-  it('exports createEditorLifecycle factory function', () => {
+  it('exports createEditorLifecycle factory function', async () => {
     const lifecycle = createEditorLifecycle(
       dom,
       plugins,
@@ -175,7 +179,7 @@ describe('createEditorLifecycle', () => {
   // ── mount() ───────────────────────────────────────────────────────────────
 
   describe('mount()', () => {
-    it('returns EditorInstance with all required methods', () => {
+    it('returns EditorInstance with all required methods', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -186,7 +190,7 @@ describe('createEditorLifecycle', () => {
         storage,
         options,
       )
-      const instance = lifecycle.mount()
+      const instance = await lifecycle.mount()
 
       expect(typeof instance.destroy).toBe('function')
       expect(typeof instance.navigate).toBe('function')
@@ -196,7 +200,7 @@ describe('createEditorLifecycle', () => {
       expect(typeof instance.setContent).toBe('function')
     })
 
-    it('calls navigation.loadPage with the initial page from trail', () => {
+    it('calls navigation.loadPage with the initial page from trail', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -207,13 +211,13 @@ describe('createEditorLifecycle', () => {
         storage,
         options,
       )
-      lifecycle.mount()
+      await lifecycle.mount()
 
       expect(navigation.loadPage).toHaveBeenCalled()
       // Should be called with 'home' (the last element in the trail)
     })
 
-    it('loads the configured initial page when provided', () => {
+    it('loads the configured initial page when provided', async () => {
       const customState = mockState(['custom-page'])
       const lifecycle = createEditorLifecycle(
         dom,
@@ -225,7 +229,7 @@ describe('createEditorLifecycle', () => {
         storage,
         options,
       )
-      lifecycle.mount()
+      await lifecycle.mount()
 
       // loadPage should have been called with the page from the trail
       expect(navigation.loadPage).toHaveBeenCalled()
@@ -235,7 +239,7 @@ describe('createEditorLifecycle', () => {
   // ── EditorInstance.destroy() ──────────────────────────────────────────────
 
   describe('EditorInstance.destroy()', () => {
-    it('empties container innerHTML', () => {
+    it('empties container innerHTML', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -246,7 +250,7 @@ describe('createEditorLifecycle', () => {
         storage,
         options,
       )
-      const instance = lifecycle.mount()
+      const instance = await lifecycle.mount()
 
       // Before destroy, container should have children
       expect(dom.container.children.length).toBeGreaterThan(0)
@@ -260,7 +264,7 @@ describe('createEditorLifecycle', () => {
   // ── EditorInstance.getCurrentPage() ───────────────────────────────────────
 
   describe('EditorInstance.getCurrentPage()', () => {
-    it('returns the last element of the trail', () => {
+    it('returns the last element of the trail', async () => {
       const trailState = mockState(['home', 'about', 'contact'])
       const lifecycle = createEditorLifecycle(
         dom,
@@ -272,7 +276,7 @@ describe('createEditorLifecycle', () => {
         storage,
         options,
       )
-      const instance = lifecycle.mount()
+      const instance = await lifecycle.mount()
 
       expect(instance.getCurrentPage()).toBe('contact')
     })
@@ -281,7 +285,7 @@ describe('createEditorLifecycle', () => {
   // ── EditorInstance.getTrail() ─────────────────────────────────────────────
 
   describe('EditorInstance.getTrail()', () => {
-    it('returns a copy of the navigation trail', () => {
+    it('returns a copy of the navigation trail', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -292,7 +296,7 @@ describe('createEditorLifecycle', () => {
         storage,
         options,
       )
-      const instance = lifecycle.mount()
+      const instance = await lifecycle.mount()
 
       const trail = instance.getTrail()
       expect(Array.isArray(trail)).toBe(true)
@@ -306,8 +310,7 @@ describe('createEditorLifecycle', () => {
   // ── EditorInstance.getContent() ───────────────────────────────────────────
 
   describe('EditorInstance.getContent()', () => {
-    it('returns text content from editorDiv via extractText', () => {
-      dom.editorDiv.textContent = 'hello world'
+    it('returns text content from the current page Y.Text', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -318,7 +321,9 @@ describe('createEditorLifecycle', () => {
         storage,
         options,
       )
-      const instance = lifecycle.mount()
+      const instance = await lifecycle.mount()
+
+      state.getYDocState().getPage('home').insert(0, 'hello world')
 
       expect(instance.getContent()).toBe('hello world')
     })
@@ -327,7 +332,7 @@ describe('createEditorLifecycle', () => {
   // ── EditorInstance.setContent() ───────────────────────────────────────────
 
   describe('EditorInstance.setContent()', () => {
-    it('updates world cache and re-renders', () => {
+    it('updates world cache and re-renders', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -338,15 +343,15 @@ describe('createEditorLifecycle', () => {
         storage,
         options,
       )
-      const instance = lifecycle.mount()
+      const instance = await lifecycle.mount()
 
       // Reset the render mock to clear calls from loadPage
       vi.mocked(render.render).mockClear()
 
       instance.setContent('new content')
 
-      // World cache should be updated
-      expect(state.world['home']).toBe('new content')
+      // Y.Text should be updated
+      expect(state.getYDocState().getPage('home').toString()).toBe('new content')
       // editorDiv textContent should be set
       expect(dom.editorDiv.textContent).toBe('new content')
       // render should be called again
@@ -357,7 +362,7 @@ describe('createEditorLifecycle', () => {
   // ── EditorInstance.navigate() ─────────────────────────────────────────────
 
   describe('EditorInstance.navigate()', () => {
-    it('delegates to navigation.navigateToPage', () => {
+    it('delegates to navigation.navigateToPage', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -368,7 +373,7 @@ describe('createEditorLifecycle', () => {
         storage,
         options,
       )
-      const instance = lifecycle.mount()
+      const instance = await lifecycle.mount()
 
       instance.navigate('some-page')
 
@@ -392,7 +397,7 @@ describe('Editor lifecycle event handlers', () => {
     storage = mockStorage()
     state = mockState(['home'])
     dom = mockDOM()
-    render = mockRender()
+    render = mockRender(state, dom)
     navigation = mockNavigation()
     plugins = mockPlugins()
     options = {}
@@ -401,7 +406,7 @@ describe('Editor lifecycle event handlers', () => {
   // ── Input handler ────────────────────────────────────────────────────────
 
   describe('input event', () => {
-    it('calls render() when input event fires', () => {
+    it('calls render() when input event fires', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -412,7 +417,7 @@ describe('Editor lifecycle event handlers', () => {
         storage,
         options,
       )
-      lifecycle.mount()
+      await lifecycle.mount()
 
       // Clear render calls from loadPage
       vi.mocked(render.render).mockClear()
@@ -427,7 +432,7 @@ describe('Editor lifecycle event handlers', () => {
   // ── Paste handler ────────────────────────────────────────────────────────
 
   describe('paste event', () => {
-    it('handles paste event by preventing default', () => {
+    it('handles paste event by preventing default', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -438,7 +443,7 @@ describe('Editor lifecycle event handlers', () => {
         storage,
         options,
       )
-      lifecycle.mount()
+      await lifecycle.mount()
 
       // Place caret at start
       const range = document.createRange()
@@ -469,7 +474,7 @@ describe('Editor lifecycle event handlers', () => {
   // ── Keydown handler (Tab) ────────────────────────────────────────────────
 
   describe('keydown Tab', () => {
-    it('inserts two spaces on Tab key', () => {
+    it('inserts two spaces on Tab key', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -480,7 +485,7 @@ describe('Editor lifecycle event handlers', () => {
         storage,
         options,
       )
-      lifecycle.mount()
+      await lifecycle.mount()
 
       // Place caret at start
       const range = document.createRange()
@@ -502,7 +507,7 @@ describe('Editor lifecycle event handlers', () => {
   // ── Keydown handler (Enter) ──────────────────────────────────────────────
 
   describe('keydown Enter', () => {
-    it('inserts newline on Enter key', () => {
+    it('inserts newline on Enter key', async () => {
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -513,7 +518,7 @@ describe('Editor lifecycle event handlers', () => {
         storage,
         options,
       )
-      lifecycle.mount()
+      await lifecycle.mount()
 
       // Place caret at start
       const range = document.createRange()
@@ -547,13 +552,13 @@ describe('UI plugin lifecycle', () => {
     storage = mockStorage()
     state = mockState(['home'])
     dom = mockDOM()
-    render = mockRender()
+    render = mockRender(state, dom)
     navigation = mockNavigation()
     plugins = mockPlugins()
     options = {}
   })
 
-  it('calls onMount with toolbar element for each UI plugin during mount()', () => {
+  it('calls onMount with toolbar element for each UI plugin during mount()', async () => {
     const onMount = vi.fn()
     const uiPlugin: UIPlugin = {
       name: 'ui-test',
@@ -573,13 +578,13 @@ describe('UI plugin lifecycle', () => {
       storage,
       options,
     )
-    lifecycle.mount()
+    await lifecycle.mount()
 
     expect(onMount).toHaveBeenCalledTimes(1)
     expect(onMount).toHaveBeenCalledWith(dom.toolbar)
   })
 
-  it('calls onDestroy for UI plugins during destroy()', () => {
+  it('calls onDestroy for UI plugins during destroy()', async () => {
     const onDestroy = vi.fn()
     const onMount = vi.fn()
     const uiPlugin: UIPlugin = {
@@ -601,13 +606,13 @@ describe('UI plugin lifecycle', () => {
       storage,
       options,
     )
-    const instance = lifecycle.mount()
+    const instance = await lifecycle.mount()
     instance.destroy()
 
     expect(onDestroy).toHaveBeenCalledTimes(1)
   })
 
-  it('catches onDestroy failure and continues destroying other plugins', () => {
+  it('catches onDestroy failure and continues destroying other plugins', async () => {
     const onDestroyGood = vi.fn()
     const onDestroyBad = vi.fn(() => {
       throw new Error('boom')
@@ -643,14 +648,14 @@ describe('UI plugin lifecycle', () => {
       storage,
       options,
     )
-    const instance = lifecycle.mount()
+    const instance = await lifecycle.mount()
     instance.destroy()
 
     expect(onDestroyBad).toHaveBeenCalled()
     expect(onDestroyGood).toHaveBeenCalled() // continues after bad plugin fails
   })
 
-  it('does not call onMount for slots not present in the DOM', () => {
+  it('does not call onMount for slots not present in the DOM', async () => {
     const onMount = vi.fn()
     const uiPlugin: UIPlugin = {
       name: 'ui-test',
@@ -670,12 +675,12 @@ describe('UI plugin lifecycle', () => {
       storage,
       options,
     )
-    lifecycle.mount()
+    await lifecycle.mount()
 
     expect(onMount).not.toHaveBeenCalled()
   })
 
-  it('destroy does not fail when UI plugin has no onDestroy', () => {
+  it('destroy does not fail when UI plugin has no onDestroy', async () => {
     const onMount = vi.fn()
     const uiPlugin: UIPlugin = {
       name: 'ui-test',
@@ -696,7 +701,7 @@ describe('UI plugin lifecycle', () => {
       storage,
       options,
     )
-    const instance = lifecycle.mount()
+    const instance = await lifecycle.mount()
 
     expect(() => instance.destroy()).not.toThrow()
   })
@@ -712,9 +717,10 @@ describe('EditorInstance cursor API', () => {
   let navigation: EditorNavigationAPI
   let plugins: ContentPlugin[]
   let options: EditorOptions
-  let editor: ReturnType<ReturnType<typeof createEditorLifecycle>['mount']>
+  let editor: EditorInstance
+  let origModify: typeof Selection.prototype.modify | undefined
 
-  function mount(): void {
+  async function mount(): Promise<void> {
     const lifecycle = createEditorLifecycle(
       dom,
       plugins,
@@ -725,7 +731,7 @@ describe('EditorInstance cursor API', () => {
       storage,
       options,
     )
-    editor = lifecycle.mount()
+    editor = await lifecycle.mount()
   }
 
   function setCaretAt(textNode: Node, offset: number): void {
@@ -738,30 +744,62 @@ describe('EditorInstance cursor API', () => {
   }
 
   function setContentAndFocus(text: string): void {
+    state.getYDocState().doc.transact(() => {
+      const ytext = state.getYDocState().getPage('home')
+      ytext.delete(0, ytext.length)
+      ytext.insert(0, text)
+    })
     dom.editorDiv.textContent = text
     dom.editorDiv.focus()
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     storage = mockStorage()
     state = mockState(['home'])
     dom = mockDOM()
     document.body.appendChild(dom.container)
-    render = mockRender()
+    render = mockRender(state, dom)
     navigation = mockNavigation()
     plugins = mockPlugins()
     options = {}
-    mount()
+
+    // happy-dom doesn't implement Selection.modify(); polyfill it
+    origModify = Selection.prototype.modify
+    Selection.prototype.modify = function (
+      alter: string,
+      _direction: string,
+      granularity: string,
+    ): void {
+      if (alter === 'extend' && granularity === 'character') {
+        const sel = this as unknown as Selection
+        if (!sel.isCollapsed || !sel.rangeCount) return
+        const r = sel.getRangeAt(0)
+        try {
+          if (_direction === 'forward') {
+            r.setEnd(r.endContainer, r.endOffset + 1)
+          } else if (_direction === 'backward' && r.endOffset > 0) {
+            r.setStart(r.startContainer, r.startOffset - 1)
+          }
+        } catch {
+          // ignore boundary errors
+        }
+      }
+    }
+
+    await mount()
   })
 
   afterEach(() => {
+    if (origModify) {
+      Selection.prototype.modify = origModify
+    }
     document.body.removeChild(dom.container)
   })
 
   // ── insertText ────────────────────────────────────────────────────────────
 
   describe('insertText', () => {
-    it('inserts text at caret position when no selection', () => {
+    it('inserts text at caret position when no selection', async () => {
       setContentAndFocus('hello world')
       const textNode = dom.editorDiv.firstChild!
       setCaretAt(textNode, 6) // after 'hello '
@@ -772,7 +810,7 @@ describe('EditorInstance cursor API', () => {
       expect(raw).toBe('hello beautiful world')
     })
 
-    it('replaces selected text when range is not collapsed', () => {
+    it('replaces selected text when range is not collapsed', async () => {
       setContentAndFocus('hello world')
       const textNode = dom.editorDiv.firstChild!
       const range = document.createRange()
@@ -788,7 +826,7 @@ describe('EditorInstance cursor API', () => {
       expect(raw).toContain('goodbye world')
     })
 
-    it('is a no-op when there is no selection', () => {
+    it('is a no-op when there is no selection', async () => {
       setContentAndFocus('hello')
       const sel = window.getSelection()
       sel!.removeAllRanges()
@@ -802,7 +840,7 @@ describe('EditorInstance cursor API', () => {
   // ── deleteForward ─────────────────────────────────────────────────────────
 
   describe('deleteForward', () => {
-    it('deletes one character after caret when selection is collapsed', () => {
+    it('deletes one character after caret when selection is collapsed', async () => {
       setContentAndFocus('hello')
       const textNode = dom.editorDiv.firstChild!
       setCaretAt(textNode, 2) // after 'he'
@@ -813,7 +851,7 @@ describe('EditorInstance cursor API', () => {
       expect(raw).toBe('helo')
     })
 
-    it('deletes selected text when range is not collapsed', () => {
+    it('deletes selected text when range is not collapsed', async () => {
       setContentAndFocus('hello world')
       const textNode = dom.editorDiv.firstChild!
       const range = document.createRange()
@@ -829,7 +867,7 @@ describe('EditorInstance cursor API', () => {
       expect(raw).toBe('world')
     })
 
-    it('is a no-op when there is no selection', () => {
+    it('is a no-op when there is no selection', async () => {
       setContentAndFocus('hello')
       const sel = window.getSelection()
       sel!.removeAllRanges()
@@ -843,7 +881,7 @@ describe('EditorInstance cursor API', () => {
   // ── deleteBackward ────────────────────────────────────────────────────────
 
   describe('deleteBackward', () => {
-    it('deletes one character before caret when selection is collapsed', () => {
+    it('deletes one character before caret when selection is collapsed', async () => {
       setContentAndFocus('hello')
       const textNode = dom.editorDiv.firstChild!
       setCaretAt(textNode, 2) // after 'he'
@@ -854,7 +892,7 @@ describe('EditorInstance cursor API', () => {
       expect(raw).toBe('hllo')
     })
 
-    it('deletes selected text when range is not collapsed', () => {
+    it('deletes selected text when range is not collapsed', async () => {
       setContentAndFocus('hello world')
       const textNode = dom.editorDiv.firstChild!
       const range = document.createRange()
@@ -870,7 +908,7 @@ describe('EditorInstance cursor API', () => {
       expect(raw).toBe('world')
     })
 
-    it('is a no-op at start of content', () => {
+    it('is a no-op at start of content', async () => {
       setContentAndFocus('hello')
       const textNode = dom.editorDiv.firstChild!
       setCaretAt(textNode, 0) // at very start
@@ -881,7 +919,7 @@ describe('EditorInstance cursor API', () => {
       expect(raw).toHaveLength(5)
     })
 
-    it('is a no-op when there is no selection', () => {
+    it('is a no-op when there is no selection', async () => {
       setContentAndFocus('hello')
       const sel = window.getSelection()
       sel!.removeAllRanges()
@@ -895,7 +933,7 @@ describe('EditorInstance cursor API', () => {
   // ── getSelection ──────────────────────────────────────────────────────────
 
   describe('getSelection', () => {
-    it('returns null when there is no selection', () => {
+    it('returns null when there is no selection', async () => {
       setContentAndFocus('hello')
       const sel = window.getSelection()
       sel!.removeAllRanges()
@@ -904,9 +942,11 @@ describe('EditorInstance cursor API', () => {
       expect(result).toBeNull()
     })
 
-    it('reports collapsed caret with empty text and matching start/end', () => {
-      setContentAndFocus('hello')
-      const textNode = dom.editorDiv.firstChild!
+    it('reports collapsed caret with empty text and matching start/end', async () => {
+      // Set up DOM with data-line structure expected by getLineOffset
+      dom.editorDiv.innerHTML = '<span data-line="0">hello</span>'
+      dom.editorDiv.focus()
+      const textNode = dom.editorDiv.querySelector('[data-line="0"]')!.firstChild!
       setCaretAt(textNode, 3) // after 'hel'
 
       const result = editor.getSelection()
@@ -916,9 +956,11 @@ describe('EditorInstance cursor API', () => {
       expect(result!.end).toBe(3)
     })
 
-    it('reports selected text with correct start/end offsets', () => {
-      setContentAndFocus('hello world')
-      const textNode = dom.editorDiv.firstChild!
+    it('reports selected text with correct start/end offsets', async () => {
+      // Set up DOM with data-line structure expected by getLineOffset
+      dom.editorDiv.innerHTML = '<span data-line="0">hello world</span>'
+      dom.editorDiv.focus()
+      const textNode = dom.editorDiv.querySelector('[data-line="0"]')!.firstChild!
       const range = document.createRange()
       range.setStart(textNode, 6)
       range.setEnd(textNode, 11) // select 'world'
@@ -933,7 +975,7 @@ describe('EditorInstance cursor API', () => {
       expect(result!.end).toBe(11)
     })
 
-    it('always returns start <= end (min/max logic)', () => {
+    it('always returns start <= end (min/max logic)', async () => {
       setContentAndFocus('hello world')
       const textNode = dom.editorDiv.firstChild!
       const range = document.createRange()

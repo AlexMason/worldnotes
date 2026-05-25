@@ -3,74 +3,25 @@
 import type { ContentPlugin } from './types'
 import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
-import { getCaretOffset, setCaretOffset, extractText } from './cursor'
-import { tokenizeDocument } from './tokenizer'
-import { renderDocument } from './renderer'
+import { getLineOffset, setLineOffset } from './awareness-cursor'
+import { renderLines } from './line-renderer'
 import { pageDisplayName, encodePathSearch } from './navigation'
 
 /**
  * Public API returned by {@link createEditorRender}.
- *
- * @method render           - Run the full render pipeline: extract text,
- *                            tokenize, render DOM fragments, replace
- *                            innerHTML, and restore caret position.
- * @method renderBreadcrumb - Rebuild the breadcrumb trail DOM and sync
- *                            the URL.
- * @method syncUrlToTrail   - Update the browser URL querystring to
- *                            reflect the current navigation trail.
  */
 export interface EditorRenderAPI {
-  render(): void
+  render(force?: boolean): void
   renderBreadcrumb(): void
   syncUrlToTrail(): void
 }
 
-/**
- * Callbacks wired by the orchestrator after sibling modules are created.
- *
- * @property onBreadcrumbNavigate - Called when a breadcrumb crumb is
- *                                  clicked (with the target page name).
- * @property onTrailChange         - Called after every breadcrumb re-render
- *                                  with a copy of the current trail.
- * @property navigateFn            - The real navigation function wired by
- *                                  the orchestrator after the navigation
- *                                  module exists.  Passed through to
- *                                  {@link EditorStateAPI.toContext} during
- *                                  each render call so plugins receive a
- *                                  live navigate reference.
- */
 export interface EditorRenderOptions {
   onBreadcrumbNavigate?: (page: string) => void
   onTrailChange?: (trail: string[]) => void
   navigateFn?: (page: string) => void
 }
 
-/**
- * Create the render-pipeline coordinator.
- *
- * Produces three functions — {@link EditorRenderAPI.render | render},
- * {@link EditorRenderAPI.renderBreadcrumb | renderBreadcrumb}, and
- * {@link EditorRenderAPI.syncUrlToTrail | syncUrlToTrail} — that
- * together handle extracting text from the contenteditable editor,
- * tokenizing it through registered plugins, building decorated DOM
- * fragments, and keeping the breadcrumb trail and URL in sync.
- *
- * This module depends on the existing pipeline modules (cursor,
- * tokenizer, renderer, navigation) and uses type-only imports for
- * editor-state and editor-dom to avoid runtime dependency cycles.
- *
- * @param dom            - Live DOM references (editorDiv, breadcrumb, placeholder)
- * @param contentPlugins - All registered ContentPlugin instances
- * @param state          - State accessors for trail, world, and EditorContext
- * @param options        - Callbacks wired by the orchestrator
- *
- * @example
- * const render = createEditorRender(dom, contentPlugins, state, {
- *   onBreadcrumbNavigate: (page) => editor.navigate(page),
- *   onTrailChange: (trail) => options.onTrailChange?.(trail),
- *   navigateFn: (page) => navigation.navigateToPage(page),
- * })
- */
 export function createEditorRender(
   dom: EditorDOM,
   contentPlugins: ContentPlugin[],
@@ -78,16 +29,23 @@ export function createEditorRender(
   options: EditorRenderOptions = {},
 ): EditorRenderAPI {
   const { editorDiv, placeholder, breadcrumb } = dom
+  const lineCache = new Map<number, string>()
 
   // ── Full render pipeline ──────────────────────────────────────────────────
 
-  function render(): void {
-    const offset = getCaretOffset(editorDiv)
-    const raw = extractText(editorDiv)
-    const lines = tokenizeDocument(
-      raw,
-      contentPlugins.flatMap((p) => p.tokens),
-    )
+  function render(force = false): void {
+    if (force) {
+      lineCache.clear()
+      editorDiv.innerHTML = ''
+    }
+
+    const offset = getLineOffset(editorDiv)
+
+    const yDocState = state.getYDocState()
+    const trail = state.getTrail()
+    const page = trail[trail.length - 1]
+    const ytext = yDocState.getPage(page)
+    const raw = ytext.toString()
 
     const context = state.toContext(
       options.navigateFn ??
@@ -96,21 +54,29 @@ export function createEditorRender(
         }),
     )
 
-    const frags = renderDocument(lines, contentPlugins, context, offset)
-
-    editorDiv.innerHTML = ''
-    frags.forEach((frag, i) => {
-      if (frag.childNodes.length === 0) {
-        frag.appendChild(document.createElement('br'))
-      }
-      editorDiv.appendChild(frag)
-      if (i < frags.length - 1) editorDiv.appendChild(document.createTextNode('\n'))
-    })
+    renderLines(
+      raw,
+      contentPlugins,
+      context,
+      lineCache,
+      editorDiv,
+    )
 
     placeholder.style.display = raw.length ? 'none' : 'block'
 
+    // Re-order containers to ensure sequential [data-line] order
+    const containers = Array.from(editorDiv.querySelectorAll('[data-line]'))
+    containers.sort((a, b) => {
+      const ai = parseInt((a as HTMLElement).dataset.line ?? '0', 10)
+      const bi = parseInt((b as HTMLElement).dataset.line ?? '0', 10)
+      return ai - bi
+    })
+    for (const c of containers) {
+      editorDiv.appendChild(c)
+    }
+
     try {
-      setCaretOffset(editorDiv, offset)
+      setLineOffset(editorDiv, offset)
     } catch {
       /* noop */
     }
@@ -130,7 +96,8 @@ export function createEditorRender(
         breadcrumb.appendChild(sep)
       }
       const crumb = document.createElement('span')
-      crumb.className = 'wn-crumb' + (i === trail.length - 1 ? ' wn-crumb--active' : '')
+      crumb.className =
+        'wn-crumb' + (i === trail.length - 1 ? ' wn-crumb--active' : '')
       crumb.textContent = pageDisplayName(page)
       if (i < trail.length - 1) {
         crumb.addEventListener('click', () => {

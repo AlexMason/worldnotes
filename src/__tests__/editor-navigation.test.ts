@@ -1,12 +1,13 @@
 // @vitest-environment happy-dom
 
+import * as Y from 'yjs'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { StorageAdapter, EditorOptions } from '../types'
+import type { StorageAdapter, EditorOptions, EditorContext } from '../types'
 import type { EditorStateAPI } from '../editor-state'
 import type { EditorDOM } from '../editor-dom'
 import type { EditorRenderAPI } from '../editor-render'
+import type { YDocState } from '../y-doc-state'
 import { createEditorNavigation } from '../editor-navigation'
-import { EditorHistory } from '../editor-history'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -26,20 +27,82 @@ function mockStorage(initialStore?: Record<string, string>): StorageAdapter {
 }
 
 function mockState(initialTrail?: string[]): EditorStateAPI {
-  const world: Record<string, string> = {}
+  const doc = new Y.Doc()
+  const pages = doc.getMap<Y.Text>('pages')
+  let _awareness: unknown = null
+  let _undoManager: Y.UndoManager | null = null
+
+  function getPage(page: string): Y.Text {
+    let ytext = pages.get(page)
+    if (!ytext) {
+      ytext = new Y.Text()
+      pages.set(page, ytext)
+    }
+    return ytext
+  }
+
+  const yDocState: YDocState = {
+    doc,
+    pages,
+    get awareness(): unknown {
+      return _awareness
+    },
+    set awareness(val: unknown) {
+      _awareness = val
+    },
+    get undoManager(): Y.UndoManager | null {
+      return _undoManager
+    },
+    set undoManager(val: Y.UndoManager | null) {
+      _undoManager = val
+    },
+    getDoc(): Y.Doc {
+      return doc
+    },
+    getPage,
+    hasPage(page: string): boolean {
+      return pages.has(page)
+    },
+    getWorld(): Record<string, string> {
+      const world: Record<string, string> = {}
+      for (const [key, ytext] of pages.entries()) {
+        world[key] = ytext.toString()
+      }
+      return world
+    },
+    setAwareness(awareness: unknown): void {
+      _awareness = awareness
+    },
+    setUndoManager(um: Y.UndoManager): void {
+      _undoManager = um
+    },
+    toContext(navigate: (page: string) => void): EditorContext {
+      return {
+        navigate,
+        getTrail: () => [],
+        getWorld: () => yDocState.getWorld(),
+        getDoc: () => doc,
+      }
+    },
+    encodeStateAsUpdate(): Uint8Array {
+      return Y.encodeStateAsUpdate(doc)
+    },
+    applyUpdate(update: Uint8Array): void {
+      Y.applyUpdate(doc, update)
+    },
+    destroy(): void {
+      doc.destroy()
+    },
+  }
+
   let trail: string[] = initialTrail ? [...initialTrail] : ['home']
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let isNavigating = false
-  const history = new EditorHistory()
 
   return {
-    world,
-    history,
+    getYDocState: () => yDocState,
     getTrail: () => [...trail],
-    getWorld: () => ({ ...world }),
-    setWorldPage: (page: string, content: string) => {
-      world[page] = content
-    },
+    getWorld: () => yDocState.getWorld(),
     pushTrail: (page: string) => {
       trail.push(page)
     },
@@ -63,10 +126,9 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
     setSaveTimer: (timer: ReturnType<typeof setTimeout> | null) => {
       saveTimer = timer
     },
-    toContext: (_navigate: (page: string) => void) => ({
-      navigate: _navigate,
+    toContext: (navigate: (page: string) => void): EditorContext => ({
+      ...yDocState.toContext(navigate),
       getTrail: () => [...trail],
-      getWorld: () => ({ ...world }),
     }),
   }
 }
@@ -91,7 +153,7 @@ function mockDOM(): EditorDOM {
   container.appendChild(toolbar)
   container.appendChild(editorWrap)
 
-  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder }
+  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder, overlay: document.createElement('div') }
 }
 
 function mockRender(): EditorRenderAPI {
@@ -138,22 +200,18 @@ describe('createEditorNavigation', () => {
 
       await nav.navigateToPage('new-page')
 
-      // Should be in world cache
-      expect(state.world['new-page']).toBeDefined()
-      // Trail should include the page
+      expect(state.getWorld()).toHaveProperty('new-page')
       expect(state.getTrail()).toContain('new-page')
     })
 
     it('does not re-fetch page already in world cache', async () => {
       const getSpy = vi.spyOn(storage, 'get')
-      // Pre-populate the world cache
-      state.setWorldPage('cached-page', '# Cached\n\nsome content')
+      state.getYDocState().getPage('cached-page').insert(0, '# Cached\n\nsome content')
       const nav = createEditorNavigation(state, storage, dom, options)
       nav.setRenderAPI(render)
 
       await nav.navigateToPage('cached-page')
 
-      // Storage.get should NOT have been called since page is already cached
       expect(getSpy).not.toHaveBeenCalledWith('cached-page')
     })
 
@@ -164,8 +222,7 @@ describe('createEditorNavigation', () => {
 
       await nav.navigateToPage('stored-page')
 
-      // Should load from storage into world cache
-      expect(state.world['stored-page']).toBe('# Stored Page\n\ncontent')
+      expect(state.getWorld()['stored-page']).toBe('# Stored Page\n\ncontent')
     })
   })
 
@@ -176,29 +233,26 @@ describe('createEditorNavigation', () => {
       const nav = createEditorNavigation(state, storage, dom, options)
       nav.setRenderAPI(render)
 
-      // isNavigating should start false
       expect(state.isNavigating()).toBe(false)
 
       const loadPromise = nav.loadPage('home')
-
-      // isNavigating should be true during the load
-      // Note: since loadPage is async, we check after it completes that
-      // the flag was properly set and cleared
       await loadPromise
 
       expect(state.isNavigating()).toBe(false)
     })
 
-    it('sets editorDiv.textContent to page content', async () => {
+    it('reads page content from Y.Text and triggers render', async () => {
       const nav = createEditorNavigation(state, storage, dom, options)
       nav.setRenderAPI(render)
 
       const content = '# hello\n\ntest content'
-      state.setWorldPage('home', content)
+      state.getYDocState().getPage('home').insert(0, content)
 
       await nav.loadPage('home')
 
-      expect(dom.editorDiv.textContent).toBe(content)
+      expect(state.getYDocState().getPage('home').toString()).toBe(content)
+      expect(render.render).toHaveBeenCalled()
+      expect(render.renderBreadcrumb).toHaveBeenCalled()
     })
 
     it('calls render() and renderBreadcrumb() via setRenderAPI', async () => {
@@ -216,7 +270,7 @@ describe('createEditorNavigation', () => {
       nav.setRenderAPI(render)
 
       const content = '# Test\n\ncontent'
-      state.setWorldPage('home', content)
+      state.getYDocState().getPage('home').insert(0, content)
 
       await nav.loadPage('home')
 
@@ -228,22 +282,18 @@ describe('createEditorNavigation', () => {
       nav.setRenderAPI(render)
 
       await nav.loadPage('home')
-      // Should not throw — onPageLoad is optional
       expect(render.render).toHaveBeenCalled()
     })
 
     it('uses DEFAULT_HOME content when page is home and not in storage', async () => {
-      // Use fresh state with empty world (no home page cached)
       const freshState = mockState(['home'])
-      const freshStorage = mockStorage({}) // empty storage
+      const freshStorage = mockStorage({})
       const nav = createEditorNavigation(freshState, freshStorage, dom, options)
       nav.setRenderAPI(render)
 
       await nav.loadPage('home')
 
-      // Should have loaded the DEFAULT_HOME content
-      expect(freshState.world['home']).toContain('Welcome to your world')
-      expect(dom.editorDiv.textContent).toContain('Welcome to your world')
+      expect(freshState.getWorld()['home']).toContain('Welcome to your world')
     })
   })
 
@@ -253,12 +303,10 @@ describe('createEditorNavigation', () => {
     it('allows render callbacks to be wired after construction', () => {
       const nav = createEditorNavigation(state, storage, dom, options)
 
-      // setRenderAPI should not throw
       expect(() => nav.setRenderAPI(render)).not.toThrow()
     })
 
-    it('works with null render (no-op for render calls)', async () => {
-      // Create a render that tracks calls
+    it('calls render and renderBreadcrumb when setRenderAPI is wired', async () => {
       const trackingRender: EditorRenderAPI = {
         render: vi.fn(),
         renderBreadcrumb: vi.fn(),
@@ -267,7 +315,7 @@ describe('createEditorNavigation', () => {
       const nav = createEditorNavigation(state, storage, dom, options)
       nav.setRenderAPI(trackingRender)
 
-      state.setWorldPage('home', '# test')
+      state.getYDocState().getPage('home').insert(0, '# test')
       await nav.loadPage('home')
 
       expect(trackingRender.render).toHaveBeenCalled()

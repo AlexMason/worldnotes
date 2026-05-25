@@ -1,5 +1,7 @@
 // ─── Editor Lifecycle ──────────────────────────────────────────────────────────
 
+import * as Y from 'yjs'
+import { WebsocketProvider } from 'y-websocket'
 import type {
   ContentPlugin,
   UIPlugin,
@@ -11,42 +13,14 @@ import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
 import type { EditorRenderAPI } from './editor-render'
 import type { EditorNavigationAPI } from './editor-navigation'
-import { extractText, setCaretOffset, getTextOffset } from './cursor'
+import { getLineOffset, setLineOffset } from './awareness-cursor'
+import { saveYDoc, loadYDoc } from './yjs-storage-bridge'
+import { renderRemoteCursors } from './plugins/remoteCursors'
 
-/**
- * Public API returned by {@link createEditorLifecycle}.
- *
- * @method mount - Wire event listeners, load initial page, and return a
- *                live {@link EditorInstance} with the public API methods.
- */
 export interface EditorLifecycleAPI {
-  mount(): EditorInstance
+  mount(): Promise<EditorInstance>
 }
 
-/**
- * Create the editor lifecycle manager.
- *
- * This is the assembly point: registers input/paste/keydown event
- * handlers on the editor div, wraps `insertTextAtSelection`, calls the
- * render pipeline on input, manages save debouncing, and returns the
- * public {@link EditorInstance} object.
- *
- * @param dom             - Editor DOM references (editorDiv for event listeners)
- * @param contentPlugins  - Registered ContentPlugin instances (used for lifecycle hooks)
- * @param uiPlugins       - Registered UIPlugin instances (mounted into DOM slots)
- * @param state           - Editor state (world, trail, save timer, nav flag)
- * @param render          - Render pipeline (render, renderBreadcrumb)
- * @param navigation      - Page navigation (navigateToPage, loadPage)
- * @param storage         - Storage adapter for persisting saves
- * @param options         - Editor options (saveDebounceMs, onSave, onPageLoad)
- *
- * @returns Lifecycle API with a single mount() method that returns EditorInstance
- *
- * @example
- * const lifecycle = createEditorLifecycle(dom, contentPlugins, uiPlugins, state, render, nav, storage, opts)
- * const editor = lifecycle.mount()
- * editor.setContent('# new page')
- */
 export function createEditorLifecycle(
   dom: EditorDOM,
   contentPlugins: ContentPlugin[],
@@ -57,13 +31,6 @@ export function createEditorLifecycle(
   storage: StorageAdapter,
   options: EditorOptions,
 ): EditorLifecycleAPI {
-  /**
-   * Insert plain text at the current selection, replacing any selected
-   * content. After insertion, dispatches an 'input' event on editorDiv
-   * so the input handler picks up the change and re-renders.
-   *
-   * @param text - Plain text to insert at the caret position
-   */
   function insertTextAtSelection(text: string): void {
     const sel = window.getSelection()
     if (!sel || !sel.rangeCount) return
@@ -82,21 +49,56 @@ export function createEditorLifecycle(
     dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
   }
 
-  /**
-   * Wire all event listeners, load the initial page, and return the
-   * public {@link EditorInstance} with all 6 methods.
-   */
-  function mount(): EditorInstance {
+  async function mount(): Promise<EditorInstance> {
     const saveDebounce = options.saveDebounceMs ?? 600
+    const yDocState = state.getYDocState()
 
-    const saveContent = (content: string): void => {
+    // Load persisted state
+    await loadYDoc(yDocState.doc, storage)
+
+    // Connect sync provider if configured
+    let syncProvider: WebsocketProvider | null = null
+    if (options.syncServer) {
       const trail = state.getTrail()
-      const page = trail[trail.length - 1]
-      state.setWorldPage(page, content)
+      const roomName = `worldnotes-${trail[trail.length - 1]}`
+      syncProvider = new WebsocketProvider(
+        options.syncServer,
+        roomName,
+        yDocState.doc,
+      )
+      yDocState.setAwareness(syncProvider.awareness)
+
+      // Wire remote cursor rendering
+      const awareness = syncProvider.awareness
+      awareness.on('change', () => {
+        renderRemoteCursors(
+          dom.overlay,
+          awareness as Parameters<typeof renderRemoteCursors>[1],
+          dom.editorDiv,
+          yDocState.doc.clientID,
+        )
+      })
+
+      syncProvider.on('status', (event: { status: string }) => {
+        if (event.status === 'connected') {
+          // Full re-render on reconnect to pick up remote changes
+          render.render(true)
+        }
+      })
+    }
+
+    const saveImmediate = async (): Promise<void> => {
+      await saveYDoc(yDocState.doc, storage)
+    }
+
+    const saveDebounced = (): void => {
       state.clearSaveTimer()
       const timer = setTimeout(async () => {
-        await storage.set(page, content)
-        options.onSave?.(page, content)
+        await saveImmediate()
+        const trail = state.getTrail()
+        const page = trail[trail.length - 1]
+        const ytext = yDocState.getPage(page)
+        options.onSave?.(page, ytext.toString())
       }, saveDebounce)
       state.setSaveTimer(timer)
     }
@@ -105,25 +107,35 @@ export function createEditorLifecycle(
 
     dom.editorDiv.addEventListener('input', () => {
       if (state.isNavigating()) return
-      state.history.push(extractText(dom.editorDiv))
+
+      const trail = state.getTrail()
+      const page = trail[trail.length - 1]
+      const ytext = yDocState.getPage(page)
+
+      // Sync DOM content → Y.Text
+      const raw = dom.editorDiv.textContent ?? ''
+      const current = ytext.toString()
+      if (raw !== current) {
+        yDocState.doc.transact(() => {
+          ytext.delete(0, current.length)
+          ytext.insert(0, raw)
+        })
+      }
+
+      // Update awareness cursor position
+      const offset = getLineOffset(dom.editorDiv)
+      const aw = yDocState.awareness as {
+        setLocalStateField: (field: string, value: unknown) => void
+      } | null
+      aw?.setLocalStateField?.('cursor', { offset, page })
+
       render.render()
 
-      // Call onUpdate on each content plugin after render (D-03)
       for (const plugin of contentPlugins) {
         plugin.onUpdate?.()
       }
 
-      const raw = extractText(dom.editorDiv)
-      const trail = state.getTrail()
-      const page = trail[trail.length - 1]
-      state.setWorldPage(page, raw)
-
-      state.clearSaveTimer()
-      const timer = setTimeout(async () => {
-        await storage.set(page, raw)
-        options.onSave?.(page, raw)
-      }, saveDebounce)
-      state.setSaveTimer(timer)
+      saveDebounced()
     })
 
     // ── Paste handler ──────────────────────────────────────────────────────
@@ -140,18 +152,10 @@ export function createEditorLifecycle(
       // Ctrl+Z / Cmd+Z — undo
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') {
         e.preventDefault()
-        const content = state.history.undo(extractText(dom.editorDiv))
-        if (content !== null) {
-          dom.editorDiv.blur()
-          dom.editorDiv.textContent = content
-          render.render()
-          try {
-            setCaretOffset(dom.editorDiv, content.length)
-          } catch {
-            /* best-effort */
-          }
-          saveContent(content)
-          dom.editorDiv.focus()
+        const um = yDocState.undoManager
+        if (um?.canUndo()) {
+          um.undo()
+          render.render(true)
         }
         return
       }
@@ -159,18 +163,10 @@ export function createEditorLifecycle(
       // Ctrl+Shift+Z / Cmd+Shift+Z — redo
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') {
         e.preventDefault()
-        const content = state.history.redo(extractText(dom.editorDiv))
-        if (content !== null) {
-          dom.editorDiv.blur()
-          dom.editorDiv.textContent = content
-          render.render()
-          try {
-            setCaretOffset(dom.editorDiv, content.length)
-          } catch {
-            /* best-effort */
-          }
-          saveContent(content)
-          dom.editorDiv.focus()
+        const um = yDocState.undoManager
+        if (um?.canRedo()) {
+          um.redo()
+          render.render(true)
         }
         return
       }
@@ -178,18 +174,10 @@ export function createEditorLifecycle(
       // Ctrl+Y — redo (Windows alternative)
       if (e.ctrlKey && !e.shiftKey && e.key === 'y') {
         e.preventDefault()
-        const content = state.history.redo(extractText(dom.editorDiv))
-        if (content !== null) {
-          dom.editorDiv.blur()
-          dom.editorDiv.textContent = content
-          render.render()
-          try {
-            setCaretOffset(dom.editorDiv, content.length)
-          } catch {
-            /* best-effort */
-          }
-          saveContent(content)
-          dom.editorDiv.focus()
+        const um = yDocState.undoManager
+        if (um?.canRedo()) {
+          um.redo()
+          render.render(true)
         }
         return
       }
@@ -207,11 +195,17 @@ export function createEditorLifecycle(
 
     const trail = state.getTrail()
     const initialPage = trail[trail.length - 1]
-    navigation.loadPage(initialPage)
+    const ytext = yDocState.getPage(initialPage)
+    const undoManager = new Y.UndoManager(ytext, { captureTimeout: 0 })
+    yDocState.setUndoManager(undoManager)
+
+    await navigation.loadPage(initialPage)
 
     // ── Mount UI plugins ──────────────────────────────────────────────────
+
     const slotElements: Record<string, HTMLElement> = {
       'wn-toolbar': dom.toolbar,
+      'wn-overlay': dom.overlay,
     }
     for (const plugin of uiPlugins) {
       for (const slot of plugin.slots) {
@@ -227,7 +221,7 @@ export function createEditorLifecycle(
     return {
       destroy() {
         state.clearSaveTimer()
-        // Call onDestroy on each plugin, wrapped in try/catch (Pitfall 3)
+        syncProvider?.destroy()
         for (const plugin of contentPlugins) {
           try {
             plugin.onDestroy?.()
@@ -235,7 +229,6 @@ export function createEditorLifecycle(
             console.error(`Plugin "${plugin.name}" onDestroy failed:`, e)
           }
         }
-        // UI plugin teardown
         for (const plugin of uiPlugins) {
           try {
             plugin.onDestroy?.()
@@ -243,6 +236,7 @@ export function createEditorLifecycle(
             console.error(`UI plugin "${plugin.name}" onDestroy failed:`, e)
           }
         }
+        yDocState.destroy()
         dom.container.innerHTML = ''
       },
 
@@ -251,8 +245,8 @@ export function createEditorLifecycle(
       },
 
       getCurrentPage(): string {
-        const trail = state.getTrail()
-        return trail[trail.length - 1]
+        const t = state.getTrail()
+        return t[t.length - 1]
       },
 
       getTrail(): string[] {
@@ -260,47 +254,44 @@ export function createEditorLifecycle(
       },
 
       getContent(): string {
-        return extractText(dom.editorDiv)
+        const t = state.getTrail()
+        const page = t[t.length - 1]
+        return yDocState.getPage(page).toString()
       },
 
       setContent(content: string): void {
-        const raw = extractText(dom.editorDiv)
-        state.history.push(raw)
-        const trail = state.getTrail()
-        const page = trail[trail.length - 1]
-        state.setWorldPage(page, content)
-        dom.editorDiv.textContent = content
-        render.render()
+        const t = state.getTrail()
+        const page = t[t.length - 1]
+        const yt = yDocState.getPage(page)
+        yDocState.doc.transact(() => {
+          yt.delete(0, yt.length)
+          yt.insert(0, content)
+        })
+        render.render(true)
       },
 
       undo(): boolean {
-        const content = state.history.undo(extractText(dom.editorDiv))
-        if (content !== null) {
-          dom.editorDiv.textContent = content
-          render.render()
-          saveContent(content)
-          return true
-        }
-        return false
+        const um = yDocState.undoManager
+        if (!um?.canUndo()) return false
+        um.undo()
+        render.render(true)
+        return true
       },
 
       redo(): boolean {
-        const content = state.history.redo(extractText(dom.editorDiv))
-        if (content !== null) {
-          dom.editorDiv.textContent = content
-          render.render()
-          saveContent(content)
-          return true
-        }
-        return false
+        const um = yDocState.undoManager
+        if (!um?.canRedo()) return false
+        um.redo()
+        render.render(true)
+        return true
       },
 
       canUndo(): boolean {
-        return state.history.canUndo()
+        return yDocState.undoManager?.canUndo() ?? false
       },
 
       canRedo(): boolean {
-        return state.history.canRedo()
+        return yDocState.undoManager?.canRedo() ?? false
       },
 
       insertText(text: string): void {
@@ -315,32 +306,28 @@ export function createEditorLifecycle(
           try {
             sel.modify('extend', 'forward', 'character')
           } catch {
-            /* modify not available — fall back to content-level */
-            const raw = extractText(dom.editorDiv)
-            const offset = getTextOffset(
-              dom.editorDiv,
-              sel.getRangeAt(0).startContainer,
-              sel.getRangeAt(0).startOffset,
-            ).offset
+            const raw = yDocState.getPage(
+              state.getTrail()[state.getTrail().length - 1],
+            ).toString()
+            const offset = getLineOffset(dom.editorDiv)
             if (offset >= raw.length) return
             const next = raw.slice(0, offset) + raw.slice(offset + 1)
-            dom.editorDiv.textContent = next
-            render.render()
-            try {
-              setCaretOffset(dom.editorDiv, offset)
-            } catch {
-              /* best-effort */
-            }
+            yDocState
+              .getPage(state.getTrail()[state.getTrail().length - 1])
+              .delete(0, raw.length)
+            yDocState
+              .getPage(state.getTrail()[state.getTrail().length - 1])
+              .insert(0, next)
+            render.render(true)
+            setLineOffset(dom.editorDiv, offset)
             return
           }
         }
 
         const range = sel.getRangeAt(0)
         range.deleteContents()
-
         sel.removeAllRanges()
         sel.addRange(range)
-
         dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
       },
 
@@ -352,32 +339,28 @@ export function createEditorLifecycle(
           try {
             sel.modify('extend', 'backward', 'character')
           } catch {
-            /* modify not available — fall back to content-level */
-            const raw = extractText(dom.editorDiv)
-            const offset = getTextOffset(
-              dom.editorDiv,
-              sel.getRangeAt(0).startContainer,
-              sel.getRangeAt(0).startOffset,
-            ).offset
+            const raw = yDocState.getPage(
+              state.getTrail()[state.getTrail().length - 1],
+            ).toString()
+            const offset = getLineOffset(dom.editorDiv)
             if (offset <= 0) return
             const next = raw.slice(0, offset - 1) + raw.slice(offset)
-            dom.editorDiv.textContent = next
-            render.render()
-            try {
-              setCaretOffset(dom.editorDiv, offset - 1)
-            } catch {
-              /* best-effort */
-            }
+            yDocState
+              .getPage(state.getTrail()[state.getTrail().length - 1])
+              .delete(0, raw.length)
+            yDocState
+              .getPage(state.getTrail()[state.getTrail().length - 1])
+              .insert(0, next)
+            render.render(true)
+            setLineOffset(dom.editorDiv, offset - 1)
             return
           }
         }
 
         const range = sel.getRangeAt(0)
         range.deleteContents()
-
         sel.removeAllRanges()
         sel.addRange(range)
-
         dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
       },
 
@@ -385,15 +368,12 @@ export function createEditorLifecycle(
         const sel = window.getSelection()
         if (!sel || !sel.rangeCount) return null
 
-        const range = sel.getRangeAt(0)
         const text = sel.toString()
 
-        const anchorResult = getTextOffset(dom.editorDiv, range.startContainer, range.startOffset)
-        const focusResult = getTextOffset(dom.editorDiv, range.endContainer, range.endOffset)
-        const start = Math.min(anchorResult.offset, focusResult.offset)
-        const end = Math.max(anchorResult.offset, focusResult.offset)
+        const start = getLineOffset(dom.editorDiv)
+        const end = start + text.length
 
-        return { text, start, end }
+        return { text, start, end: Math.max(start, end) }
       },
     }
   }

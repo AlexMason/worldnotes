@@ -17,12 +17,13 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/**/*.ts'],
       exclude: [
-        'src/demo.ts',             // Demo code, not library
-        'src/index.ts',            // Re-export barrel, no logic
-        'src/types.ts',            // Interfaces only, no executable code
-        'src/plugins/index.ts',    // Re-export barrel
-        'src/storage/index.ts',    // Re-export barrel
-        'src/plugins/defaults.ts', // Constant array, no logic
+        'src/demo.ts',
+        'src/index.ts',
+        'src/types.ts',
+        'src/plugins/index.ts',
+        'src/storage/index.ts',
+        'src/plugins/defaults.ts',
+        'src/server/**',           // Server process, not client library
       ],
       // Coverage thresholds enforce quality gates in CI.
       // Must be met by npm run test:coverage to pass.

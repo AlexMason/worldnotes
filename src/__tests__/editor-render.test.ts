@@ -53,7 +53,7 @@ function createTestDOM(): EditorDOM {
   container.appendChild(toolbar)
   container.appendChild(editorWrap)
 
-  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder }
+  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder, overlay: document.createElement('div') }
 }
 
 /**
@@ -112,7 +112,10 @@ describe('createEditorRender: render()', () => {
   it('hides placeholder when editor has text content', () => {
     const render = createEditorRender(dom, plugins, state, {})
 
-    dom.editorDiv.textContent = 'some text'
+    // Write content to Y.Text — the render() reads from Y.Text, not DOM
+    const ytext = state.getYDocState().getPage('test')
+    ytext.delete(0, ytext.length)
+    ytext.insert(0, 'some text')
     render.render()
     expect(dom.placeholder.style.display).toBe('none')
   })
