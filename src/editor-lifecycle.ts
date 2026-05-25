@@ -61,8 +61,8 @@ export function createEditorLifecycle(
     // Connect sync provider if configured
     let syncProvider: WebsocketProvider | null = null
     if (options.syncServer) {
-      const trail = state.getTrail()
-      const roomName = `worldnotes-${trail[trail.length - 1]}`
+      const page = state.getCurrentPage()
+      const roomName = `worldnotes-${page}`
       syncProvider = new WebsocketProvider(
         options.syncServer,
         roomName,
@@ -102,8 +102,7 @@ export function createEditorLifecycle(
       state.clearSaveTimer()
       const timer = setTimeout(async () => {
         await saveImmediate()
-        const trail = state.getTrail()
-        const page = trail[trail.length - 1]
+        const page = state.getCurrentPage()
         const ytext = yDocState.getPage(page)
         options.onSave?.(page, ytext.toString())
       }, saveDebounce)
@@ -145,8 +144,7 @@ export function createEditorLifecycle(
       if (handlingInput) return
       handlingInput = true
 
-      const trail = state.getTrail()
-      const page = trail[trail.length - 1]
+      const page = state.getCurrentPage()
       const ytext = yDocState.getPage(page)
 
       // Use extractContentText to preserve data-raw token boundaries
@@ -232,12 +230,12 @@ export function createEditorLifecycle(
       // implement custom behaviors (list indentation, etc.).
       // First plugin to return { cursorOffset } wins.
       {
-        const trail = state.getTrail()
-        const page = trail[trail.length - 1]
+        const page = state.getCurrentPage()
 
         const context: EditorContext = {
           navigate: (p: string) => { void navigation.navigateToPage(p) },
           getTrail: () => state.getTrail(),
+          getCurrentPage: () => state.getCurrentPage(),
           getWorld: () => yDocState.getWorld(),
           getDoc: () => yDocState.doc,
         }
@@ -291,8 +289,7 @@ export function createEditorLifecycle(
 
         const offset = getLineOffset(dom.editorDiv)
         if (offset > 0) {
-          const trail = state.getTrail()
-          const page = trail[trail.length - 1]
+          const page = state.getCurrentPage()
           const ytext = yDocState.getPage(page)
           const raw = ytext.toString()
           const updated = raw.slice(0, offset - 1) + raw.slice(offset)
@@ -322,8 +319,7 @@ export function createEditorLifecycle(
 
     // ── Load initial page ──────────────────────────────────────────────────
 
-    const trail = state.getTrail()
-    const initialPage = trail[trail.length - 1]
+    const initialPage = state.getCurrentPage()
 
     await navigation.loadPage(initialPage)
 
@@ -377,8 +373,7 @@ export function createEditorLifecycle(
       },
 
       getCurrentPage(): string {
-        const t = state.getTrail()
-        return t[t.length - 1]
+        return state.getCurrentPage()
       },
 
       getTrail(): string[] {
@@ -386,14 +381,12 @@ export function createEditorLifecycle(
       },
 
       getContent(): string {
-        const t = state.getTrail()
-        const page = t[t.length - 1]
+        const page = state.getCurrentPage()
         return yDocState.getPage(page).toString()
       },
 
       setContent(content: string): void {
-        const t = state.getTrail()
-        const page = t[t.length - 1]
+        const page = state.getCurrentPage()
         const yt = yDocState.getPage(page)
         yDocState.doc.transact(() => {
           yt.delete(0, yt.length)
@@ -438,17 +431,16 @@ export function createEditorLifecycle(
           try {
             sel.modify('extend', 'forward', 'character')
           } catch {
-            const raw = yDocState.getPage(
-              state.getTrail()[state.getTrail().length - 1],
-            ).toString()
+            const page = state.getCurrentPage()
+            const raw = yDocState.getPage(page).toString()
             const offset = getLineOffset(dom.editorDiv)
             if (offset >= raw.length) return
             const next = raw.slice(0, offset) + raw.slice(offset + 1)
             yDocState
-              .getPage(state.getTrail()[state.getTrail().length - 1])
+              .getPage(page)
               .delete(0, raw.length)
             yDocState
-              .getPage(state.getTrail()[state.getTrail().length - 1])
+              .getPage(page)
               .insert(0, next)
             render.render(true)
             setLineOffset(dom.editorDiv, offset)
@@ -471,17 +463,16 @@ export function createEditorLifecycle(
           try {
             sel.modify('extend', 'backward', 'character')
           } catch {
-            const raw = yDocState.getPage(
-              state.getTrail()[state.getTrail().length - 1],
-            ).toString()
+            const page = state.getCurrentPage()
+            const raw = yDocState.getPage(page).toString()
             const offset = getLineOffset(dom.editorDiv)
             if (offset <= 0) return
             const next = raw.slice(0, offset - 1) + raw.slice(offset)
             yDocState
-              .getPage(state.getTrail()[state.getTrail().length - 1])
+              .getPage(page)
               .delete(0, raw.length)
             yDocState
-              .getPage(state.getTrail()[state.getTrail().length - 1])
+              .getPage(page)
               .insert(0, next)
             render.render(true)
             setLineOffset(dom.editorDiv, offset - 1)

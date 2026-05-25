@@ -29,6 +29,7 @@ function createContext(overrides: Partial<EditorContext> = {}): EditorContext {
       // noop — mock context
     },
     getTrail: () => [],
+    getCurrentPage: () => 'home',
     getWorld: () => ({}),
     getDoc: () => mockDoc,
     ...overrides,

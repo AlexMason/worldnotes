@@ -80,6 +80,7 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
       return {
         navigate,
         getTrail: () => [],
+        getCurrentPage: () => '',
         getWorld: () => yDocState.getWorld(),
         getDoc: () => doc,
       }
@@ -102,6 +103,7 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
   return {
     getYDocState: () => yDocState,
     getTrail: () => [...trail],
+    getCurrentPage: () => trail.length <= 1 ? trail[0] : trail.slice(1).join('/'),
     getWorld: () => yDocState.getWorld(),
     pushTrail: (page: string) => {
       trail.push(page)
@@ -129,6 +131,7 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
     toContext: (navigate: (page: string) => void): EditorContext => ({
       ...yDocState.toContext(navigate),
       getTrail: () => [...trail],
+      getCurrentPage: () => trail.length <= 1 ? trail[0] : trail.slice(1).join('/'),
     }),
   }
 }
@@ -237,24 +240,24 @@ describe('createEditorNavigation', () => {
       expect(multiTrailState.getTrail()).toEqual(['home'])
     })
 
-    it('does not truncate when navigating to a new page not in trail', async () => {
+    it('replaces hierarchy when navigating to a flat page from a nested path', async () => {
       const multiTrailState = mockState(['home', 'blog'])
       const nav = createEditorNavigation(multiTrailState, storage, dom, options)
       nav.setRenderAPI(render)
 
       await nav.navigateToPage('about')
 
-      expect(multiTrailState.getTrail()).toEqual(['home', 'blog', 'about'])
+      expect(multiTrailState.getTrail()).toEqual(['home', 'about'])
     })
 
-    it('pushes progressive path segments for multi-segment page names', async () => {
+    it('pushes path segments for multi-segment page names', async () => {
       const baseState = mockState(['home'])
       const nav = createEditorNavigation(baseState, storage, dom, options)
       nav.setRenderAPI(render)
 
       await nav.navigateToPage('projects/worldnotes')
 
-      expect(baseState.getTrail()).toEqual(['home', 'projects', 'projects/worldnotes'])
+      expect(baseState.getTrail()).toEqual(['home', 'projects', 'worldnotes'])
     })
 
     it('skips intermediate segments already present in the trail', async () => {
@@ -264,27 +267,57 @@ describe('createEditorNavigation', () => {
 
       await nav.navigateToPage('projects/worldnotes')
 
-      expect(baseState.getTrail()).toEqual(['home', 'projects', 'projects/worldnotes'])
+      expect(baseState.getTrail()).toEqual(['home', 'projects', 'worldnotes'])
     })
 
-    it('pushes deeply nested path segments progressively', async () => {
+    it('pushes deeply nested path segments', async () => {
       const baseState = mockState(['home'])
       const nav = createEditorNavigation(baseState, storage, dom, options)
       nav.setRenderAPI(render)
 
       await nav.navigateToPage('a/b/c')
 
-      expect(baseState.getTrail()).toEqual(['home', 'a', 'a/b', 'a/b/c'])
+      expect(baseState.getTrail()).toEqual(['home', 'a', 'b', 'c'])
     })
 
-    it('still truncates when navigating to an existing multi-segment page', async () => {
-      const baseState = mockState(['home', 'projects', 'projects/worldnotes'])
+    it('truncates matching segments when navigating to an ancestor path', async () => {
+      const baseState = mockState(['home', 'projects', 'worldnotes'])
       const nav = createEditorNavigation(baseState, storage, dom, options)
       nav.setRenderAPI(render)
 
       await nav.navigateToPage('projects')
 
       expect(baseState.getTrail()).toEqual(['home', 'projects'])
+    })
+
+    it('skips intermediate segments already present in the trail', async () => {
+      const baseState = mockState(['home', 'projects'])
+      const nav = createEditorNavigation(baseState, storage, dom, options)
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('projects/worldnotes')
+
+      expect(baseState.getTrail()).toEqual(['home', 'projects', 'worldnotes'])
+    })
+
+    it('pushes deeply nested path segments', async () => {
+      const baseState = mockState(['home'])
+      const nav = createEditorNavigation(baseState, storage, dom, options)
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('a/b/c')
+
+      expect(baseState.getTrail()).toEqual(['home', 'a', 'b', 'c'])
+    })
+
+    it('creates page in world cache when not present and calls loadPage', async () => {
+      const nav = createEditorNavigation(state, storage, dom, options)
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('new-page')
+
+      expect(state.getWorld()).toHaveProperty('new-page')
+      expect(state.getTrail()).toContain('new-page')
     })
   })
 

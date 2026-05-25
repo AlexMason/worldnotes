@@ -45,8 +45,7 @@ export function createEditorRender(
     const offset = cursorOffset ?? getLineOffset(editorDiv)
 
     const yDocState = state.getYDocState()
-    const trail = state.getTrail()
-    const page = trail[trail.length - 1]
+    const page = state.getCurrentPage()
     const ytext = yDocState.getPage(page)
     const raw = ytext.toString()
 
@@ -96,8 +95,7 @@ export function createEditorRender(
 
     const offset = getLineOffset(editorDiv)
     const yDocState = state.getYDocState()
-    const trail = state.getTrail()
-    const page = trail[trail.length - 1]
+    const page = state.getCurrentPage()
     const raw = yDocState.getPage(page).toString()
     const newLine = determineActiveLine(raw, offset)
 
@@ -127,7 +125,7 @@ export function createEditorRender(
         crumb.addEventListener('click', () => {
           state.truncateTrail(i)
           const newTrail = state.getTrail()
-          const targetPage = newTrail[newTrail.length - 1]
+          const targetPage = newTrail.length <= 1 ? newTrail[0] : newTrail.slice(1).join('/')
           options.onBreadcrumbNavigate?.(targetPage)
         })
       }

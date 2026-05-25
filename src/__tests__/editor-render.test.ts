@@ -329,12 +329,12 @@ describe('createEditorRender: renderBreadcrumb()', () => {
   it('uses pageDisplayName for crumb text content', () => {
     const render = createEditorRender(dom, plugins, state, {})
 
-    state.setTrail(['home', 'deep/nested/page'])
+    state.setTrail(['home', 'deep', 'nested', 'page'])
     render.renderBreadcrumb()
 
     const crumbs = dom.breadcrumb.querySelectorAll('.wn-crumb')
-    // pageDisplayName extracts the last segment after /
-    expect(crumbs[1].textContent).toBe('page')
+    expect(crumbs[1].textContent).toBe('deep')
+    expect(crumbs[3].textContent).toBe('page')
   })
 })
 
@@ -363,8 +363,6 @@ describe('createEditorRender: syncUrlToTrail()', () => {
 
     expect(replaceState).toHaveBeenCalled()
     const url = (replaceState.mock.calls[0] as [unknown, string, string])[2]
-    // encodePathSearch encodes each trail element with encodeURIComponent,
-    // then joins with "/" — so "home" and "about" remain unescaped
     expect(url).toContain('path=home/about')
   })
 

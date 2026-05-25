@@ -57,9 +57,9 @@ describe('pageDisplayName', () => {
 // ─── encodePathSearch ─────────────────────────────────────────────────────────
 
 describe('encodePathSearch', () => {
-  it('serializes breadcrumb trail without flattening page path separators', () => {
-    expect(encodePathSearch('?theme=dark', ['home', 'projects/acme'])).toBe(
-      '?theme=dark&path=home/projects%2Facme',
+  it('serializes breadcrumb trail', () => {
+    expect(encodePathSearch('?theme=dark', ['home', 'projects', 'acme'])).toBe(
+      '?theme=dark&path=home/projects/acme',
     )
   })
 
@@ -75,10 +75,18 @@ describe('encodePathSearch', () => {
 // ─── decodePathSearch ─────────────────────────────────────────────────────────
 
 describe('decodePathSearch', () => {
-  it('restores breadcrumb trail while preserving slashes inside page names', () => {
-    expect(decodePathSearch('?theme=dark&path=home/projects%2Facme')).toEqual([
+  it('restores breadcrumb trail', () => {
+    expect(decodePathSearch('?theme=dark&path=home/projects/acme')).toEqual([
       'home',
-      'projects/acme',
+      'projects',
+      'acme',
+    ])
+  })
+
+  it('handles page names with encoded characters', () => {
+    expect(decodePathSearch('?theme=dark&path=home/my%20page')).toEqual([
+      'home',
+      'my page',
     ])
   })
 

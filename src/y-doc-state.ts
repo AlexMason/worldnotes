@@ -83,6 +83,7 @@ export function createYDocState(): YDocState {
       return {
         navigate,
         getTrail: () => [],
+        getCurrentPage: () => '',
         getWorld: () => {
           const world: Record<string, string> = {}
           for (const [key, ytext] of pages.entries()) {

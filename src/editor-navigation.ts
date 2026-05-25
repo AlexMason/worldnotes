@@ -50,19 +50,29 @@ export function createEditorNavigation(
     }
 
     const trail = state.getTrail()
-    const existingIndex = trail.indexOf(page)
-    if (existingIndex !== -1) {
-      state.truncateTrail(existingIndex)
-    } else {
-      const segments = page.split('/')
-      let partial = ''
-      for (const segment of segments) {
-        partial = partial ? `${partial}/${segment}` : segment
-        if (!trail.includes(partial)) {
-          state.pushTrail(partial)
-        }
+
+    if (page === trail[0]) {
+      state.truncateTrail(0)
+      await loadPage(page)
+      return
+    }
+
+    const segments = page.split('/')
+
+    let matchCount = 0
+    for (let i = 1; i < trail.length && matchCount < segments.length; i++) {
+      if (trail[i] === segments[matchCount]) {
+        matchCount++
+      } else {
+        break
       }
     }
+
+    state.truncateTrail(matchCount)
+    for (let i = matchCount; i < segments.length; i++) {
+      state.pushTrail(segments[i])
+    }
+
     await loadPage(page)
   }
 

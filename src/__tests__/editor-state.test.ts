@@ -39,13 +39,14 @@ function setupLocation(search: string): void {
 // ─── createEditorState ─────────────────────────────────────────────────────────
 
 describe('createEditorState', () => {
-  it('returns an object with all 11 API members', () => {
+  it('returns an object with all API members', () => {
     const storage = mockStorage()
     const options: EditorOptions = {}
     const state = createEditorState(storage, options)
 
     expect(typeof state.getYDocState).toBe('function')
     expect(typeof state.getTrail).toBe('function')
+    expect(typeof state.getCurrentPage).toBe('function')
     expect(typeof state.getWorld).toBe('function')
     expect(typeof state.pushTrail).toBe('function')
     expect(typeof state.setTrail).toBe('function')
@@ -144,7 +145,7 @@ describe('createEditorState', () => {
     expect(() => state.clearSaveTimer()).not.toThrow()
   })
 
-  it('toContext returns EditorContext with navigate, getTrail, getWorld, and getDoc', () => {
+  it('toContext returns EditorContext with navigate, getTrail, getCurrentPage, getWorld, and getDoc', () => {
     const storage = mockStorage()
     const state = createEditorState(storage, { initialPage: 'start' })
 
@@ -156,6 +157,7 @@ describe('createEditorState', () => {
 
     expect(typeof ctx.navigate).toBe('function')
     expect(typeof ctx.getTrail).toBe('function')
+    expect(typeof ctx.getCurrentPage).toBe('function')
     expect(typeof ctx.getWorld).toBe('function')
     expect(typeof ctx.getDoc).toBe('function')
 
@@ -164,6 +166,8 @@ describe('createEditorState', () => {
 
     const trail = ctx.getTrail()
     expect(Array.isArray(trail)).toBe(true)
+
+    expect(typeof ctx.getCurrentPage()).toBe('string')
 
     const world = ctx.getWorld()
     expect(typeof world).toBe('object')

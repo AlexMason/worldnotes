@@ -105,8 +105,7 @@ export const listItemPlugin: ContentPlugin = {
 
 function handleTab(context: EditorContext): { cursorOffset: number } | false {
   const doc = context.getDoc()
-  const trail = context.getTrail()
-  const page = trail[trail.length - 1]
+  const page = context.getCurrentPage()
   const pages = doc.getMap<Y.Text>('pages')
 
   const ytext = pages.get(page)
@@ -150,8 +149,7 @@ function handleTab(context: EditorContext): { cursorOffset: number } | false {
 
 function handleShiftTab(context: EditorContext): { cursorOffset: number } | false {
   const doc = context.getDoc()
-  const trail = context.getTrail()
-  const page = trail[trail.length - 1]
+  const page = context.getCurrentPage()
   const pages = doc.getMap<Y.Text>('pages')
 
   const ytext = pages.get(page)
@@ -198,8 +196,7 @@ function handleShiftTab(context: EditorContext): { cursorOffset: number } | fals
 
 function handleEnter(context: EditorContext): { cursorOffset: number } | false {
   const doc = context.getDoc()
-  const trail = context.getTrail()
-  const page = trail[trail.length - 1]
+  const page = context.getCurrentPage()
   const pages = doc.getMap<Y.Text>('pages')
 
   const ytext = pages.get(page)

@@ -39,6 +39,7 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
   return {
     getYDocState: () => yDocState,
     getTrail: () => [...trail],
+    getCurrentPage: () => trail.length <= 1 ? trail[0] : trail.slice(1).join('/'),
     getWorld: () => yDocState.getWorld(),
     pushTrail: (page: string) => {
       trail.push(page)
@@ -66,6 +67,7 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
     toContext: (_navigate: (page: string) => void): EditorContext => ({
       navigate: _navigate,
       getTrail: () => [...trail],
+      getCurrentPage: () => trail.length <= 1 ? trail[0] : trail.slice(1).join('/'),
       getWorld: () => yDocState.getWorld(),
       getDoc: () => yDocState.doc,
     }),
@@ -98,8 +100,7 @@ function mockRender(state: EditorStateAPI, dom: EditorDOM): EditorRenderAPI {
   return {
     render: vi.fn((force?: boolean) => {
       if (force) {
-        const trail = state.getTrail()
-        const page = trail[trail.length - 1]
+        const page = state.getCurrentPage()
         const ytext = state.getYDocState().getPage(page)
         dom.editorDiv.textContent = ytext.toString()
       }

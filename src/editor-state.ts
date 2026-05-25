@@ -10,8 +10,10 @@ import { createYDocState, type YDocState } from './y-doc-state'
 export interface EditorStateAPI {
   /** Return the Yjs-backed document state. */
   getYDocState(): YDocState
-  /** Return a defensive copy of the breadcrumb trail. */
+  /** Return a defensive copy of the breadcrumb trail (flat path segments). */
   getTrail(): string[]
+  /** Reconstruct the full current page name from trail segments. */
+  getCurrentPage(): string
   /** Return a defensive copy of the world cache (delegates to YDocState). */
   getWorld(): Record<string, string>
   /** Append a page name to the trail. */
@@ -60,6 +62,11 @@ export function createEditorState(
       return [...trail]
     },
 
+    getCurrentPage(): string {
+      if (trail.length <= 1) return trail[0] ?? ''
+      return trail.slice(1).join('/')
+    },
+
     getWorld(): Record<string, string> {
       return yDocState.getWorld()
     },
@@ -101,6 +108,7 @@ export function createEditorState(
       return {
         ...context,
         getTrail: () => [...trail],
+        getCurrentPage: () => trail.length <= 1 ? (trail[0] ?? '') : trail.slice(1).join('/'),
       }
     },
   }

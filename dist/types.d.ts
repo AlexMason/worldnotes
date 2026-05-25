@@ -39,14 +39,16 @@ export interface StorageAdapter {
  * Runtime context passed to plugins at render time and on navigation events.
  * Gives plugins read/write access to the editor's navigation and world state.
  *
- * @method navigate  - Push a new page onto the trail and navigate to it
- * @method getTrail  - Return the current breadcrumb trail (page name array)
- * @method getWorld  - Return a snapshot of all in-memory page content
- * @method getDoc    - Return the Yjs Y.Doc instance for CRDT access
+ * @method navigate       - Push a new page onto the trail and navigate to it
+ * @method getTrail       - Return the current breadcrumb trail (flat path segments)
+ * @method getCurrentPage - Return the full current page name
+ * @method getWorld       - Return a snapshot of all in-memory page content
+ * @method getDoc         - Return the Yjs Y.Doc instance for CRDT access
  */
 export interface EditorContext {
     navigate(page: string): void;
     getTrail(): string[];
+    getCurrentPage(): string;
     getWorld(): Record<string, string>;
     getDoc(): Y.Doc;
     /**

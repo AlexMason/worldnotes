@@ -6,8 +6,10 @@ import { YDocState } from './y-doc-state';
 export interface EditorStateAPI {
     /** Return the Yjs-backed document state. */
     getYDocState(): YDocState;
-    /** Return a defensive copy of the breadcrumb trail. */
+    /** Return a defensive copy of the breadcrumb trail (flat path segments). */
     getTrail(): string[];
+    /** Reconstruct the full current page name from trail segments. */
+    getCurrentPage(): string;
     /** Return a defensive copy of the world cache (delegates to YDocState). */
     getWorld(): Record<string, string>;
     /** Append a page name to the trail. */

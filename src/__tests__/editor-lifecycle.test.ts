@@ -45,6 +45,7 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
   return {
     getYDocState: () => yDocState,
     getTrail: () => [...trail],
+    getCurrentPage: () => trail.length <= 1 ? trail[0] : trail.slice(1).join('/'),
     getWorld: () => yDocState.getWorld(),
     pushTrail: (page: string) => {
       trail.push(page)
@@ -72,6 +73,7 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
     toContext: (_navigate: (page: string) => void): EditorContext => ({
       navigate: _navigate,
       getTrail: () => [...trail],
+      getCurrentPage: () => trail.length <= 1 ? trail[0] : trail.slice(1).join('/'),
       getWorld: () => yDocState.getWorld(),
       getDoc: () => yDocState.doc,
     }),
@@ -104,8 +106,7 @@ function mockRender(state: EditorStateAPI, dom: EditorDOM): EditorRenderAPI {
   return {
     render: vi.fn((force?: boolean) => {
       if (force) {
-        const trail = state.getTrail()
-        const page = trail[trail.length - 1]
+        const page = state.getCurrentPage()
         const ytext = state.getYDocState().getPage(page)
         dom.editorDiv.textContent = ytext.toString()
       }
@@ -266,8 +267,8 @@ describe('createEditorLifecycle', () => {
   // ── EditorInstance.getCurrentPage() ───────────────────────────────────────
 
   describe('EditorInstance.getCurrentPage()', () => {
-    it('returns the last element of the trail', async () => {
-      const trailState = mockState(['home', 'about', 'contact'])
+    it('returns the reconstructed full page name from flat trail segments', async () => {
+      const trailState = mockState(['home', 'contact'])
       const lifecycle = createEditorLifecycle(
         dom,
         plugins,
@@ -281,6 +282,23 @@ describe('createEditorLifecycle', () => {
       const instance = await lifecycle.mount()
 
       expect(instance.getCurrentPage()).toBe('contact')
+    })
+
+    it('reconstructs hierarchical page names from multiple segments', async () => {
+      const trailState = mockState(['home', 'about', 'contact'])
+      const lifecycle = createEditorLifecycle(
+        dom,
+        plugins,
+        [],
+        trailState,
+        render,
+        navigation,
+        storage,
+        options,
+      )
+      const instance = await lifecycle.mount()
+
+      expect(instance.getCurrentPage()).toBe('about/contact')
     })
   })
 
