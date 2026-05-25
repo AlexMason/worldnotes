@@ -241,6 +241,22 @@ describe('createEditorNavigation', () => {
       expect(state.isNavigating()).toBe(false)
     })
 
+    it('preserves empty content for pages that already existed', async () => {
+      const nav = createEditorNavigation(state, storage, dom, options)
+      nav.setRenderAPI(render)
+
+      // Create the page first (it now exists in the map)
+      const ytext = state.getYDocState().getPage('home')
+      ytext.insert(0, '# old')
+      // Then delete all content
+      ytext.delete(0, ytext.length)
+
+      await nav.loadPage('home')
+
+      // Page should remain empty, not get DEFAULT_HOME
+      expect(state.getYDocState().getPage('home').toString()).toBe('')
+    })
+
     it('reads page content from Y.Text and triggers render', async () => {
       const nav = createEditorNavigation(state, storage, dom, options)
       nav.setRenderAPI(render)

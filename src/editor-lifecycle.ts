@@ -105,8 +105,12 @@ export function createEditorLifecycle(
 
     // ── Input handler ──────────────────────────────────────────────────────
 
+    let handlingInput = false
+
     dom.editorDiv.addEventListener('input', () => {
       if (state.isNavigating()) return
+      if (handlingInput) return
+      handlingInput = true
 
       const trail = state.getTrail()
       const page = trail[trail.length - 1]
@@ -152,6 +156,8 @@ export function createEditorLifecycle(
       }
 
       saveDebounced()
+
+      handlingInput = false
     })
 
     // ── Paste handler ──────────────────────────────────────────────────────
@@ -211,11 +217,14 @@ export function createEditorLifecycle(
 
     const trail = state.getTrail()
     const initialPage = trail[trail.length - 1]
+
+    await navigation.loadPage(initialPage)
+
+    // Set up undo manager AFTER loadPage so hasPage() correctly
+    // reflects whether the page existed before loading
     const ytext = yDocState.getPage(initialPage)
     const undoManager = new Y.UndoManager(ytext, { captureTimeout: 0 })
     yDocState.setUndoManager(undoManager)
-
-    await navigation.loadPage(initialPage)
 
     // ── Mount UI plugins ──────────────────────────────────────────────────
 

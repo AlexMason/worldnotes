@@ -57,13 +57,16 @@ export function createEditorNavigation(
     state.setNavigating(true)
 
     const yDocState = state.getYDocState()
+    const pageExisted = yDocState.hasPage(page)
     const ytext = yDocState.getPage(page)
     const content = ytext.toString()
 
-    if (!content && page === 'home') {
-      ytext.insert(0, DEFAULT_HOME)
-    } else if (!content) {
-      ytext.insert(0, `# ${page}\n\n`)
+    if (!content && !pageExisted) {
+      if (page === 'home') {
+        ytext.insert(0, DEFAULT_HOME)
+      } else {
+        ytext.insert(0, `# ${page}\n\n`)
+      }
     }
 
     // Force full re-render for page load

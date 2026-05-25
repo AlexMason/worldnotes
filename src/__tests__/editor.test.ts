@@ -225,9 +225,17 @@ describe('Editor keyboard and paste handling', () => {
     const editorDiv = container.querySelector('.wn-editor') as HTMLElement
     expect(editorDiv).toBeTruthy()
 
-    // Place caret at start
+    // Place caret inside first line container's text node
+    const firstLine = editorDiv.querySelector('[data-line="0"]')
+    const textNode = firstLine?.firstChild
     const range = document.createRange()
-    range.setStart(editorDiv, 0)
+    if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+      range.setStart(textNode, 0)
+    } else if (firstLine) {
+      range.setStart(firstLine, 0)
+    } else {
+      range.setStart(editorDiv, 0)
+    }
     range.collapse(true)
     const sel = window.getSelection()
     sel!.removeAllRanges()
@@ -251,9 +259,17 @@ describe('Editor keyboard and paste handling', () => {
     const editorDiv = container.querySelector('.wn-editor') as HTMLElement
     expect(editorDiv).toBeTruthy()
 
-    // Place caret at start
+    // Place caret inside first line container's text node
+    const firstLine = editorDiv.querySelector('[data-line="0"]')
+    const textNode = firstLine?.firstChild
     const range = document.createRange()
-    range.setStart(editorDiv, 0)
+    if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+      range.setStart(textNode, 0)
+    } else if (firstLine) {
+      range.setStart(firstLine, 0)
+    } else {
+      range.setStart(editorDiv, 0)
+    }
     range.collapse(true)
     const sel = window.getSelection()
     sel!.removeAllRanges()
