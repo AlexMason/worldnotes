@@ -1,4 +1,5 @@
 import type { Token, ContentPlugin, EditorContext } from './types'
+import { scanInline } from './tokenizer'
 
 /**
  * Build a decorated DOM fragment for a single line of tokens.
@@ -104,4 +105,55 @@ function buildPluginMap(plugins: ContentPlugin[]): Map<string, ContentPlugin> {
     }
   }
   return map
+}
+
+/**
+ * Tokenize raw text using only inline-level token definitions and render
+ * through the corresponding content plugins. This allows line-level plugins
+ * (headings, blockquotes) to render inline markdown within their content.
+ *
+ * @param text            - Raw text to render as inline markdown
+ * @param contentPlugins  - All registered ContentPlugin instances
+ * @param context         - EditorContext passed through to plugin renderers
+ * @returns               - DocumentFragment containing rendered inline nodes
+ */
+export function renderInlineContent(
+  text: string,
+  contentPlugins: ContentPlugin[],
+  context: EditorContext,
+): DocumentFragment {
+  const inlineDefs = contentPlugins
+    .flatMap((p) => p.tokens)
+    .filter((d) => !d.pattern.source.startsWith('^'))
+
+  const tokens = scanInline(text, inlineDefs)
+  const pluginMap = buildPluginMap(contentPlugins)
+  const fragment = document.createDocumentFragment()
+
+  for (const token of tokens) {
+    if (token.type === 'text') {
+      fragment.appendChild(document.createTextNode(token.raw))
+      continue
+    }
+
+    const plugin = pluginMap.get(token.type)
+    if (!plugin) {
+      fragment.appendChild(document.createTextNode(token.raw))
+      continue
+    }
+
+    const node = plugin.render(token, context)
+
+    if (node instanceof HTMLElement && plugin.onNavigate) {
+      const handler = plugin.onNavigate.bind(plugin)
+      node.addEventListener('mousedown', (e: MouseEvent) => {
+        const suppressed = handler(token, context)
+        if (suppressed) e.preventDefault()
+      })
+    }
+
+    fragment.appendChild(node)
+  }
+
+  return fragment
 }

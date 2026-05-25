@@ -122,6 +122,51 @@ describe('headingsPlugin', () => {
     expect(el.children[1].className).toBe('wn-h1-text')
     expect(el.children[1].textContent).toBe('some text')
   })
+
+  it('renders inline content within heading when renderInline is provided', () => {
+    const token = createToken('h1', '# [[test]]', ['[[test]]'])
+    const inlineFragment = document.createDocumentFragment()
+    const linkEl = document.createElement('span')
+    linkEl.className = 'wn-wiki-link'
+    linkEl.textContent = 'test'
+    inlineFragment.appendChild(linkEl)
+
+    const context = createContext({
+      renderInline: (_text: string) => inlineFragment,
+    })
+
+    const el = renderPlugin(headingsPlugin, token, context)
+
+    expect(el.className).toBe('wn-h1')
+    expect(el.children).toHaveLength(2)
+    expect(el.children[0].className).toBe('wn-punct')
+    expect(el.children[0].textContent).toBe('# ')
+    expect(el.children[1].className).toBe('wn-h1-text')
+    // Content should contain the rendered fragment, not raw textContent
+    expect(el.children[1].childNodes).toHaveLength(1)
+    expect(el.children[1].childNodes[0]).toBe(linkEl)
+    expect(el.children[1].childNodes[0].textContent).toBe('test')
+  })
+
+  it('renders inline content within h2 when renderInline is provided', () => {
+    const token = createToken('h2', '## **bold**', ['**bold**'])
+    const inlineFragment = document.createDocumentFragment()
+    const boldEl = document.createElement('span')
+    boldEl.className = 'wn-bold'
+    boldEl.textContent = 'bold'
+    inlineFragment.appendChild(boldEl)
+
+    const context = createContext({
+      renderInline: (_text: string) => inlineFragment,
+    })
+
+    const el = renderPlugin(headingsPlugin, token, context)
+
+    expect(el.className).toBe('wn-h2')
+    expect(el.children[1].className).toBe('wn-h2-text')
+    expect(el.children[1].childNodes).toHaveLength(1)
+    expect(el.children[1].childNodes[0]).toBe(boldEl)
+  })
 })
 
 // ─── Inline Plugins ───────────────────────────────────────────────────────────
@@ -217,6 +262,30 @@ describe('inline plugins', () => {
 
       expect(el.className).toBe('wn-blockquote')
       expect(el.children[1].textContent).toBe('')
+    })
+
+    it('renders inline content within blockquote when renderInline is provided', () => {
+      const token = createToken('blockquote', '> [[page]]', ['> ', '[[page]]'])
+      const inlineFragment = document.createDocumentFragment()
+      const linkEl = document.createElement('span')
+      linkEl.className = 'wn-wiki-link'
+      linkEl.textContent = 'page'
+      inlineFragment.appendChild(linkEl)
+
+      const context = createContext({
+        renderInline: (_text: string) => inlineFragment,
+      })
+
+      const el = renderPlugin(blockquotePlugin, token, context)
+
+      expect(el.className).toBe('wn-blockquote')
+      expect(el.children).toHaveLength(2)
+      expect(el.children[0].className).toBe('wn-punct')
+      expect(el.children[0].textContent).toBe('> ')
+      expect(el.children[1].className).toBe('wn-blockquote-text')
+      expect(el.children[1].childNodes).toHaveLength(1)
+      expect(el.children[1].childNodes[0]).toBe(linkEl)
+      expect(el.children[1].childNodes[0].textContent).toBe('page')
     })
   })
 

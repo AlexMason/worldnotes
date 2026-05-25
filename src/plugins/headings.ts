@@ -7,7 +7,12 @@ import type { ContentPlugin, Token, EditorContext } from '../types'
  * @param punctText - The heading marker (e.g. '# ', '## ')
  * @param levelCls  - CSS class for the heading level (e.g. 'wn-h1')
  */
-function renderHeading(token: Token, punctText: string, levelCls: string): HTMLElement {
+function renderHeading(
+  token: Token,
+  punctText: string,
+  levelCls: string,
+  context: EditorContext,
+): HTMLElement {
   const wrapper = document.createElement('span')
   wrapper.className = levelCls
 
@@ -17,7 +22,13 @@ function renderHeading(token: Token, punctText: string, levelCls: string): HTMLE
 
   const content = document.createElement('span')
   content.className = `${levelCls}-text`
-  content.textContent = token.groups[0] ?? ''
+
+  const contentText = token.groups[0] ?? ''
+  if (context.renderInline) {
+    content.appendChild(context.renderInline(contentText))
+  } else {
+    content.textContent = contentText
+  }
 
   wrapper.appendChild(punct)
   wrapper.appendChild(content)
@@ -44,16 +55,16 @@ export const headingsPlugin: ContentPlugin = {
     { type: 'h3', pattern: /^### (.*)$/ },
   ],
 
-  render(token: Token, _context: EditorContext): HTMLElement {
+  render(token: Token, context: EditorContext): HTMLElement {
     switch (token.type) {
       case 'h1':
-        return renderHeading(token, '# ', 'wn-h1')
+        return renderHeading(token, '# ', 'wn-h1', context)
       case 'h2':
-        return renderHeading(token, '## ', 'wn-h2')
+        return renderHeading(token, '## ', 'wn-h2', context)
       case 'h3':
-        return renderHeading(token, '### ', 'wn-h3')
+        return renderHeading(token, '### ', 'wn-h3', context)
       default:
-        return renderHeading(token, '', 'wn-h1')
+        return renderHeading(token, '', 'wn-h1', context)
     }
   },
 }

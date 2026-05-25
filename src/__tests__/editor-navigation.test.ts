@@ -225,6 +225,27 @@ describe('createEditorNavigation', () => {
 
       expect(state.getWorld()['stored-page']).toBe('# Stored Page\n\ncontent')
     })
+
+    it('truncates trail when navigating to a page already in the trail', async () => {
+      const multiTrailState = mockState(['home', 'blog', 'about'])
+      const nav = createEditorNavigation(multiTrailState, storage, dom, options)
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('home')
+
+      // Trail should be truncated to ['home'], not ['home', 'blog', 'about', 'home']
+      expect(multiTrailState.getTrail()).toEqual(['home'])
+    })
+
+    it('does not truncate when navigating to a new page not in trail', async () => {
+      const multiTrailState = mockState(['home', 'blog'])
+      const nav = createEditorNavigation(multiTrailState, storage, dom, options)
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('about')
+
+      expect(multiTrailState.getTrail()).toEqual(['home', 'blog', 'about'])
+    })
   })
 
   // ── loadPage ──────────────────────────────────────────────────────────────

@@ -13,6 +13,15 @@ import { Token, TokenDef } from './types';
  */
 export declare function tokenizeLine(line: string, defs: TokenDef[]): Token[];
 /**
+ * Scan a string left-to-right, emitting tokens for the earliest regex match
+ * at each position and 'text' tokens for everything in between.
+ *
+ * @param input - The string to scan
+ * @param defs  - Inline-level TokenDef entries (non-anchored patterns)
+ * @returns     - Flat ordered array of Token objects
+ */
+export declare function scanInline(input: string, defs: TokenDef[]): Token[];
+/**
  * Tokenize a full multi-line document string into an array of line token arrays.
  * Each inner array represents one line. Newlines are not included in tokens.
  *

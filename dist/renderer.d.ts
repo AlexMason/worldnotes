@@ -21,3 +21,14 @@ export declare function renderLine(tokens: Token[], contentPlugins: ContentPlugi
  * @returns              - Array of DocumentFragments, one per source line
  */
 export declare function renderDocument(lines: Token[][], contentPlugins: ContentPlugin[], context: EditorContext, activeOffset?: number): DocumentFragment[];
+/**
+ * Tokenize raw text using only inline-level token definitions and render
+ * through the corresponding content plugins. This allows line-level plugins
+ * (headings, blockquotes) to render inline markdown within their content.
+ *
+ * @param text            - Raw text to render as inline markdown
+ * @param contentPlugins  - All registered ContentPlugin instances
+ * @param context         - EditorContext passed through to plugin renderers
+ * @returns               - DocumentFragment containing rendered inline nodes
+ */
+export declare function renderInlineContent(text: string, contentPlugins: ContentPlugin[], context: EditorContext): DocumentFragment;

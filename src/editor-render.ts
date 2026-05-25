@@ -1,10 +1,11 @@
 // ─── Editor Render ───────────────────────────────────────────────────────────
 
-import type { ContentPlugin } from './types'
+import type { ContentPlugin, EditorContext } from './types'
 import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
 import { getLineOffset, setLineOffset } from './awareness-cursor'
 import { renderLines } from './line-renderer'
+import { renderInlineContent } from './renderer'
 import { pageDisplayName, encodePathSearch } from './navigation'
 
 export interface EditorRenderAPI {
@@ -67,12 +68,16 @@ export function createEditorRender(
       }
     }
 
-    const context = state.toContext(
+    const context: EditorContext = state.toContext(
       options.navigateFn ??
         ((_p: string): void => {
           /* noop */
         }),
     )
+
+    context.renderInline = (text: string): DocumentFragment => {
+      return renderInlineContent(text, contentPlugins, context)
+    }
 
     renderLines(raw, contentPlugins, context, editorDiv, activeLines)
 

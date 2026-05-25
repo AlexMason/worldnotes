@@ -46,7 +46,7 @@ export function tokenizeLine(line: string, defs: TokenDef[]): Token[] {
  * @param defs  - Inline-level TokenDef entries (non-anchored patterns)
  * @returns     - Flat ordered array of Token objects
  */
-function scanInline(input: string, defs: TokenDef[]): Token[] {
+export function scanInline(input: string, defs: TokenDef[]): Token[] {
   const tokens: Token[] = []
   let remaining = input
 

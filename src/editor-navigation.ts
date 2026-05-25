@@ -49,7 +49,13 @@ export function createEditorNavigation(
       }
     }
 
-    state.pushTrail(page)
+    const trail = state.getTrail()
+    const existingIndex = trail.indexOf(page)
+    if (existingIndex !== -1) {
+      state.truncateTrail(existingIndex)
+    } else {
+      state.pushTrail(page)
+    }
     await loadPage(page)
   }
 

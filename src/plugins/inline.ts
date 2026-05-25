@@ -91,7 +91,7 @@ export const blockquotePlugin: ContentPlugin = {
   version: '1.0.0',
   kind: 'content' as const,
   tokens: [{ type: 'blockquote', pattern: /^(> )(.*)$/ }],
-  render(token: Token, _ctx: EditorContext): HTMLElement {
+  render(token: Token, context: EditorContext): HTMLElement {
     const wrap = document.createElement('span')
     wrap.className = 'wn-blockquote'
 
@@ -101,7 +101,13 @@ export const blockquotePlugin: ContentPlugin = {
 
     const content = document.createElement('span')
     content.className = 'wn-blockquote-text'
-    content.textContent = token.groups[1] ?? ''
+
+    const contentText = token.groups[1] ?? ''
+    if (context.renderInline) {
+      content.appendChild(context.renderInline(contentText))
+    } else {
+      content.textContent = contentText
+    }
 
     wrap.appendChild(punct)
     wrap.appendChild(content)

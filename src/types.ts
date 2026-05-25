@@ -61,6 +61,13 @@ export interface EditorContext {
   getTrail(): string[]
   getWorld(): Record<string, string>
   getDoc(): Y.Doc
+  /**
+   * Render inline markdown text (tokenize + render through inline plugins).
+   * Optional — plugins that need to render inline content within line-level
+   * tokens (headings, blockquotes) should guard with optional chaining.
+   * Falls back to plain textContent when not provided.
+   */
+  renderInline?(text: string): DocumentFragment
 }
 
 // ─── Plugin Lifecycle ──────────────────────────────────────────────────────────
