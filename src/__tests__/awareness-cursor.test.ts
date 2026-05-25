@@ -92,3 +92,99 @@ describe('getLineOffset → setLineOffset round-trip', () => {
     expect(after).toBe(2) // end of "hi"
   })
 })
+
+// ─── Regression: Enter key scenarios ────────────────────────────────────────────
+
+describe('Enter key — offset survives render remapping', () => {
+  function buildEditor(lines: (string | null)[]): HTMLElement {
+    const el = document.createElement('div')
+    for (let i = 0; i < lines.length; i++) {
+      const container = document.createElement('div')
+      container.dataset.line = String(i)
+      const text = lines[i]
+      if (text) {
+        container.textContent = text
+      } else {
+        container.appendChild(document.createElement('br'))
+      }
+      el.appendChild(container)
+      if (i < lines.length - 1) {
+        el.appendChild(document.createTextNode('\n'))
+      }
+    }
+    return el
+  }
+
+  it('Enter at end of line: cursor lands at start of new empty line', () => {
+    const el = buildEditor(['hello', null])
+    // "hello\n" has length 6, cursor after \n → offset 6
+    setLineOffset(el, 6)
+    const range = window.getSelection()!.getRangeAt(0)
+    // Should be inside the empty line1 container at offset 0
+    expect(range.startContainer).toBe(el.querySelector('[data-line="1"]'))
+    expect(range.startOffset).toBe(0)
+  })
+
+  it('Enter at start of line: cursor lands at start of new empty line above', () => {
+    const el = buildEditor([null, 'world'])
+    // "\nworld" has cursor after \n (position 0) → offset 1
+    // After split: line0="" line1="world", offset 1 maps to start of line1
+    setLineOffset(el, 1)
+    const range = window.getSelection()!.getRangeAt(0)
+
+    // Cursor should be in the text node of line1 at offset 0
+    const line1 = el.querySelector('[data-line="1"]')!
+    expect(range.startContainer).toBe(line1.firstChild)
+    expect(range.startOffset).toBe(0)
+  })
+
+  it('Enter in middle of line: cursor lands at start of new split line', () => {
+    const el = buildEditor(['hello ', 'world'])
+    // "hello \nworld" cursor position after "\n" = 7
+    // After split: line0="hello " (len=6) line1="world" (len=5)
+    // offset 7 → remaining after line0 = 7-6-1 = 0, pos 0 in line1
+    setLineOffset(el, 7)
+    const range = window.getSelection()!.getRangeAt(0)
+
+    // Cursor should be in the text node of line1 at offset 0
+    const line1 = el.querySelector('[data-line="1"]')!
+    expect(range.startContainer).toBe(line1.firstChild)
+    expect(range.startOffset).toBe(0)
+  })
+
+  it('double Enter on empty line: cursor stays on new empty line', () => {
+    const el = buildEditor(['line', null, null])
+    // "line\n\n" → two newlines, cursor after second \n
+    // offset = 4(line) + 1(\n) + 0(empty) + 1(\n) = 6
+    setLineOffset(el, 6)
+    const range = window.getSelection()!.getRangeAt(0)
+
+    // Should be on the third (empty) line
+    const line2 = el.querySelector('[data-line="2"]')
+    expect(range.startContainer).toBe(line2)
+    expect(range.startOffset).toBe(0)
+  })
+
+  it('Enter at very end of document: cursor on new empty trailing line', () => {
+    // "hello" has no trailing newline, cursor at end → offset 5
+    // After inserting \n: "hello\n", cursor at offset 6
+    // setLineOffset with offset at the empty last line
+    const el2 = buildEditor(['hello', null])
+    setLineOffset(el2, 5 + 1) // 6
+    const range = window.getSelection()!.getRangeAt(0)
+    expect(range.startContainer).toBe(el2.querySelector('[data-line="1"]'))
+    expect(range.startOffset).toBe(0)
+  })
+
+  it('cursor preserved after typing on empty line', () => {
+    const el = buildEditor(['hello', 'x'])
+    // User clicked on empty line (offset 6), typed 'x'
+    // Cursor now at offset 7 (after 'x')
+    setLineOffset(el, 7)
+    const after = getLineOffset(el)
+    expect(after).toBe(7)
+    const range = window.getSelection()!.getRangeAt(0)
+    expect(range.startContainer).toBe(el.querySelector('[data-line="1"]')!.firstChild)
+    expect(range.startOffset).toBe(1) // end of 'x'
+  })
+})

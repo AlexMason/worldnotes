@@ -3,6 +3,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createEditor } from '../editor'
 import type { ContentPlugin, Token, EditorContext, StorageAdapter } from '../types'
+import { getLineOffset } from '../awareness-cursor'
 
 // ─── Test Helpers ─────────────────────────────────────────────────────────────
 
@@ -308,5 +309,73 @@ describe('Editor keyboard and paste handling', () => {
     }).not.toThrow()
 
     editor.destroy()
+  })
+
+  // ── Regression: Enter key cursor stability ─────────────────────────────────
+
+  describe('Enter key cursor stability', () => {
+    it('cursor stays on the new empty line after pressing Enter at end of line', async () => {
+      const mockStorage = createMockStorage()
+      const editor = await createEditor(container, { storage: mockStorage }).mount()
+      const editorDiv = container.querySelector('.wn-editor') as HTMLElement
+
+      // Type 'hello' by directly writing to Y.Text and rendering
+      editor.setContent('hello')
+
+      // Place cursor at end of 'hello' (offset 5)
+      const line0 = editorDiv.querySelector('[data-line="0"]') as HTMLElement
+      const textNode = line0.firstChild as Text
+      const range = document.createRange()
+      range.setStart(textNode, 5)
+      range.collapse(true)
+      const sel = window.getSelection()!
+      sel.removeAllRanges()
+      sel.addRange(range)
+
+      // Save offset before Enter
+      const beforeOffset = getLineOffset(editorDiv)
+      expect(beforeOffset).toBe(5)
+
+      // Press Enter
+      const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+      editorDiv.dispatchEvent(enterEvent)
+
+      // After Enter, cursor should be at the start of the new empty line
+      const afterOffset = getLineOffset(editorDiv)
+      // "hello\n" → offset 6 = start of new empty line
+      expect(afterOffset).toBe(6)
+      expect(editor.getContent()).toBe('hello\n')
+
+      editor.destroy()
+    })
+
+    it('cursor stays on the split line after pressing Enter mid-line', async () => {
+      const mockStorage = createMockStorage()
+      const editor = await createEditor(container, { storage: mockStorage }).mount()
+      const editorDiv = container.querySelector('.wn-editor') as HTMLElement
+
+      editor.setContent('hello world')
+
+      // Place cursor after 'hello ' (offset 6)
+      const line0 = editorDiv.querySelector('[data-line="0"]') as HTMLElement
+      const textNode = line0.firstChild as Text
+      const range = document.createRange()
+      range.setStart(textNode, 6)
+      range.collapse(true)
+      const sel = window.getSelection()!
+      sel.removeAllRanges()
+      sel.addRange(range)
+
+      // Press Enter
+      const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+      editorDiv.dispatchEvent(enterEvent)
+
+      // After Enter, cursor should be at start of second line (after "hello \n")
+      const afterOffset = getLineOffset(editorDiv)
+      // "hello \nworld" → offset 7 = start of "world" in line 1
+      expect(afterOffset).toBe(7)
+
+      editor.destroy()
+    })
   })
 })
