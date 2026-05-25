@@ -349,7 +349,7 @@ describe('createEditorRender: syncUrlToTrail()', () => {
 // ─── createEditorRender: Module shape ───────────────────────────────────────────
 
 describe('createEditorRender: module shape', () => {
-  it('returns EditorRenderAPI with render, renderBreadcrumb, syncUrlToTrail', () => {
+  it('returns EditorRenderAPI with render, renderBreadcrumb, syncUrlToTrail, checkSelectChange', () => {
     const dom = createTestDOM()
     const plugins: ContentPlugin[] = [testPlugin()]
     const state = createEditorState(mockStorage(), { initialPage: 'test' })

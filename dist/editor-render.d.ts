@@ -5,6 +5,7 @@ export interface EditorRenderAPI {
     render(force?: boolean): void;
     renderBreadcrumb(): void;
     syncUrlToTrail(): void;
+    checkSelectChange(): void;
 }
 export interface EditorRenderOptions {
     onBreadcrumbNavigate?: (page: string) => void;

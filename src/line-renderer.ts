@@ -7,6 +7,7 @@ export function renderLines(
   contentPlugins: ContentPlugin[],
   context: EditorContext,
   editorDiv: HTMLElement,
+  activeLine?: number,
 ): { lineCount: number; lineLengths: number[] } {
   const lines = tokenizeDocument(
     text,
@@ -21,14 +22,22 @@ export function renderLines(
     const lineText = lines[i].map((t) => t.raw).join('')
     lineLengths.push(lineText.length)
 
-    const fragment = renderLine(lines[i], contentPlugins, context)
-
     const container = document.createElement('div')
     container.dataset.line = String(i)
-    if (fragment.childNodes.length) {
-      container.appendChild(fragment)
+
+    if (i === activeLine) {
+      // Render raw text for the line the user is actively editing
+      container.textContent = lineText
+      if (!lineText) {
+        container.appendChild(document.createElement('br'))
+      }
     } else {
-      container.appendChild(document.createElement('br'))
+      const fragment = renderLine(lines[i], contentPlugins, context)
+      if (fragment.childNodes.length) {
+        container.appendChild(fragment)
+      } else {
+        container.appendChild(document.createElement('br'))
+      }
     }
     editorDiv.appendChild(container)
 

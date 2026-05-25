@@ -11,12 +11,21 @@ export interface EditorRenderAPI {
   render(force?: boolean): void
   renderBreadcrumb(): void
   syncUrlToTrail(): void
+  checkSelectChange(): void
 }
 
 export interface EditorRenderOptions {
   onBreadcrumbNavigate?: (page: string) => void
   onTrailChange?: (trail: string[]) => void
   navigateFn?: (page: string) => void
+}
+
+function determineActiveLine(raw: string, offset: number): number {
+  let line = 0
+  for (let i = 0; i < Math.min(offset, raw.length); i++) {
+    if (raw[i] === '\n') line++
+  }
+  return line
 }
 
 export function createEditorRender(
@@ -26,6 +35,8 @@ export function createEditorRender(
   options: EditorRenderOptions = {},
 ): EditorRenderAPI {
   const { editorDiv, placeholder, breadcrumb } = dom
+
+  let activeLine = -1
 
   // ── Full render pipeline ──────────────────────────────────────────────────
 
@@ -38,6 +49,8 @@ export function createEditorRender(
     const ytext = yDocState.getPage(page)
     const raw = ytext.toString()
 
+    activeLine = determineActiveLine(raw, offset)
+
     const context = state.toContext(
       options.navigateFn ??
         ((_p: string): void => {
@@ -45,7 +58,7 @@ export function createEditorRender(
         }),
     )
 
-    renderLines(raw, contentPlugins, context, editorDiv)
+    renderLines(raw, contentPlugins, context, editorDiv, activeLine)
 
     placeholder.style.display = raw.length ? 'none' : 'block'
 
@@ -53,6 +66,19 @@ export function createEditorRender(
       setLineOffset(editorDiv, offset)
     } catch {
       /* noop */
+    }
+  }
+
+  function checkSelectChange(): void {
+    const offset = getLineOffset(editorDiv)
+    const yDocState = state.getYDocState()
+    const trail = state.getTrail()
+    const page = trail[trail.length - 1]
+    const raw = yDocState.getPage(page).toString()
+    const newLine = determineActiveLine(raw, offset)
+
+    if (newLine !== activeLine) {
+      render()
     }
   }
 
@@ -100,5 +126,5 @@ export function createEditorRender(
     )
   }
 
-  return { render, renderBreadcrumb, syncUrlToTrail }
+  return { render, renderBreadcrumb, syncUrlToTrail, checkSelectChange }
 }

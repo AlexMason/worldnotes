@@ -426,30 +426,22 @@ describe('Editor keyboard and paste handling', () => {
       // Set content with a wiki link
       editor.setContent('before [[my page]] after')
 
-      // trigger a re-render to ensure DOM is up-to-date
-      // the spanned text should have data-raw
-      const wikiLinkEl = editorDiv.querySelector('[data-raw]')
-      expect(wikiLinkEl).not.toBeNull()
-      expect(wikiLinkEl!.getAttribute('data-raw')).toBe('[[my page]]')
-
-      // Place cursor at the end, type a character
+      // After setContent, the first line is active (cursor at start)
+      // so it's rendered as raw text — no [data-raw] spans exist
       const line0 = editorDiv.querySelector('[data-line="0"]') as HTMLElement
-      const textNodes = Array.from(line0.childNodes).filter(
-        (n) => n.nodeType === Node.TEXT_NODE,
-      )
-      // Find the text node after the wiki link span
-      const lastText = textNodes[textNodes.length - 1] as Text
+      expect(line0.textContent).toBe('before [[my page]] after')
+
+      // Place cursor at the end of the line, then dispatch an input event
+      const textNode = line0.firstChild as Text
       const range = document.createRange()
-      range.setStart(lastText, lastText.length)
+      range.setStart(textNode, textNode.length)
       range.collapse(true)
       const sel = window.getSelection()!
       sel.removeAllRanges()
       sel.addRange(range)
 
-      // Dispatch an input event (simulating contentEditable typing)
-      // First, insert a character into the DOM to simulate what the browser does
-      lastText.textContent += '!'
-
+      // Simulate typing '!' at the end
+      textNode.textContent += '!'
       editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
 
       // The wiki link markup should still be present
@@ -466,14 +458,11 @@ describe('Editor keyboard and paste handling', () => {
 
       editor.setContent('[[hello]] world')
 
-      // Place cursor after 'world' at the end, Backspace to delete 'd'
+      // In raw-text mode (active line), the entire line is one text node
       const line0 = editorDiv.querySelector('[data-line="0"]') as HTMLElement
-      const textNodes = Array.from(line0.childNodes).filter(
-        (n) => n.nodeType === Node.TEXT_NODE,
-      )
-      const lastText = textNodes[textNodes.length - 1] as Text
+      const textNode = line0.firstChild as Text
       const range = document.createRange()
-      range.setStart(lastText, lastText.length) // end of ' world'
+      range.setStart(textNode, textNode.length) // end of '[[hello]] world'
       range.collapse(true)
       const sel = window.getSelection()!
       sel.removeAllRanges()

@@ -249,6 +249,20 @@ export function createEditorLifecycle(
       }
     })
 
+    // ── Selection change — re-render when cursor moves to a different line ──
+
+    let selectChangePending = false
+    document.addEventListener('selectionchange', () => {
+      if (handlingInput || selectChangePending || state.isNavigating())
+        return
+      selectChangePending = true
+      // Use rAF to coalesce rapid selection changes (e.g. during arrow-key hold)
+      requestAnimationFrame(() => {
+        selectChangePending = false
+        render.checkSelectChange()
+      })
+    })
+
     // ── Load initial page ──────────────────────────────────────────────────
 
     const trail = state.getTrail()
