@@ -119,6 +119,10 @@ export interface ContentPlugin extends PluginLifecycle {
    * provide the new cursor position after the operation.
    * Return false/void to let the next plugin or default handler run.
    *
+   * IMPORTANT: The plugin must mutate the Y.Doc directly (via context.getDoc())
+   * to persist changes. DOM changes alone will not persist since there is no
+   * extractContentText pass after plugin keydown handling.
+   *
    * @param event   - The raw KeyboardEvent
    * @param context - EditorContext for document access
    */

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import type * as Y from 'yjs'
 import type {
   ContentPlugin,
   UIPlugin,
@@ -534,6 +535,145 @@ describe('Editor lifecycle event handlers', () => {
 
       const text = extractText(dom.editorDiv)
       expect(text).toContain('\n')
+    })
+  })
+
+  // ── Keydown handler (plugin dispatch) ──────────────────────────────────
+
+  describe('keydown plugin dispatch', () => {
+    it('consumes the event when onKeydown returns { cursorOffset }', async () => {
+      const onKeydown = vi.fn((_e: KeyboardEvent, _ctx: EditorContext) => {
+        _ctx.getDoc().transact(() => {
+          const ytext = _ctx.getDoc().getMap('pages').get('home') as Y.Text
+          ytext.delete(0, ytext.length)
+          ytext.insert(0, 'plugin handled')
+        })
+        return { cursorOffset: 14 }
+      })
+      const pluginWithKeydown: ContentPlugin = {
+        name: 'keydown-plugin',
+        version: '1.0.0',
+        kind: 'content' as const,
+        tokens: [{ type: 'test', pattern: /./ }],
+        render(token: Token, _ctx: EditorContext) {
+          return document.createTextNode(token.raw)
+        },
+        onKeydown,
+      }
+      const lifecycle = createEditorLifecycle(
+        dom,
+        [...plugins, pluginWithKeydown],
+        [],
+        state,
+        render,
+        navigation,
+        storage,
+        options,
+      )
+      await lifecycle.mount()
+
+      dom.editorDiv.textContent = 'original'
+      dom.editorDiv.focus()
+      const range = document.createRange()
+      range.setStart(dom.editorDiv, 0)
+      range.collapse(true)
+      const sel = window.getSelection()
+      sel!.removeAllRanges()
+      sel!.addRange(range)
+
+      const keyEvent = new KeyboardEvent('keydown', { key: 'x', bubbles: true })
+      const preventDefault = vi.spyOn(keyEvent, 'preventDefault')
+      dom.editorDiv.dispatchEvent(keyEvent)
+
+      expect(preventDefault).toHaveBeenCalled()
+      expect(onKeydown).toHaveBeenCalled()
+      expect(
+        state.getYDocState().getPage('home').toString(),
+      ).toBe('plugin handled')
+    })
+
+    it('lets default handler run when onKeydown returns false', async () => {
+      const onKeydown = vi.fn(() => false as const)
+      const pluginWithKeydown: ContentPlugin = {
+        name: 'pass-through-plugin',
+        version: '1.0.0',
+        kind: 'content' as const,
+        tokens: [{ type: 'test', pattern: /./ }],
+        render(token: Token, _ctx: EditorContext) {
+          return document.createTextNode(token.raw)
+        },
+        onKeydown,
+      }
+      const lifecycle = createEditorLifecycle(
+        dom,
+        [...plugins, pluginWithKeydown],
+        [],
+        state,
+        render,
+        navigation,
+        storage,
+        options,
+      )
+      await lifecycle.mount()
+
+      dom.editorDiv.textContent = ''
+      dom.editorDiv.focus()
+      const range = document.createRange()
+      range.setStart(dom.editorDiv, 0)
+      range.collapse(true)
+      const sel = window.getSelection()
+      sel!.removeAllRanges()
+      sel!.addRange(range)
+
+      const tabEvent = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true })
+      dom.editorDiv.dispatchEvent(tabEvent)
+
+      expect(onKeydown).toHaveBeenCalled()
+      const raw = extractText(dom.editorDiv)
+      expect(raw).toContain('  ')
+    })
+
+    it('lets default handler run when onKeydown returns void', async () => {
+      const onKeydown = vi.fn(() => {
+        // no explicit return
+      })
+      const pluginWithKeydown: ContentPlugin = {
+        name: 'void-plugin',
+        version: '1.0.0',
+        kind: 'content' as const,
+        tokens: [{ type: 'test', pattern: /./ }],
+        render(token: Token, _ctx: EditorContext) {
+          return document.createTextNode(token.raw)
+        },
+        onKeydown,
+      }
+      const lifecycle = createEditorLifecycle(
+        dom,
+        [...plugins, pluginWithKeydown],
+        [],
+        state,
+        render,
+        navigation,
+        storage,
+        options,
+      )
+      await lifecycle.mount()
+
+      dom.editorDiv.textContent = ''
+      dom.editorDiv.focus()
+      const range = document.createRange()
+      range.setStart(dom.editorDiv, 0)
+      range.collapse(true)
+      const sel = window.getSelection()
+      sel!.removeAllRanges()
+      sel!.addRange(range)
+
+      const tabEvent = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true })
+      dom.editorDiv.dispatchEvent(tabEvent)
+
+      expect(onKeydown).toHaveBeenCalled()
+      const raw = extractText(dom.editorDiv)
+      expect(raw).toContain('  ')
     })
   })
 })

@@ -17,6 +17,7 @@ import type { EditorNavigationAPI } from './editor-navigation'
 import { getLineOffset, setLineOffset } from './awareness-cursor'
 import { saveYDoc, loadYDoc } from './yjs-storage-bridge'
 import { renderRemoteCursors } from './plugins/remoteCursors'
+import { renderInlineContent } from './renderer'
 
 export interface EditorLifecycleAPI {
   mount(): Promise<EditorInstance>
@@ -233,7 +234,6 @@ export function createEditorLifecycle(
       {
         const trail = state.getTrail()
         const page = trail[trail.length - 1]
-        const ytext = yDocState.getPage(page)
 
         const context: EditorContext = {
           navigate: (p: string) => { void navigation.navigateToPage(p) },
@@ -241,13 +241,27 @@ export function createEditorLifecycle(
           getWorld: () => yDocState.getWorld(),
           getDoc: () => yDocState.doc,
         }
+        context.renderInline = (text: string): DocumentFragment => {
+          return renderInlineContent(text, contentPlugins, context)
+        }
 
         for (const plugin of contentPlugins) {
           if (!plugin.onKeydown) continue
           const result = plugin.onKeydown(e, context)
-          if (result && typeof result === 'object' && 'cursorOffset' in result) {
+          if (result !== undefined && result !== false && 'cursorOffset' in result) {
             e.preventDefault()
             render.render(true, result.cursorOffset)
+
+            const raw = yDocState.getPage(page).toString()
+            let activeLine = 0
+            for (let i = 0; i < Math.min(result.cursorOffset, raw.length); i++) {
+              if (raw[i] === '\n') activeLine++
+            }
+            const aw = yDocState.awareness as {
+              setLocalStateField: (field: string, value: unknown) => void
+            } | null
+            aw?.setLocalStateField?.('cursor', { offset: result.cursorOffset, page, activeLine })
+
             saveDebounced()
             return
           }
