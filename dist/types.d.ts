@@ -94,6 +94,23 @@ export interface ContentPlugin extends PluginLifecycle {
     onNavigate?(token: Token, context: EditorContext): boolean | void;
     onUpdate?(): void;
     /**
+     * Optional: intercept keyboard events before default handling.
+     * Called for each content plugin (in registration order) on keydown.
+     * Return { cursorOffset: number } to signal the event was consumed and
+     * provide the new cursor position after the operation.
+     * Return false/void to let the next plugin or default handler run.
+     *
+     * IMPORTANT: The plugin must mutate the Y.Doc directly (via context.getDoc())
+     * to persist changes. DOM changes alone will not persist since there is no
+     * extractContentText pass after plugin keydown handling.
+     *
+     * @param event   - The raw KeyboardEvent
+     * @param context - EditorContext for document access
+     */
+    onKeydown?(event: KeyboardEvent, context: EditorContext): {
+        cursorOffset: number;
+    } | false | void;
+    /**
      * Optional: render a token as an HTML string for DOM-free static rendering.
      * When provided, this enables the `renderDocumentToHTML` pipeline.
      *

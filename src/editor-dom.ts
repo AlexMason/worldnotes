@@ -177,19 +177,22 @@ const DEFAULT_CSS =
 
 /* List items */
 .wn-list-item {
-  display: block;
+  display: flex;
 }
 .wn-list-item-indent {
   color: transparent;
   white-space: pre;
   user-select: none;
+  flex-shrink: 0;
 }
 .wn-list-item-marker {
   color: var(--wn-color-punct, #2e2e44);
   user-select: none;
+  flex-shrink: 0;
 }
 .wn-list-item-content {
   color: var(--wn-color-fg, #c9c9d0);
+  min-width: 0;
 }
 
 /* HR */

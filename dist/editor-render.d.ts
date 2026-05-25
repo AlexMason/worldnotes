@@ -2,7 +2,7 @@ import { ContentPlugin } from './types';
 import { EditorStateAPI } from './editor-state';
 import { EditorDOM } from './editor-dom';
 export interface EditorRenderAPI {
-    render(force?: boolean): void;
+    render(force?: boolean, cursorOffset?: number): void;
     renderBreadcrumb(): void;
     syncUrlToTrail(): void;
     checkSelectChange(): void;
