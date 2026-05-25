@@ -8,6 +8,7 @@ import type {
   StorageAdapter,
   EditorOptions,
   EditorInstance,
+  EditorContext,
 } from './types'
 import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
@@ -223,6 +224,34 @@ export function createEditorLifecycle(
           render.render(true)
         }
         return
+      }
+
+      // ── Plugin keydown dispatch ─────────────────────────────────────
+      // Give content plugins first crack at keyboard events so they can
+      // implement custom behaviors (list indentation, etc.).
+      // First plugin to return { cursorOffset } wins.
+      {
+        const trail = state.getTrail()
+        const page = trail[trail.length - 1]
+        const ytext = yDocState.getPage(page)
+
+        const context: EditorContext = {
+          navigate: (p: string) => { void navigation.navigateToPage(p) },
+          getTrail: () => state.getTrail(),
+          getWorld: () => yDocState.getWorld(),
+          getDoc: () => yDocState.doc,
+        }
+
+        for (const plugin of contentPlugins) {
+          if (!plugin.onKeydown) continue
+          const result = plugin.onKeydown(e, context)
+          if (result && typeof result === 'object' && 'cursorOffset' in result) {
+            e.preventDefault()
+            render.render(true, result.cursorOffset)
+            saveDebounced()
+            return
+          }
+        }
       }
 
       if (e.key === 'Tab') {

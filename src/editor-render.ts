@@ -9,7 +9,7 @@ import { renderInlineContent } from './renderer'
 import { pageDisplayName, encodePathSearch } from './navigation'
 
 export interface EditorRenderAPI {
-  render(force?: boolean): void
+  render(force?: boolean, cursorOffset?: number): void
   renderBreadcrumb(): void
   syncUrlToTrail(): void
   checkSelectChange(): void
@@ -41,8 +41,8 @@ export function createEditorRender(
 
   // ── Full render pipeline ──────────────────────────────────────────────────
 
-  function render(_force = false): void {
-    const offset = getLineOffset(editorDiv)
+  function render(_force = false, cursorOffset?: number): void {
+    const offset = cursorOffset ?? getLineOffset(editorDiv)
 
     const yDocState = state.getYDocState()
     const trail = state.getTrail()
