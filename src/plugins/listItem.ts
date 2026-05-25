@@ -10,6 +10,7 @@ import {
   indentLine,
   dedentLine,
 } from '../editor-indentation'
+import { getLineOffset } from '../awareness-cursor'
 
 function escapeHTML(text: string): string {
   return text
@@ -74,7 +75,7 @@ export const listItemPlugin: ContentPlugin = {
     const contentText = token.groups[2] ?? ''
     const inner = context.renderInline(contentText)
 
-    let html = '<span class="wn-list-item">'
+    let html = `<span class="wn-list-item" data-raw="${escapeHTML(token.raw)}">`
     if (indent) {
       html += `<span class="wn-list-item-indent" aria-hidden="true">${escapeHTML(indent)}</span>`
     }
@@ -111,7 +112,6 @@ function handleTab(context: EditorContext): { cursorOffset: number } | false {
   const ytext = pages.get(page)
   if (!ytext) return false
 
-  const raw = ytext.toString()
   const sel = window.getSelection()
   if (!sel || !sel.rangeCount) return false
 
@@ -120,29 +120,32 @@ function handleTab(context: EditorContext): { cursorOffset: number } | false {
   while (node && !(node instanceof HTMLElement && node.dataset.line !== undefined)) {
     node = node.parentNode
   }
-
   if (!node || !(node instanceof HTMLElement)) return false
 
   const lineIndex = parseInt(node.dataset.line ?? '0', 10)
-  const lines = raw.split('\n')
-  const lineText = lines[lineIndex] ?? ''
+  const editorEl = node.parentElement
+  if (!editorEl) return false
+  const cursorOffset = getLineOffset(editorEl as HTMLElement)
 
-  const parsed = parseListItem(lineText)
-  if (!parsed) return false
+  const result = doc.transact(() => {
+    const raw = ytext.toString()
+    const lines = raw.split('\n')
+    const lineText = lines[lineIndex] ?? ''
+    const parsed = parseListItem(lineText)
+    if (!parsed) return null
 
-  const cursorOffset = getCursorOffsetInRaw(sel)
-  const newLine = indentLine(lineText)
-  lines[lineIndex] = newLine
-  const newRaw = lines.join('\n')
+    const newLine = indentLine(lineText)
+    lines[lineIndex] = newLine
+    const newRaw = lines.join('\n')
 
-  const newOffset = cursorOffset + 2
-
-  doc.transact(() => {
     ytext.delete(0, raw.length)
     ytext.insert(0, newRaw)
+
+    return cursorOffset + 2
   })
 
-  return { cursorOffset: newOffset }
+  if (result === null) return false
+  return { cursorOffset: result }
 }
 
 function handleShiftTab(context: EditorContext): { cursorOffset: number } | false {
@@ -154,7 +157,6 @@ function handleShiftTab(context: EditorContext): { cursorOffset: number } | fals
   const ytext = pages.get(page)
   if (!ytext) return false
 
-  const raw = ytext.toString()
   const sel = window.getSelection()
   if (!sel || !sel.rangeCount) return false
 
@@ -163,35 +165,35 @@ function handleShiftTab(context: EditorContext): { cursorOffset: number } | fals
   while (node && !(node instanceof HTMLElement && node.dataset.line !== undefined)) {
     node = node.parentNode
   }
-
   if (!node || !(node instanceof HTMLElement)) return false
 
   const lineIndex = parseInt(node.dataset.line ?? '0', 10)
-  const lines = raw.split('\n')
-  const lineText = lines[lineIndex] ?? ''
+  const editorEl = node.parentElement
+  if (!editorEl) return false
+  const cursorOffset = getLineOffset(editorEl as HTMLElement)
 
-  const parsed = parseListItem(lineText)
-  if (!parsed) return false
+  const result = doc.transact(() => {
+    const raw = ytext.toString()
+    const lines = raw.split('\n')
+    const lineText = lines[lineIndex] ?? ''
+    const parsed = parseListItem(lineText)
+    if (!parsed) return null
 
-  const dedented = dedentLine(lineText)
-  if (dedented === null) {
-    const cursorOffset = getCursorOffsetInRaw(sel)
-    return { cursorOffset }
-  }
+    const dedented = dedentLine(lineText)
+    if (dedented === null) return cursorOffset
 
-  lines[lineIndex] = dedented
-  const newRaw = lines.join('\n')
+    lines[lineIndex] = dedented
+    const newRaw = lines.join('\n')
 
-  const cursorOffset = getCursorOffsetInRaw(sel)
-  const lineStart = getLineStart(raw, lineIndex)
-  const newOffset = Math.max(lineStart, cursorOffset - 2)
-
-  doc.transact(() => {
     ytext.delete(0, raw.length)
     ytext.insert(0, newRaw)
+
+    const lineStart = getLineStart(raw, lineIndex)
+    return Math.max(lineStart, cursorOffset - 2)
   })
 
-  return { cursorOffset: newOffset }
+  if (result === null) return false
+  return { cursorOffset: result }
 }
 
 function handleEnter(context: EditorContext): { cursorOffset: number } | false {
@@ -203,7 +205,6 @@ function handleEnter(context: EditorContext): { cursorOffset: number } | false {
   const ytext = pages.get(page)
   if (!ytext) return false
 
-  const raw = ytext.toString()
   const sel = window.getSelection()
   if (!sel || !sel.rangeCount) return false
 
@@ -212,55 +213,52 @@ function handleEnter(context: EditorContext): { cursorOffset: number } | false {
   while (node && !(node instanceof HTMLElement && node.dataset.line !== undefined)) {
     node = node.parentNode
   }
-
   if (!node || !(node instanceof HTMLElement)) return false
 
   const lineIndex = parseInt(node.dataset.line ?? '0', 10)
-  const lines = raw.split('\n')
-  const lineText = lines[lineIndex] ?? ''
+  const editorEl = node.parentElement
+  if (!editorEl) return false
+  const cursorOffset = getLineOffset(editorEl as HTMLElement)
 
-  const parsed = parseListItem(lineText)
-  if (!parsed) return false
+  const result = doc.transact(() => {
+    const raw = ytext.toString()
+    const lines = raw.split('\n')
+    const lineText = lines[lineIndex] ?? ''
+    const parsed = parseListItem(lineText)
+    if (!parsed) return null
 
-  const lineStart = getLineStart(raw, lineIndex)
-  const cursorOffset = getCursorOffsetInRaw(sel)
-  const cursorPosInLine = cursorOffset - lineStart
-  const clamped = Math.max(0, Math.min(cursorPosInLine, lineText.length))
+    const lineStart = getLineStart(raw, lineIndex)
+    const cursorPosInLine = cursorOffset - lineStart
+    const clamped = Math.max(0, Math.min(cursorPosInLine, lineText.length))
 
-  const leftOfCursor = lineText.slice(0, clamped)
-  const rightOfCursor = lineText.slice(clamped)
+    const leftOfCursor = lineText.slice(0, clamped)
+    const rightOfCursor = lineText.slice(clamped)
 
-  const prefix = parsed.indent + parsed.marker + ' '
-  const totalContent = parsed.content
+    const prefix = parsed.indent + parsed.marker + ' '
+    const totalContent = parsed.content
 
-  if (totalContent.trim() === '') {
-    lines.splice(lineIndex, 1, '')
-    const newRaw = lines.join('\n')
-    const newOffset = lineStart
-
-    doc.transact(() => {
+    if (totalContent.trim() === '') {
+      lines.splice(lineIndex, 1, '')
+      const newRaw = lines.join('\n')
       ytext.delete(0, raw.length)
       ytext.insert(0, newRaw)
-    })
+      return lineStart
+    }
 
-    return { cursorOffset: newOffset }
-  }
+    const newFirstLine = prefix + leftOfCursor.slice(prefix.length)
+    const newSecondLine = prefix + rightOfCursor.slice(prefix.length)
 
-  const newFirstLine = prefix + leftOfCursor.slice(prefix.length)
-  const newSecondLine = prefix + rightOfCursor.slice(prefix.length)
-
-  lines.splice(lineIndex, 1, newFirstLine, newSecondLine)
-  const newRaw = lines.join('\n')
-
-  const newLineStart = getLineStart(newRaw, lineIndex + 1)
-  const newOffset = newLineStart + newSecondLine.length
-
-  doc.transact(() => {
+    lines.splice(lineIndex, 1, newFirstLine, newSecondLine)
+    const newRaw = lines.join('\n')
     ytext.delete(0, raw.length)
     ytext.insert(0, newRaw)
+
+    const newLineStart = getLineStart(newRaw, lineIndex + 1)
+    return newLineStart + newSecondLine.length
   })
 
-  return { cursorOffset: newOffset }
+  if (result === null) return false
+  return { cursorOffset: result }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -276,103 +274,4 @@ function getLineStart(text: string, lineIndex: number): number {
     count++
   }
   return pos
-}
-
-function getCursorOffsetInRaw(sel: Selection): number {
-  if (!sel.rangeCount) return 0
-  const range = sel.getRangeAt(0)
-  const container = range.startContainer
-
-  const lineEls = Array.from(
-    document.querySelectorAll('[data-line]'),
-  ) as HTMLElement[]
-  lineEls.sort((a, b) => {
-    return (
-      parseInt(a.dataset.line ?? '0', 10) -
-      parseInt(b.dataset.line ?? '0', 10)
-    )
-  })
-
-  let rawOffset = 0
-
-  for (const lineEl of lineEls) {
-    const lineLen = rawLineLength(lineEl)
-
-    if (lineEl.contains(container) || lineEl === container) {
-      rawOffset += rawOffsetInLine(lineEl, container, range.startOffset)
-      return rawOffset
-    }
-
-    rawOffset += lineLen + 1
-  }
-
-  return rawOffset
-}
-
-function rawLineLength(el: HTMLElement): number {
-  let len = 0
-  function walk(node: Node): void {
-    if (node.nodeType === Node.TEXT_NODE) {
-      len += (node as Text).length
-    } else if (node instanceof HTMLElement) {
-      if (node.dataset.raw !== undefined) {
-        len += node.dataset.raw.length
-      } else {
-        node.childNodes.forEach(walk)
-      }
-    }
-  }
-  walk(el)
-  return len
-}
-
-function rawOffsetInLine(
-  lineEl: HTMLElement,
-  target: Node,
-  offsetInNode: number,
-): number {
-  let offset = 0
-
-  function walk(node: Node): boolean {
-    if (node.nodeType === Node.TEXT_NODE) {
-      if (node === target) {
-        offset += Math.min(offsetInNode, (node as Text).length)
-        return true
-      }
-      offset += (node as Text).length
-      return false
-    }
-    if (node instanceof HTMLElement && node.dataset.raw !== undefined) {
-      const rawLen = node.dataset.raw.length
-      if (node === target || node.contains(target)) {
-        let childOff = 0
-        let found = false
-        function walkChild(child: Node): void {
-          if (found) return
-          if (child.nodeType === Node.TEXT_NODE) {
-            if (child === target) {
-              childOff += Math.min(offsetInNode, (child as Text).length)
-              found = true
-              return
-            }
-            childOff += (child as Text).length
-            return
-          }
-          child.childNodes.forEach(walkChild)
-        }
-        node.childNodes.forEach(walkChild)
-        offset += Math.min(childOff, rawLen)
-        return true
-      }
-      offset += rawLen
-      return false
-    }
-    for (const child of Array.from(node.childNodes)) {
-      if (walk(child)) return true
-    }
-    return false
-  }
-
-  walk(lineEl)
-  return offset
 }
