@@ -175,6 +175,23 @@ const DEFAULT_CSS =
   padding-left: var(--wn-block-padding-left, 10px);
 }
 
+/* List items */
+.wn-list-item {
+  display: block;
+}
+.wn-list-item-indent {
+  color: transparent;
+  white-space: pre;
+  user-select: none;
+}
+.wn-list-item-marker {
+  color: var(--wn-color-punct, #2e2e44);
+  user-select: none;
+}
+.wn-list-item-content {
+  color: var(--wn-color-fg, #c9c9d0);
+}
+
 /* HR */
 .wn-hr {
   display: block;
