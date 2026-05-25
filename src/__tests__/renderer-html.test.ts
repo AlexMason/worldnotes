@@ -390,3 +390,44 @@ describe('renderLineToHTML', () => {
     expect(html).toBe('test')
   })
 })
+
+describe('renderInlineHTML: no renderToHTML fallback', () => {
+  it('falls back to escaped raw text when plugin lacks renderToHTML', () => {
+    const plugin: ContentPlugin = {
+      name: 'no-html-inline',
+      version: '1.0.0',
+      kind: 'content' as const,
+      tokens: [{ type: 'test', pattern: /test/ }],
+      render(_token: Token): HTMLElement {
+        return document.createElement('span')
+      },
+    }
+    const html = renderInlineHTML('test', [plugin])
+    expect(html).toBe('test')
+  })
+})
+
+describe('renderInlineHTML: recursive renderInline context', () => {
+  it('passes StaticRenderContext with renderInline to plugins', () => {
+    const recursivePlugin: ContentPlugin = {
+      name: 'recursive-test',
+      version: '1.0.0',
+      kind: 'content' as const,
+      tokens: [{ type: 'outer', pattern: /\{(.*)\}/ }],
+      renderToHTML(token: Token, context: StaticRenderContext): string {
+        const inner = context.renderInline(token.groups[0] ?? '')
+        return `<span class="outer">${inner}</span>`
+      },
+      render(_token: Token): HTMLElement {
+        return document.createElement('span')
+      },
+    }
+
+    const html = renderInlineHTML(
+      '{**bold inside**}',
+      [recursivePlugin, boldPlugin],
+    )
+    expect(html).toContain('class="outer"')
+    expect(html).toContain('class="wn-bold"')
+  })
+})

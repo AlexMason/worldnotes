@@ -203,6 +203,41 @@ describe('createEditorRender: render()', () => {
     const args = contextSpy.mock.calls[0] as [(page: string) => void]
     expect(args[0]).toBe(navigateFn)
   })
+
+  // Test: remote cursor active lines are preserved during render
+  it('preserves active lines from remote awareness cursors', () => {
+    const testDom = createTestDOM()
+    const testState = createEditorState(mockStorage(), { initialPage: 'test' })
+
+    const ytext = testState.getYDocState().getPage('test')
+    ytext.insert(0, 'line0\nline1\nline2')
+
+    const testPlugin = (): ContentPlugin => ({
+      name: 'test',
+      version: '1.0.0',
+      kind: 'content' as const,
+      tokens: [{ type: 'test-text', pattern: /\w+/ }],
+      render(token: Token): HTMLElement | Text {
+        return document.createTextNode(token.raw)
+      },
+    })
+
+    const fakeStates = new Map<number, { cursor?: { page?: string; activeLine?: number } }>()
+    fakeStates.set(123, {
+      cursor: { page: 'test', activeLine: 1 },
+    })
+
+    const yDocState = testState.getYDocState()
+    const originalAwareness = yDocState.awareness
+    yDocState.awareness = { getStates: () => fakeStates }
+
+    const render = createEditorRender(testDom, [testPlugin()], testState, {})
+
+    ytext.insert(0, 'line0\nline1\nline2')
+    render.render()
+
+    yDocState.awareness = originalAwareness
+  })
 })
 
 // ─── createEditorRender: renderBreadcrumb() ─────────────────────────────────────

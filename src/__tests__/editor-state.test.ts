@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest'
 import type { StorageAdapter, EditorOptions, EditorContext } from '../types'
 
 import { createEditorState } from '../editor-state'
+import { createYDocState } from '../y-doc-state'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -204,6 +205,55 @@ describe('createEditorState', () => {
 
     const world = state.getWorld()
     expect(world['my-page']).toBe('# Hello')
+  })
+
+  it('toContext.getWorld reflects ytext content from multiple pages', () => {
+    const storage = mockStorage()
+    const state = createEditorState(storage, { initialPage: 'start' })
+
+    const yDocState = state.getYDocState()
+    yDocState.getPage('page-one').insert(0, '# One')
+    yDocState.getPage('page-two').insert(0, '# Two')
+
+    const ctx: EditorContext = state.toContext((_page: string) => {
+      // noop — test only verifies context shape
+    })
+    const world = ctx.getWorld()
+    expect(world).toEqual({ 'page-one': '# One', 'page-two': '# Two' })
+  })
+
+  it('yDocState.toContext.getWorld reflects ytext content', () => {
+    const storage = mockStorage()
+    const state = createEditorState(storage, {})
+
+    const yDocState = state.getYDocState()
+    yDocState.getPage('a').insert(0, '# A')
+    yDocState.getPage('b').insert(0, '# B')
+
+    const ctx = yDocState.toContext((_page: string) => {
+      // noop — test only verifies getWorld
+    })
+    const world = ctx.getWorld()
+    expect(world).toEqual({ a: '# A', b: '# B' })
+  })
+
+  it('encodeStateAsUpdate and applyUpdate round-trip preserves content', () => {
+    const storage = mockStorage()
+    const state = createEditorState(storage, {})
+
+    const yDocState = state.getYDocState()
+    yDocState.getPage('test').insert(0, '# Hello World')
+    const worldBefore = yDocState.getWorld()
+    expect(worldBefore).toEqual({ test: '# Hello World' })
+
+    const update = yDocState.encodeStateAsUpdate()
+    expect(update).toBeInstanceOf(Uint8Array)
+    expect(update.length).toBeGreaterThan(0)
+
+    const yDocState2 = createYDocState()
+    yDocState2.applyUpdate(update)
+    const worldAfter = yDocState2.getWorld()
+    expect(worldAfter).toEqual({ test: '# Hello World' })
   })
 
   it('initial trail is decoded from URL search via decodePathSearch', () => {

@@ -162,6 +162,27 @@ describe('tokenizeLine edge cases', () => {
     expect(result[0].raw).toBe('**bold** and `code`')
   })
 
+  it('handles optional capture groups in line-level patterns', () => {
+    const optionalDefs: TokenDef[] = [
+      { type: 'opt-h1', pattern: /^#(?: (.*))?$/ },
+    ]
+    const result = tokenizeLine('#', optionalDefs)
+    expect(result).toHaveLength(1)
+    expect(result[0].type).toBe('opt-h1')
+    expect(result[0].raw).toBe('#')
+    expect(result[0].groups).toEqual([''])
+  })
+
+  it('handles optional capture groups in inline patterns', () => {
+    const optionalInlineDefs: TokenDef[] = [
+      { type: 'opt-tag', pattern: /@(\w+)(?:\((\w*)\))?/ },
+    ]
+    const result = tokenizeLine('hello @user world', optionalInlineDefs)
+    expect(result).toHaveLength(3)
+    expect(result[1].type).toBe('opt-tag')
+    expect(result[1].groups).toEqual(['user', ''])
+  })
+
   it('treats unclosed bold marker as plain text', () => {
     // "**text" — no closing **, pattern fails to match
     const result = tokenizeLine('**text', inlineDefs)

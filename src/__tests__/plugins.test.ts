@@ -123,6 +123,16 @@ describe('headingsPlugin', () => {
     expect(el.children[1].textContent).toBe('some text')
   })
 
+  it('falls through to default case for unknown token type in renderToHTML', () => {
+    const token = createToken('unknown', 'some text', ['some text'])
+    const html = headingsPlugin.renderToHTML!(token, {
+      renderInline: (t: string) => t,
+    })
+
+    expect(html).toContain('class="wn-h1"')
+    expect(html).toContain('some text')
+  })
+
   it('renders inline content within heading when renderInline is provided', () => {
     const token = createToken('h1', '# [[test]]', ['[[test]]'])
     const inlineFragment = document.createDocumentFragment()
@@ -310,6 +320,15 @@ describe('inline plugins', () => {
       // Middle text node should be empty string (from ?? fallback)
       expect(el.childNodes[1].textContent).toBe('')
     })
+
+    it('falls back to empty string in renderToHTML when groups is empty', () => {
+      const token = createToken('bold', '****', [])
+      const html = boldPlugin.renderToHTML!(token, {
+        renderInline: (t: string) => t,
+      })
+      expect(html).toContain('class="wn-bold"')
+      expect(html).not.toContain('undefined')
+    })
   })
 
   describe('italicPlugin nullish coalescing', () => {
@@ -319,6 +338,15 @@ describe('inline plugins', () => {
 
       expect(el.className).toBe('wn-italic')
       expect(el.childNodes[1].textContent).toBe('')
+    })
+
+    it('falls back to empty string in renderToHTML when groups is empty', () => {
+      const token = createToken('italic', '**', [])
+      const html = italicPlugin.renderToHTML!(token, {
+        renderInline: (t: string) => t,
+      })
+      expect(html).toContain('class="wn-italic"')
+      expect(html).not.toContain('undefined')
     })
   })
 
@@ -331,6 +359,15 @@ describe('inline plugins', () => {
       expect(el.children[1].className).toBe('wn-code-text')
       expect(el.children[1].textContent).toBe('')
     })
+
+    it('falls back to empty string in renderToHTML when groups is empty', () => {
+      const token = createToken('inline-code', '``', [])
+      const html = inlineCodePlugin.renderToHTML!(token, {
+        renderInline: (t: string) => t,
+      })
+      expect(html).toContain('class="wn-inline-code"')
+      expect(html).not.toContain('undefined')
+    })
   })
 
   describe('blockquotePlugin nullish coalescing', () => {
@@ -342,6 +379,15 @@ describe('inline plugins', () => {
       expect(el.children[0].textContent).toBe('> ')
       // Content span should be empty (from ?? '' fallback)
       expect(el.children[1].textContent).toBe('')
+    })
+
+    it('falls back to empty string in renderToHTML when groups[1] is undefined', () => {
+      const token = createToken('blockquote', '> ', ['> '])
+      const html = blockquotePlugin.renderToHTML!(token, {
+        renderInline: (t: string) => t,
+      })
+      expect(html).toContain('class="wn-blockquote"')
+      expect(html).not.toContain('undefined')
     })
   })
 })
@@ -416,6 +462,15 @@ describe('wikiLinkPlugin', () => {
     expect(navigate).toHaveBeenCalledWith('')
     expect(result).toBe(true)
   })
+
+  it('falls back to empty string in renderToHTML when groups is empty', () => {
+    const token = createToken('wiki-link', '[[]]', [])
+    const html = wikiLinkPlugin.renderToHTML!(token, {
+      renderInline: (t: string) => t,
+    })
+    expect(html).toContain('class="wn-wiki-link"')
+    expect(html).not.toContain('undefined')
+  })
 })
 
 // ─── Strikethrough Plugin ─────────────────────────────────────────────────────
@@ -445,14 +500,30 @@ describe('strikethroughPlugin', () => {
   })
 
   it('handles empty content between tildes', () => {
-    const token = createToken('strikethrough', '~~~~', [''])
-    const el = renderPlugin(strikethroughPlugin, token, createContext())
+      const token = createToken('strikethrough', '~~~~', [''])
+      const el = renderPlugin(strikethroughPlugin, token, createContext())
 
-    expect(el.className).toBe('wn-strikethrough')
-    expect(el.dataset.raw).toBe('~~~~')
-    expect(el.childNodes[1].textContent).toBe('')
+      expect(el.className).toBe('wn-strikethrough')
+      expect(el.dataset.raw).toBe('~~~~')
+      expect(el.childNodes[1].textContent).toBe('')
+    })
+
+    it('falls back to empty string when token.groups is empty (render)', () => {
+      const token = createToken('strikethrough', '~~~~', [])
+      const el = renderPlugin(strikethroughPlugin, token, createContext())
+
+      expect(el.className).toBe('wn-strikethrough')
+      expect(el.childNodes[1].textContent).toBe('')
+    })
+
+    it('falls back to empty string when token.groups is empty (renderToHTML)', () => {
+      const token = createToken('strikethrough', '~~~~', [])
+      const html = strikethroughPlugin.renderToHTML!(token, { renderInline: (t: string) => t })
+
+      expect(html).toContain('class="wn-strikethrough"')
+      expect(html).not.toContain('undefined')
+    })
   })
-})
 
 // ─── Link Plugin ──────────────────────────────────────────────────────────────
 
@@ -527,5 +598,25 @@ describe('linkPlugin', () => {
 
     expect(el.dataset.raw).toBe('[]()')
     expect(el.textContent).toBe('')
+  })
+
+  it('falls back to empty string when groups is empty (render)', () => {
+    const token = createToken('link', '[]()', [])
+    const el = renderPlugin(linkPlugin, token, createContext())
+    expect(el.textContent).toBe('')
+  })
+
+  it('falls back to empty string when groups is empty (renderToHTML)', () => {
+    const token = createToken('link', '[]()', [])
+    const html = linkPlugin.renderToHTML!(token, {
+      renderInline: (t: string) => t,
+    })
+    expect(html).not.toContain('undefined')
+  })
+
+  it('falls back to empty string when groups is empty (onNavigate)', () => {
+    const token = createToken('link', '[]()', [])
+    const result = linkPlugin.onNavigate!(token, createContext())
+    expect(result).toBe(true)
   })
 })

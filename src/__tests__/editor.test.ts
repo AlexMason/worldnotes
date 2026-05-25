@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { createEditor } from '../editor'
-import type { ContentPlugin, Token, EditorContext, StorageAdapter } from '../types'
+import type { ContentPlugin, Token, EditorContext, StorageAdapter, UIPlugin } from '../types'
 import { getLineOffset, setLineOffset } from '../awareness-cursor'
 
 // ─── Test Helpers ─────────────────────────────────────────────────────────────
@@ -479,6 +479,52 @@ describe('Editor keyboard and paste handling', () => {
       expect(content).toContain('[[hello]]')
       expect(content).toBe('[[hello]] worl')
 
+      editor.destroy()
+    })
+  })
+
+  // ── Post-mount UI plugin registration ──────────────────────────────────
+
+  describe('post-mount UI plugin', () => {
+    it('mounts UI plugin registered after editor mount', async () => {
+      const mockStorage = createMockStorage()
+      const builder = createEditor(container, { storage: mockStorage })
+      const editor = await builder.mount()
+
+      const onMountSpy = vi.fn()
+      const uiPlugin: UIPlugin = {
+        name: 'post-mount-ui',
+        version: '1.0.0',
+        kind: 'ui' as const,
+        slots: ['wn-toolbar'],
+        onMount: onMountSpy,
+      }
+
+      builder.use(uiPlugin)
+
+      expect(onMountSpy).toHaveBeenCalledTimes(1)
+      const slotEl = onMountSpy.mock.calls[0][0] as HTMLElement
+      expect(slotEl.className).toBe('wn-toolbar')
+
+      editor.destroy()
+    })
+
+    it('handles UI plugin without explicit priority in sort', async () => {
+      const mockStorage = createMockStorage()
+      const onMountSpy = vi.fn()
+      const uiPlugin: UIPlugin = {
+        name: 'no-priority-ui',
+        version: '1.0.0',
+        kind: 'ui' as const,
+        slots: ['wn-toolbar'],
+        onMount: onMountSpy,
+      }
+
+      const builder = createEditor(container, { storage: mockStorage })
+      builder.use(uiPlugin)
+      const editor = await builder.mount()
+
+      expect(onMountSpy).toHaveBeenCalled()
       editor.destroy()
     })
   })

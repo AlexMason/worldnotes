@@ -44,7 +44,7 @@ describe('renderLine', () => {
     const unknownTokens: Token[] = [
       { type: 'unknown-type', raw: 'some raw text', groups: ['some raw text'] },
     ]
-    const result = renderLine(unknownTokens, [previewPlugin], {} as EditorContext, 0)
+    const result = renderLine(unknownTokens, [previewPlugin], {} as EditorContext, -1)
     // Unknown type falls back to rendering raw text
     expect(result.childNodes.length).toBeGreaterThan(0)
     expect(result.childNodes[0].textContent).toBe('some raw text')

@@ -58,6 +58,21 @@ describe('exportWorld', () => {
     expect(await zip.file('empty.md')!.async('string')).toBe('')
   })
 
+  it('handles null page content from storage.get', async () => {
+    const adapter: StorageAdapter = {
+      get: vi.fn(async () => null),
+      set: vi.fn(async (_key: string, _value: string) => {
+        /* noop */
+      }),
+      keys: vi.fn(async () => ['orphan']),
+    }
+
+    const blob = await exportWorld(adapter)
+    const zip = await JSZip.loadAsync(blob)
+
+    expect(await zip.file('orphan.md')!.async('string')).toBe('')
+  })
+
   it('includes _worldnotes.yjs when __ync_update__ key exists', async () => {
     const adapter = mockAdapter({
       home: '# Home',
