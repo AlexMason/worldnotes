@@ -414,4 +414,83 @@ describe('Editor keyboard and paste handling', () => {
       editor.destroy()
     })
   })
+
+  // ── Regression: wiki link data-raw preservation ────────────────────────────
+
+  describe('wiki link data-raw preservation', () => {
+    it('preserves [[wiki link]] markup after typing elsewhere', async () => {
+      const mockStorage = createMockStorage()
+      const editor = await createEditor(container, { storage: mockStorage }).mount()
+      const editorDiv = container.querySelector('.wn-editor') as HTMLElement
+
+      // Set content with a wiki link
+      editor.setContent('before [[my page]] after')
+
+      // trigger a re-render to ensure DOM is up-to-date
+      // the spanned text should have data-raw
+      const wikiLinkEl = editorDiv.querySelector('[data-raw]')
+      expect(wikiLinkEl).not.toBeNull()
+      expect(wikiLinkEl!.getAttribute('data-raw')).toBe('[[my page]]')
+
+      // Place cursor at the end, type a character
+      const line0 = editorDiv.querySelector('[data-line="0"]') as HTMLElement
+      const textNodes = Array.from(line0.childNodes).filter(
+        (n) => n.nodeType === Node.TEXT_NODE,
+      )
+      // Find the text node after the wiki link span
+      const lastText = textNodes[textNodes.length - 1] as Text
+      const range = document.createRange()
+      range.setStart(lastText, lastText.length)
+      range.collapse(true)
+      const sel = window.getSelection()!
+      sel.removeAllRanges()
+      sel.addRange(range)
+
+      // Dispatch an input event (simulating contentEditable typing)
+      // First, insert a character into the DOM to simulate what the browser does
+      lastText.textContent += '!'
+
+      editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
+
+      // The wiki link markup should still be present
+      const content = editor.getContent()
+      expect(content).toBe('before [[my page]] after!')
+
+      editor.destroy()
+    })
+
+    it('preserves [[wiki link]] markup after Backspace', async () => {
+      const mockStorage = createMockStorage()
+      const editor = await createEditor(container, { storage: mockStorage }).mount()
+      const editorDiv = container.querySelector('.wn-editor') as HTMLElement
+
+      editor.setContent('[[hello]] world')
+
+      // Place cursor after 'world' at the end, Backspace to delete 'd'
+      const line0 = editorDiv.querySelector('[data-line="0"]') as HTMLElement
+      const textNodes = Array.from(line0.childNodes).filter(
+        (n) => n.nodeType === Node.TEXT_NODE,
+      )
+      const lastText = textNodes[textNodes.length - 1] as Text
+      const range = document.createRange()
+      range.setStart(lastText, lastText.length) // end of ' world'
+      range.collapse(true)
+      const sel = window.getSelection()!
+      sel.removeAllRanges()
+      sel.addRange(range)
+
+      const backspaceEvent = new KeyboardEvent('keydown', {
+        key: 'Backspace',
+        bubbles: true,
+      })
+      editorDiv.dispatchEvent(backspaceEvent)
+
+      const content = editor.getContent()
+      // Wiki link must be intact
+      expect(content).toContain('[[hello]]')
+      expect(content).toBe('[[hello]] worl')
+
+      editor.destroy()
+    })
+  })
 })

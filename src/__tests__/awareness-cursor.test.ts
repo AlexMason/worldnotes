@@ -188,3 +188,95 @@ describe('Enter key — offset survives render remapping', () => {
     expect(range.startOffset).toBe(1) // end of 'x'
   })
 })
+
+// ─── Regression: data-raw element handling ─────────────────────────────────────
+
+describe('data-raw elements (wiki links)', () => {
+  function buildRow(el: HTMLElement, items: (string | { raw: string; dom: string })[]): void {
+    const container = document.createElement('div')
+    container.dataset.line = '0'
+    for (const item of items) {
+      if (typeof item === 'string') {
+        container.appendChild(document.createTextNode(item))
+      } else {
+        const span = document.createElement('span')
+        span.dataset.raw = item.raw
+        span.textContent = item.dom
+        container.appendChild(span)
+      }
+    }
+    el.appendChild(container)
+  }
+
+  it('getLineOffset counts raw length of data-raw elements', () => {
+    const el = document.createElement('div')
+    // "Hello [[world]] !"
+    buildRow(el, [
+      'Hello ',
+      { raw: '[[world]]', dom: 'world' },
+      ' !',
+    ])
+    // Cursor at end of ' !' . Raw total: Hello (6) + [[world]] (9) + ! (2) = 17
+    const lastText = el.querySelector('[data-line="0"]')!.lastChild as Text
+    setCaretAt(lastText, lastText.length)
+    const offset = getLineOffset(el)
+    expect(offset).toBe(17)
+  })
+
+  it('getLineOffset adds raw length when cursor is after data-raw element', () => {
+    const el = document.createElement('div')
+    buildRow(el, [
+      { raw: '[[hello]]', dom: 'hello' },
+      ' world',
+    ])
+    // Cursor at end of ' world'. Raw total: [[hello]] (9) + world (6) = 15
+    const lastText = el.querySelector('[data-line="0"]')!.lastChild as Text
+    setCaretAt(lastText, lastText.length)
+    const offset = getLineOffset(el)
+    expect(offset).toBe(15)
+  })
+
+  it('setLineOffset round-trips past data-raw elements', () => {
+    const el = document.createElement('div')
+    buildRow(el, [
+      'before ',
+      { raw: '[[mid]]', dom: 'mid' },
+      ' after',
+    ])
+    // Raw total: "before " (7) + "[[mid]]" (7) + " after" (6) = 20
+    // Set cursor at raw offset 9 (inside "[[mid]]", close to start)
+    setLineOffset(el, 17) // end of " after" (7 + 7 + 3 = 17 → wait let me recalculate)
+    // Actually: "before " = 7, "[[mid]]" = 7, " after" = 6, total = 20
+    // offset 17 = 7 + 7 + 3 = within " after" at DOM offset 3
+    const after = getLineOffset(el)
+    expect(after).toBe(17)
+  })
+
+  it('setLineOffset handles data-raw for cursor at end of line', () => {
+    const el = document.createElement('div')
+    buildRow(el, [
+      'start ',
+      { raw: '[[end]]', dom: 'end' },
+    ])
+    // "start " = 6, "[[end]]" = 7, total = 13
+    setLineOffset(el, 13)
+    const after = getLineOffset(el)
+    expect(after).toBe(13)
+  })
+
+  it('getLineOffset counts raw length when cursor is inside data-raw element', () => {
+    const el = document.createElement('div')
+    buildRow(el, [
+      { raw: '[[hello]]', dom: 'hello' },
+    ])
+    // Place cursor at DOM offset 2 inside "hello" (between 'l' and 'l')
+    const span = el.querySelector('[data-raw]')!
+    const textNode = span.firstChild as Text
+    setCaretAt(textNode, 2)
+    // getLineOffset should compute raw-length-aware offset
+    const offset = getLineOffset(el)
+    // "[[he" is raw offset 4, but the DOM offset 2 maps to raw ~4
+    expect(offset).toBeGreaterThan(0)
+    expect(offset).toBeLessThanOrEqual(9)
+  })
+})

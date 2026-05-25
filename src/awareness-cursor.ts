@@ -1,10 +1,35 @@
 /**
- * Cursor tracking that understands the [data-line] container structure.
+ * Cursor tracking that understands the [data-line] container structure
+ * AND elements with data-raw attributes (wiki links, rendered tokens).
  *
- * Unlike the legacy cursor.ts which walks arbitrary contentEditable DOM,
- * these functions exploit the stable line-container format produced by
- * line-renderer.ts to compute offsets and restore cursors reliably.
+ * Offsets are ALWAYS in "raw text" space — matching what extractContentText
+ * produces and what Y.Text stores.  Elements with data-raw contribute their
+ * raw length (e.g. 9 for "[[hello]]") rather than their DOM text length
+ * (e.g. 5 for "hello").
  */
+
+/** Compute the raw-text length of a DOM subtree. */
+function rawSubtreeLength(node: Node): number {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return (node as Text).length
+  }
+  if (node instanceof HTMLElement) {
+    if (node.dataset.raw !== undefined) {
+      return node.dataset.raw.length
+    }
+    let len = 0
+    node.childNodes.forEach((child) => {
+      len += rawSubtreeLength(child)
+    })
+    return len
+  }
+  return 0
+}
+
+/** Raw-text length of one [data-line] container (respects data-raw). */
+function rawLineLength(lineEl: HTMLElement): number {
+  return rawSubtreeLength(lineEl)
+}
 
 function getOffsetBeforeLine(el: HTMLElement, lineIndex: number): number {
   let offset = 0
@@ -21,7 +46,7 @@ function getOffsetBeforeLine(el: HTMLElement, lineIndex: number): number {
   for (const line of allLines) {
     const idx = parseInt(line.dataset.line ?? '0', 10)
     if (idx >= lineIndex) break
-    offset += (line.textContent ?? '').length + 1 // +1 for newline
+    offset += rawLineLength(line) + 1 // +1 for newline
   }
   return offset
 }
@@ -47,7 +72,6 @@ export function getLineOffset(el: HTMLElement): number {
 
   if (!lineEl || !(lineEl instanceof HTMLElement)) {
     // Cursor is in a \n text node between containers.
-    // Walk to the preceding sibling container.
     let prev = container.previousSibling
     while (
       prev &&
@@ -57,24 +81,21 @@ export function getLineOffset(el: HTMLElement): number {
     }
     if (prev instanceof HTMLElement && prev.dataset.line !== undefined) {
       const idx = parseInt(prev.dataset.line ?? '0', 10)
-      // Offset is after the entire preceding line + the \n
-      return getOffsetBeforeLine(el, idx) +
-        (prev.textContent ?? '').length + 1
+      return getOffsetBeforeLine(el, idx) + rawLineLength(prev) + 1
     }
     return 0
   }
 
   const lineIndex = parseInt(lineEl.dataset.line ?? '0', 10)
-
-  // Count characters in all lines before this one (+1 per line for newline)
   const offset = getOffsetBeforeLine(el, lineIndex)
 
-  // Offset within the current line's text nodes
+  // Walk nodes within the line, accumulating raw-text lengths
   let lineOffset = 0
   let found = false
 
   function walkLineNodes(node: Node): void {
     if (found) return
+
     if (node.nodeType === Node.TEXT_NODE) {
       const length = (node as Text).length
       if (node === container) {
@@ -85,6 +106,39 @@ export function getLineOffset(el: HTMLElement): number {
       lineOffset += length
       return
     }
+
+    if (node instanceof HTMLElement && node.dataset.raw !== undefined) {
+      const rawLen = node.dataset.raw.length
+      // Is the cursor inside this data-raw element?
+      if (node === container || node.contains(container)) {
+        // Walk the element's own subtree (DOM-text space) to find the
+        // local offset, then clamp to rawLen.
+        let childOff = 0
+        let childFound = false
+        function walkChild(child: Node): void {
+          if (childFound) return
+          if (child.nodeType === Node.TEXT_NODE) {
+            const clen = (child as Text).length
+            if (child === container) {
+              childOff += Math.min(range.startOffset, clen)
+              childFound = true
+              return
+            }
+            childOff += clen
+            return
+          }
+          child.childNodes.forEach(walkChild)
+        }
+        node.childNodes.forEach(walkChild)
+        lineOffset += Math.min(childOff, rawLen)
+        found = true
+        return
+      }
+      // Cursor not inside — add raw length
+      lineOffset += rawLen
+      return
+    }
+
     node.childNodes.forEach(walkLineNodes)
   }
 
@@ -107,7 +161,7 @@ export function setLineOffset(el: HTMLElement, targetOffset: number): void {
   })
 
   for (const lineEl of allLines) {
-    const lineLen = (lineEl.textContent ?? '').length
+    const lineLen = rawLineLength(lineEl)
 
     if (remaining <= lineLen) {
       const result = findTextInNode(lineEl, remaining)
@@ -169,6 +223,33 @@ function findTextInNode(
       remaining -= len
       return null
     }
+
+    if (node instanceof HTMLElement && node.dataset.raw !== undefined) {
+      const rawLen = node.dataset.raw.length
+      if (remaining < rawLen) {
+        // The target offset falls inside this data-raw element.
+        // Map to a DOM-text offset by walking the element's subtree.
+        function walkChild(child: Node): { node: Text; offset: number } | null {
+          if (child.nodeType === Node.TEXT_NODE) {
+            const clen = (child as Text).length
+            if (remaining < clen) {
+              return { node: child as Text, offset: remaining }
+            }
+            remaining -= clen
+            return null
+          }
+          for (const c of Array.from(child.childNodes)) {
+            const r = walkChild(c)
+            if (r) return r
+          }
+          return null
+        }
+        return walkChild(node)
+      }
+      remaining -= rawLen
+      return null
+    }
+
     for (const child of Array.from(node.childNodes)) {
       const result = walk(child)
       if (result) return result

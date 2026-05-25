@@ -1,9 +1,11 @@
 /**
- * Cursor tracking that understands the [data-line] container structure.
+ * Cursor tracking that understands the [data-line] container structure
+ * AND elements with data-raw attributes (wiki links, rendered tokens).
  *
- * Unlike the legacy cursor.ts which walks arbitrary contentEditable DOM,
- * these functions exploit the stable line-container format produced by
- * line-renderer.ts to compute offsets and restore cursors reliably.
+ * Offsets are ALWAYS in "raw text" space — matching what extractContentText
+ * produces and what Y.Text stores.  Elements with data-raw contribute their
+ * raw length (e.g. 9 for "[[hello]]") rather than their DOM text length
+ * (e.g. 5 for "hello").
  */
 export declare function getLineOffset(el: HTMLElement): number;
 export declare function setLineOffset(el: HTMLElement, targetOffset: number): void;

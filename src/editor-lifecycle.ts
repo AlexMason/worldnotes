@@ -107,6 +107,27 @@ export function createEditorLifecycle(
 
     let handlingInput = false
 
+    // Walk DOM to extract raw Markdown text, respecting data-raw attributes
+    // set by plugins (e.g. wiki links render as display text but store raw
+    // markup in data-raw). This replaces simple textContent which loses
+    // token boundaries.
+    function extractContentText(el: HTMLElement): string {
+      let text = ''
+      function walk(node: Node): void {
+        if (node.nodeType === Node.TEXT_NODE) {
+          text += (node as Text).textContent ?? ''
+        } else if (node instanceof HTMLElement) {
+          if (node.dataset.raw !== undefined) {
+            text += node.dataset.raw
+          } else {
+            node.childNodes.forEach(walk)
+          }
+        }
+      }
+      walk(el)
+      return text
+    }
+
     dom.editorDiv.addEventListener('input', () => {
       if (state.isNavigating()) return
       if (handlingInput) return
@@ -116,10 +137,9 @@ export function createEditorLifecycle(
       const page = trail[trail.length - 1]
       const ytext = yDocState.getPage(page)
 
-      // Sync DOM content → Y.Text.
-      // \n text nodes are placed between [data-line] containers during
-      // rendering, so textContent naturally includes newline separators.
-      const raw = dom.editorDiv.textContent ?? ''
+      // Use extractContentText to preserve data-raw token boundaries
+      // (e.g. [[wiki links]]) instead of plain textContent which loses them.
+      const raw = extractContentText(dom.editorDiv)
       const current = ytext.toString()
       if (raw !== current) {
         yDocState.doc.transact(() => {
