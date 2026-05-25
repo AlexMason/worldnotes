@@ -12,7 +12,9 @@ function createToken(type: string, raw: string, groups: string[]): Token {
 function createContext(overrides: Partial<EditorContext> = {}): EditorContext {
   const mockDoc = new Y.Doc()
   return {
-    navigate: () => {},
+    navigate: () => {
+      // noop
+    },
     getTrail: () => ['home'],
     getWorld: () => ({}),
     getDoc: () => mockDoc,
