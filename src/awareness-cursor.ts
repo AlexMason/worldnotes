@@ -119,6 +119,16 @@ export function setLineOffset(el: HTMLElement, targetOffset: number): void {
         range.collapse(true)
         sel.removeAllRanges()
         sel.addRange(range)
+      } else {
+        // Empty line (has <br> placeholder, no text nodes)
+        const sel = window.getSelection()
+        if (sel) {
+          const range = document.createRange()
+          range.setStart(lineEl, 0)
+          range.collapse(true)
+          sel.removeAllRanges()
+          sel.addRange(range)
+        }
       }
       return
     }
@@ -138,7 +148,7 @@ export function setLineOffset(el: HTMLElement, targetOffset: number): void {
     } else {
       range.selectNodeContents(lastLine)
     }
-    range.collapse(false)
+    range.collapse(true)
     sel.removeAllRanges()
     sel.addRange(range)
   }

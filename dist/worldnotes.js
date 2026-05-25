@@ -7368,6 +7368,12 @@ function gr(n, t) {
         if (!l) return;
         const d = document.createRange();
         d.setStart(a.node, a.offset), d.collapse(!0), l.removeAllRanges(), l.addRange(d);
+      } else {
+        const l = window.getSelection();
+        if (l) {
+          const d = document.createRange();
+          d.setStart(i, 0), d.collapse(!0), l.removeAllRanges(), l.addRange(d);
+        }
       }
       return;
     }
@@ -7378,7 +7384,7 @@ function gr(n, t) {
     const i = window.getSelection();
     if (!i) return;
     const o = document.createRange(), a = Qc(s);
-    a ? o.setStart(a, a.length) : o.selectNodeContents(s), o.collapse(!1), i.removeAllRanges(), i.addRange(o);
+    a ? o.setStart(a, a.length) : o.selectNodeContents(s), o.collapse(!0), i.removeAllRanges(), i.addRange(o);
   }
 }
 function Xc(n, t) {
