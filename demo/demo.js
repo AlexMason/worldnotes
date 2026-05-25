@@ -52,7 +52,7 @@ const storage = new LocalStorageAdapter()
 
 const app = document.getElementById('app')
 
-const editor = createEditor(app, {
+const editor = await createEditor(app, {
   storage,
   initialPage: 'home',
   saveDebounceMs: 600,
