@@ -280,3 +280,65 @@ describe('data-raw elements (wiki links)', () => {
     expect(offset).toBeLessThanOrEqual(9)
   })
 })
+
+// ─── Regression: cursor on \n text nodes between containers ─────────────────────
+
+describe('cursor on \\n text nodes between containers', () => {
+  it('getLineOffset resolves \\n node to start of next line', () => {
+    const el = document.createElement('div')
+    const line0 = document.createElement('div')
+    line0.dataset.line = '0'
+    line0.textContent = 'hello'
+    el.appendChild(line0)
+
+    const newlineNode = document.createTextNode('\n')
+    el.appendChild(newlineNode)
+
+    const line1 = document.createElement('div')
+    line1.dataset.line = '1'
+    line1.textContent = 'world'
+    el.appendChild(line1)
+
+    // Place cursor on the \n text node at offset 0
+    setCaretAt(newlineNode, 0)
+
+    // getLineOffset should resolve to start of line 1
+    // "hello\n" = 6, so offset 6 = start of "world"
+    const offset = getLineOffset(el)
+    expect(offset).toBe(6)
+
+    // Restore cursor via setLineOffset — cursor should land in line1
+    setLineOffset(el, offset)
+    const sel = window.getSelection()!
+    const range = sel.getRangeAt(0)
+    expect(range.startContainer).toBe(line1.firstChild)
+    expect(range.startOffset).toBe(0)
+  })
+
+  it('cursor can move from \\n node back to end of previous line', () => {
+    const el = document.createElement('div')
+    const line0 = document.createElement('div')
+    line0.dataset.line = '0'
+    line0.textContent = 'hello'
+    el.appendChild(line0)
+
+    const newlineNode = document.createTextNode('\n')
+    el.appendChild(newlineNode)
+
+    const line1 = document.createElement('div')
+    line1.dataset.line = '1'
+    line1.textContent = 'world'
+    el.appendChild(line1)
+
+    // Place cursor on the \n text node at offset 0
+    setCaretAt(newlineNode, 0)
+
+    // Simulate "going backward" — place at end of line 0 (offset 5)
+    setLineOffset(el, 5)
+    const sel = window.getSelection()!
+    const range = sel.getRangeAt(0)
+    expect(range.startContainer).toBe(line0.firstChild)
+    expect(range.startOffset).toBe(5) // end of "hello"
+  })
+})
+
