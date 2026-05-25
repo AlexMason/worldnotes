@@ -991,4 +991,36 @@ describe('EditorInstance cursor API', () => {
       expect(result!.text.length).toBe(9) // 'ello worl'
     })
   })
+
+  describe('input handler DOM sync fallback', () => {
+    it('syncs from textContent when no [data-line] containers exist', async () => {
+      const storage = mockStorage()
+      const state = mockState(['home'])
+      const dom = mockDOM()
+      const render = mockRender(state, dom)
+      const nav = mockNavigation()
+
+      const lifecycle = createEditorLifecycle(
+        dom,
+        [],
+        [],
+        state,
+        render,
+        nav,
+        storage,
+        { saveDebounceMs: 99999 },
+      )
+      await lifecycle.mount()
+
+      // Set content directly to editorDiv without going through render
+      // (no [data-line] containers exist)
+      dom.editorDiv.innerHTML = ''
+      dom.editorDiv.textContent = 'raw text content'
+
+      dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
+
+      const ytext = state.getYDocState().getPage('home')
+      expect(ytext.toString()).toBe('raw text content')
+    })
+  })
 })

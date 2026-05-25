@@ -113,7 +113,23 @@ export function createEditorLifecycle(
       const ytext = yDocState.getPage(page)
 
       // Sync DOM content → Y.Text
-      const raw = dom.editorDiv.textContent ?? ''
+      // Walk [data-line] containers and join with \n — textContent alone
+      // would concatenate lines without newline separators.
+      // Fall back to raw textContent if no line containers exist yet.
+      const lineEls = Array.from(
+        dom.editorDiv.querySelectorAll('[data-line]'),
+      ) as HTMLElement[]
+      let raw: string
+      if (lineEls.length > 0) {
+        lineEls.sort(
+          (a, b) =>
+            parseInt(a.dataset.line ?? '0', 10) -
+            parseInt(b.dataset.line ?? '0', 10),
+        )
+        raw = lineEls.map((el) => el.textContent ?? '').join('\n')
+      } else {
+        raw = dom.editorDiv.textContent ?? ''
+      }
       const current = ytext.toString()
       if (raw !== current) {
         yDocState.doc.transact(() => {

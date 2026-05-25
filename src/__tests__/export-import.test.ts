@@ -58,6 +58,32 @@ describe('exportWorld', () => {
     expect(await zip.file('empty.md')!.async('string')).toBe('')
   })
 
+  it('includes _worldnotes.yjs when __ync_update__ key exists', async () => {
+    const adapter = mockAdapter({
+      home: '# Home',
+      __ync_update__: 'base64encodeddata',
+    })
+
+    const blob = await exportWorld(adapter)
+    const zip = await JSZip.loadAsync(blob)
+
+    expect(zip.file('_worldnotes.yjs')).toBeTruthy()
+    expect(zip.file('home.md')).toBeTruthy()
+  })
+
+  it('excludes __ync_update__ from individual .md files', async () => {
+    const adapter = mockAdapter({
+      home: '# Home',
+      __ync_update__: 'data',
+    })
+
+    const blob = await exportWorld(adapter)
+    const zip = await JSZip.loadAsync(blob)
+
+    expect(zip.file('__ync_update__.md')).toBeFalsy()
+    expect(zip.file('_worldnotes.yjs')).toBeTruthy()
+  })
+
   it('uses custom filename option in zip metadata', async () => {
     const adapter = mockAdapter({ home: '# Home' })
 
@@ -179,5 +205,19 @@ describe('importWorld', () => {
 
     expect(result.imported).toContain('test')
     expect(adapter.set).toHaveBeenCalledWith('test', 'file content')
+  })
+
+  it('imports _worldnotes.yjs as __ync_update__ key', async () => {
+    const adapter = mockAdapter({})
+    const zip = new JSZip()
+    zip.file('_worldnotes.yjs', 'yjs-binary-data')
+    zip.file('home.md', '# Home')
+    const blob = await zip.generateAsync({ type: 'blob' })
+
+    const result = await importWorld(adapter, blob)
+
+    expect(result.imported).toContain('_worldnotes.yjs')
+    expect(result.imported).toContain('home')
+    expect(adapter.set).toHaveBeenCalledWith('__ync_update__', 'yjs-binary-data')
   })
 })

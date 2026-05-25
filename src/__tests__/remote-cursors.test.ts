@@ -271,4 +271,68 @@ describe('renderRemoteCursors', () => {
     const label = overlay.querySelector('.wn-remote-cursor-label')
     expect(label?.textContent).toBe('User 5')
   })
+
+  it('returns null position when no line containers exist in editor', () => {
+    const overlay = document.createElement('div')
+    const editorDiv = document.createElement('div')
+    // No [data-line] containers — offsetToPixelPosition returns null
+    // The cursor is still rendered (appended to overlay), just without explicit position
+
+    const mockAwareness = {
+      clientID: 1,
+      getStates: () =>
+        new Map([[2, { cursor: { offset: 0, page: 'home' }, user: { name: 'Ghost', color: '#ff0000' } }]]),
+    }
+
+    renderRemoteCursors(
+      overlay,
+      mockAwareness as Parameters<typeof renderRemoteCursors>[1],
+      editorDiv,
+      1,
+    )
+
+    // Cursor element is still created even without position
+    const cursors = overlay.querySelectorAll('.wn-remote-cursor')
+    expect(cursors.length).toBe(1)
+  })
+
+  it('handles cursor at offset 0', () => {
+    const overlay = document.createElement('div')
+    const editorDiv = document.createElement('div')
+    const lineEl = document.createElement('div')
+    lineEl.dataset.line = '0'
+    lineEl.textContent = 'hello'
+    lineEl.getBoundingClientRect = () => ({
+      left: 10,
+      top: 20,
+      right: 200,
+      bottom: 40,
+      width: 190,
+      height: 20,
+      x: 10,
+      y: 20,
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      toJSON: () => {},
+    })
+    editorDiv.appendChild(lineEl)
+
+    const mockAwareness = {
+      clientID: 1,
+      getStates: () =>
+        new Map([[2, { cursor: { offset: 0, page: 'home' }, user: { name: 'Start', color: '#00ff00' } }]]),
+    }
+
+    renderRemoteCursors(
+      overlay,
+      mockAwareness as Parameters<typeof renderRemoteCursors>[1],
+      editorDiv,
+      1,
+    )
+
+    const cursor = overlay.querySelector('.wn-remote-cursor') as HTMLElement
+    expect(cursor).toBeTruthy()
+    // Offset 0 should position at the start of the first line
+    expect(cursor.style.left).toBe('10px')
+    expect(cursor.style.top).toBe('20px')
+  })
 })
