@@ -91,6 +91,9 @@ export function createEditorRender(
   }
 
   function checkSelectChange(): void {
+    const sel = window.getSelection()
+    if (!sel || !sel.isCollapsed) return
+
     const offset = getLineOffset(editorDiv)
     const yDocState = state.getYDocState()
     const trail = state.getTrail()

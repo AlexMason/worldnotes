@@ -7906,8 +7906,10 @@ function zh(n, t, e, r = {}) {
     }
   }
   function u() {
-    const g = Pt(s), l = e.getYDocState(), w = e.getTrail(), p = w[w.length - 1], _ = l.getPage(p).toString();
-    Vs(_, g) !== a && c();
+    const g = window.getSelection();
+    if (!g || !g.isCollapsed) return;
+    const l = Pt(s), w = e.getYDocState(), p = e.getTrail(), _ = p[p.length - 1], y = w.getPage(_).toString();
+    Vs(y, l) !== a && c();
   }
   function f() {
     o.innerHTML = "";
