@@ -7963,8 +7963,16 @@ function Mh(n, t, e, r) {
 
 `);
     }
-    const h = n.getTrail().indexOf(c);
-    h !== -1 ? n.truncateTrail(h) : n.pushTrail(c), await a(c);
+    const f = n.getTrail(), h = f.indexOf(c);
+    if (h !== -1)
+      n.truncateTrail(h);
+    else {
+      const g = c.split("/");
+      let l = "";
+      for (const w of g)
+        l = l ? `${l}/${w}` : w, f.includes(l) || n.pushTrail(l);
+    }
+    await a(c);
   }
   async function a(c) {
     n.setNavigating(!0);

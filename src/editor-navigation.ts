@@ -54,7 +54,14 @@ export function createEditorNavigation(
     if (existingIndex !== -1) {
       state.truncateTrail(existingIndex)
     } else {
-      state.pushTrail(page)
+      const segments = page.split('/')
+      let partial = ''
+      for (const segment of segments) {
+        partial = partial ? `${partial}/${segment}` : segment
+        if (!trail.includes(partial)) {
+          state.pushTrail(partial)
+        }
+      }
     }
     await loadPage(page)
   }

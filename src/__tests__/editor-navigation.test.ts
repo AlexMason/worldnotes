@@ -246,6 +246,46 @@ describe('createEditorNavigation', () => {
 
       expect(multiTrailState.getTrail()).toEqual(['home', 'blog', 'about'])
     })
+
+    it('pushes progressive path segments for multi-segment page names', async () => {
+      const baseState = mockState(['home'])
+      const nav = createEditorNavigation(baseState, storage, dom, options)
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('projects/worldnotes')
+
+      expect(baseState.getTrail()).toEqual(['home', 'projects', 'projects/worldnotes'])
+    })
+
+    it('skips intermediate segments already present in the trail', async () => {
+      const baseState = mockState(['home', 'projects'])
+      const nav = createEditorNavigation(baseState, storage, dom, options)
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('projects/worldnotes')
+
+      expect(baseState.getTrail()).toEqual(['home', 'projects', 'projects/worldnotes'])
+    })
+
+    it('pushes deeply nested path segments progressively', async () => {
+      const baseState = mockState(['home'])
+      const nav = createEditorNavigation(baseState, storage, dom, options)
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('a/b/c')
+
+      expect(baseState.getTrail()).toEqual(['home', 'a', 'a/b', 'a/b/c'])
+    })
+
+    it('still truncates when navigating to an existing multi-segment page', async () => {
+      const baseState = mockState(['home', 'projects', 'projects/worldnotes'])
+      const nav = createEditorNavigation(baseState, storage, dom, options)
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('projects')
+
+      expect(baseState.getTrail()).toEqual(['home', 'projects'])
+    })
   })
 
   // ── loadPage ──────────────────────────────────────────────────────────────
