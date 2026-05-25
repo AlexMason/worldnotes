@@ -4,6 +4,7 @@ import { headingsPlugin } from './headings'
 import { boldPlugin, italicPlugin, inlineCodePlugin, blockquotePlugin, hrPlugin } from './inline'
 import { linkPlugin } from './link'
 import { strikethroughPlugin } from './strikethrough'
+import { listItemPlugin } from './listItem'
 
 /**
  * The default plugin set loaded by createEditor() when no plugins are specified.
@@ -15,6 +16,7 @@ export const defaultPlugins: ContentPlugin[] = [
   headingsPlugin, // line-level — must come before inline plugins
   hrPlugin, // line-level
   blockquotePlugin, // line-level
+  listItemPlugin, // line-level
   wikiLinkPlugin, // inline — [[...]] before [...] to avoid partial match (Pitfall 1)
   linkPlugin, // inline — [text](url) after [[...]]
   boldPlugin, // inline — ** before * to avoid partial match
