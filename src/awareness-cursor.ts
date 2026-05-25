@@ -6,6 +6,26 @@
  * line-renderer.ts to compute offsets and restore cursors reliably.
  */
 
+function getOffsetBeforeLine(el: HTMLElement, lineIndex: number): number {
+  let offset = 0
+  const allLines = Array.from(
+    el.querySelectorAll('[data-line]'),
+  ) as HTMLElement[]
+  allLines.sort((a, b) => {
+    return (
+      parseInt(a.dataset.line ?? '0', 10) -
+      parseInt(b.dataset.line ?? '0', 10)
+    )
+  })
+
+  for (const line of allLines) {
+    const idx = parseInt(line.dataset.line ?? '0', 10)
+    if (idx >= lineIndex) break
+    offset += (line.textContent ?? '').length + 1 // +1 for newline
+  }
+  return offset
+}
+
 export function getLineOffset(el: HTMLElement): number {
   const sel = window.getSelection()
   if (!sel || !sel.rangeCount) return 0
@@ -25,27 +45,29 @@ export function getLineOffset(el: HTMLElement): number {
     lineEl = lineEl.parentNode
   }
 
-  if (!lineEl || !(lineEl instanceof HTMLElement)) return 0
+  if (!lineEl || !(lineEl instanceof HTMLElement)) {
+    // Cursor is in a \n text node between containers.
+    // Walk to the preceding sibling container.
+    let prev = container.previousSibling
+    while (
+      prev &&
+      !(prev instanceof HTMLElement && prev.dataset.line !== undefined)
+    ) {
+      prev = prev.previousSibling
+    }
+    if (prev instanceof HTMLElement && prev.dataset.line !== undefined) {
+      const idx = parseInt(prev.dataset.line ?? '0', 10)
+      // Offset is after the entire preceding line + the \n
+      return getOffsetBeforeLine(el, idx) +
+        (prev.textContent ?? '').length + 1
+    }
+    return 0
+  }
 
   const lineIndex = parseInt(lineEl.dataset.line ?? '0', 10)
 
   // Count characters in all lines before this one (+1 per line for newline)
-  let offset = 0
-  const allLines = Array.from(
-    el.querySelectorAll('[data-line]'),
-  ) as HTMLElement[]
-  allLines.sort((a, b) => {
-    return (
-      parseInt(a.dataset.line ?? '0', 10) -
-      parseInt(b.dataset.line ?? '0', 10)
-    )
-  })
-
-  for (const line of allLines) {
-    const idx = parseInt(line.dataset.line ?? '0', 10)
-    if (idx >= lineIndex) break
-    offset += (line.textContent ?? '').length + 1 // +1 for newline
-  }
+  const offset = getOffsetBeforeLine(el, lineIndex)
 
   // Offset within the current line's text nodes
   let lineOffset = 0

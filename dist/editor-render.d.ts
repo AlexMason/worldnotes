@@ -1,9 +1,6 @@
 import { ContentPlugin } from './types';
 import { EditorStateAPI } from './editor-state';
 import { EditorDOM } from './editor-dom';
-/**
- * Public API returned by {@link createEditorRender}.
- */
 export interface EditorRenderAPI {
     render(force?: boolean): void;
     renderBreadcrumb(): void;

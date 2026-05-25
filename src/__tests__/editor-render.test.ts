@@ -97,8 +97,9 @@ describe('createEditorRender: render()', () => {
   it('extracts text, tokenizes, renders, sets innerHTML, and restores caret', () => {
     const render = createEditorRender(dom, plugins, state, {})
 
-    // Set some text content in the editor div
-    dom.editorDiv.textContent = 'hello world'
+    // Write content to Y.Text — render() reads from Y.Text, not DOM
+    const ytext = state.getYDocState().getPage('test')
+    ytext.insert(0, 'hello world')
 
     render.render()
 
@@ -143,13 +144,14 @@ describe('createEditorRender: render()', () => {
   it('preserves caret position after re-render', () => {
     const render = createEditorRender(dom, plugins, state, {})
 
-    // Set initial content
-    dom.editorDiv.textContent = 'hello world'
+    // Write initial content to Y.Text
+    const ytext = state.getYDocState().getPage('test')
+    ytext.insert(0, 'hello world')
     render.render()
 
-    // Simulate a caret position by getting the offset after first render,
-    // then verify a second render doesn't lose content
-    dom.editorDiv.textContent = 'hello world again'
+    // Change content in Y.Text and re-render
+    ytext.delete(0, ytext.length)
+    ytext.insert(0, 'hello world again')
     render.render()
 
     expect(dom.editorDiv.innerHTML.length).toBeGreaterThan(0)
@@ -160,7 +162,8 @@ describe('createEditorRender: render()', () => {
   it('produces line separators between multi-line content', () => {
     const render = createEditorRender(dom, plugins, state, {})
 
-    dom.editorDiv.textContent = 'line1\nline2'
+    const ytext = state.getYDocState().getPage('test')
+    ytext.insert(0, 'line1\nline2')
     render.render()
 
     // The rendered output should contain both lines

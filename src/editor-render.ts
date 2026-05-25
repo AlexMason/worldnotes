@@ -7,9 +7,6 @@ import { getLineOffset, setLineOffset } from './awareness-cursor'
 import { renderLines } from './line-renderer'
 import { pageDisplayName, encodePathSearch } from './navigation'
 
-/**
- * Public API returned by {@link createEditorRender}.
- */
 export interface EditorRenderAPI {
   render(force?: boolean): void
   renderBreadcrumb(): void
@@ -29,16 +26,10 @@ export function createEditorRender(
   options: EditorRenderOptions = {},
 ): EditorRenderAPI {
   const { editorDiv, placeholder, breadcrumb } = dom
-  const lineCache = new Map<number, string>()
 
   // ── Full render pipeline ──────────────────────────────────────────────────
 
-  function render(force = false): void {
-    if (force) {
-      lineCache.clear()
-      editorDiv.innerHTML = ''
-    }
-
+  function render(_force = false): void {
     const offset = getLineOffset(editorDiv)
 
     const yDocState = state.getYDocState()
@@ -50,30 +41,13 @@ export function createEditorRender(
     const context = state.toContext(
       options.navigateFn ??
         ((_p: string): void => {
-          /* noop — wired by orchestrator after navigation module is created */
+          /* noop */
         }),
     )
 
-    renderLines(
-      raw,
-      contentPlugins,
-      context,
-      lineCache,
-      editorDiv,
-    )
+    renderLines(raw, contentPlugins, context, editorDiv)
 
     placeholder.style.display = raw.length ? 'none' : 'block'
-
-    // Re-order containers to ensure sequential [data-line] order
-    const containers = Array.from(editorDiv.querySelectorAll('[data-line]'))
-    containers.sort((a, b) => {
-      const ai = parseInt((a as HTMLElement).dataset.line ?? '0', 10)
-      const bi = parseInt((b as HTMLElement).dataset.line ?? '0', 10)
-      return ai - bi
-    })
-    for (const c of containers) {
-      editorDiv.appendChild(c)
-    }
 
     try {
       setLineOffset(editorDiv, offset)
