@@ -40,12 +40,6 @@ export function renderLines(
       }
     }
     editorDiv.appendChild(container)
-
-    // Add \n text node between lines so textContent naturally
-    // includes newline separators
-    if (i < lines.length - 1) {
-      editorDiv.appendChild(document.createTextNode('\n'))
-    }
   }
 
   return { lineCount: lines.length, lineLengths }

@@ -113,6 +113,7 @@ export function createEditorLifecycle(
     // token boundaries.
     function extractContentText(el: HTMLElement): string {
       let text = ''
+      let hadDataLine = false
       function walk(node: Node): void {
         if (node.nodeType === Node.TEXT_NODE) {
           text += (node as Text).textContent ?? ''
@@ -120,6 +121,10 @@ export function createEditorLifecycle(
           if (node.dataset.raw !== undefined) {
             text += node.dataset.raw
           } else {
+            if (node.dataset.line !== undefined) {
+              if (hadDataLine) text += '\n'
+              hadDataLine = true
+            }
             node.childNodes.forEach(walk)
           }
         }
@@ -252,51 +257,10 @@ export function createEditorLifecycle(
     // ── Selection change — re-render when cursor moves to a different line ──
 
     let selectChangePending = false
-
-    // Track previous raw offset so we can determine cursor movement
-    // direction when the caret lands on a \n text node between containers.
-    let prevRawOffset = 0
-
-    function fixCursorBetweenLines(): void {
-      const sel = window.getSelection()
-      if (!sel || !sel.rangeCount || !sel.isCollapsed) return
-
-      const container = sel.getRangeAt(0).startContainer
-
-      // Detect when the cursor is on a \n text node between
-      // [data-line] containers — these are direct children of
-      // the editor div.
-      if (
-        container.nodeType === Node.TEXT_NODE &&
-        container.parentNode === dom.editorDiv
-      ) {
-        const offset = getLineOffset(dom.editorDiv)
-        // getLineOffset always resolves \n nodes to "start of
-        // next line".  If the cursor moved backward (Up),
-        // place it at end of previous line instead (offset-1).
-        const goingBackward = offset <= prevRawOffset
-        const targetOffset = goingBackward ? Math.max(0, offset - 1) : offset
-        setLineOffset(dom.editorDiv, targetOffset)
-      } else {
-        try {
-          prevRawOffset = getLineOffset(dom.editorDiv)
-        } catch {
-          // ignore
-        }
-      }
-    }
-
     document.addEventListener('selectionchange', () => {
       if (handlingInput || selectChangePending || state.isNavigating())
         return
-
-      // Synchronously fix cursor on \n text nodes before the
-      // rAF-debounced active-line check.  This prevents the
-      // browser from parking the caret between containers.
-      fixCursorBetweenLines()
-
       selectChangePending = true
-      // Use rAF to coalesce rapid selection changes (e.g. during arrow-key hold)
       requestAnimationFrame(() => {
         selectChangePending = false
         render.checkSelectChange()
