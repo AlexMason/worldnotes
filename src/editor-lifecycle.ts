@@ -196,6 +196,36 @@ export function createEditorLifecycle(
       } else if (e.key === 'Enter') {
         e.preventDefault()
         insertTextAtSelection('\n')
+      } else if (e.key === 'Backspace') {
+        e.preventDefault()
+        const sel = window.getSelection()
+        if (!sel || !sel.rangeCount) return
+
+        const range = sel.getRangeAt(0)
+
+        if (!range.collapsed) {
+          range.deleteContents()
+          sel.removeAllRanges()
+          sel.addRange(range)
+          dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
+          return
+        }
+
+        const offset = getLineOffset(dom.editorDiv)
+        if (offset > 0) {
+          const trail = state.getTrail()
+          const page = trail[trail.length - 1]
+          const ytext = yDocState.getPage(page)
+          const raw = ytext.toString()
+          const updated = raw.slice(0, offset - 1) + raw.slice(offset)
+          yDocState.doc.transact(() => {
+            ytext.delete(0, raw.length)
+            ytext.insert(0, updated)
+          })
+          render.render()
+          setLineOffset(dom.editorDiv, offset - 1)
+          saveDebounced()
+        }
       }
     })
 

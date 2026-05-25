@@ -3,7 +3,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createEditor } from '../editor'
 import type { ContentPlugin, Token, EditorContext, StorageAdapter } from '../types'
-import { getLineOffset } from '../awareness-cursor'
+import { getLineOffset, setLineOffset } from '../awareness-cursor'
 
 // ─── Test Helpers ─────────────────────────────────────────────────────────────
 
@@ -50,6 +50,24 @@ function createMockStorage(): StorageAdapter {
     },
     keys: async () => [] as string[],
   }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function setCaretAtLineStart(editorDiv: HTMLElement, lineIndex: number): void {
+  const allLines = Array.from(
+    editorDiv.querySelectorAll('[data-line]'),
+  ) as HTMLElement[]
+  allLines.sort(
+    (a, b) =>
+      parseInt(a.dataset.line ?? '0', 10) -
+      parseInt(b.dataset.line ?? '0', 10),
+  )
+  let offset = 0
+  for (let i = 0; i < lineIndex; i++) {
+    offset += (allLines[i].textContent ?? '').length + 1 // +1 for \n separator
+  }
+  setLineOffset(editorDiv, offset)
 }
 
 // ─── createEditor ─────────────────────────────────────────────────────────────
@@ -311,18 +329,71 @@ describe('Editor keyboard and paste handling', () => {
     editor.destroy()
   })
 
-  // ── Regression: Enter key cursor stability ─────────────────────────────────
+  // ── Regression: Backspace on empty line ────────────────────────────────────
 
-  describe('Enter key cursor stability', () => {
-    it('cursor stays on the new empty line after pressing Enter at end of line', async () => {
+  describe('Backspace on empty line', () => {
+    it('removes the empty line when pressing Backspace at start of empty line', async () => {
       const mockStorage = createMockStorage()
       const editor = await createEditor(container, { storage: mockStorage }).mount()
       const editorDiv = container.querySelector('.wn-editor') as HTMLElement
 
-      // Type 'hello' by directly writing to Y.Text and rendering
+      // Set up two-line content: "hello\n" (second line is empty)
+      editor.setContent('hello\n')
+
+      // DOM after render: line0="hello", \n, line1=<br>
+      // Place cursor at start of empty line1 (offset 6)
+      setCaretAtLineStart(editorDiv, 1)
+
+      const beforeContent = editor.getContent()
+      expect(beforeContent).toBe('hello\n')
+
+      // Press Backspace — should remove the empty line
+      const backspaceEvent = new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true })
+      editorDiv.dispatchEvent(backspaceEvent)
+
+      const afterContent = editor.getContent()
+      expect(afterContent).toBe('hello')
+
+      // Cursor should be at end of remaining line
+      const afterOffset = getLineOffset(editorDiv)
+      expect(afterOffset).toBe(5)
+
+      editor.destroy()
+    })
+
+    it('removes empty middle line when pressing Backspace', async () => {
+      const mockStorage = createMockStorage()
+      const editor = await createEditor(container, { storage: mockStorage }).mount()
+      const editorDiv = container.querySelector('.wn-editor') as HTMLElement
+
+      // Three lines with empty middle: "line1\n\nline3"
+      editor.setContent('line1\n\nline3')
+
+      // Place cursor at start of the empty middle line (line index 1)
+      setCaretAtLineStart(editorDiv, 1)
+
+      // Press Backspace
+      const backspaceEvent = new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true })
+      editorDiv.dispatchEvent(backspaceEvent)
+
+      // Should remove the empty line and merge: "line1\nline3"
+      expect(editor.getContent()).toBe('line1\nline3')
+
+      // Cursor should be at end of "line1" (offset 5, before the \n)
+      const afterOffset = getLineOffset(editorDiv)
+      expect(afterOffset).toBe(5)
+
+      editor.destroy()
+    })
+
+    it('deletes character before cursor when not at start of line', async () => {
+      const mockStorage = createMockStorage()
+      const editor = await createEditor(container, { storage: mockStorage }).mount()
+      const editorDiv = container.querySelector('.wn-editor') as HTMLElement
+
       editor.setContent('hello')
 
-      // Place cursor at end of 'hello' (offset 5)
+      // Place cursor at end (offset 5)
       const line0 = editorDiv.querySelector('[data-line="0"]') as HTMLElement
       const textNode = line0.firstChild as Text
       const range = document.createRange()
@@ -332,48 +403,13 @@ describe('Editor keyboard and paste handling', () => {
       sel.removeAllRanges()
       sel.addRange(range)
 
-      // Save offset before Enter
-      const beforeOffset = getLineOffset(editorDiv)
-      expect(beforeOffset).toBe(5)
+      // Press Backspace — should delete the 'o'
+      const backspaceEvent = new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true })
+      editorDiv.dispatchEvent(backspaceEvent)
 
-      // Press Enter
-      const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
-      editorDiv.dispatchEvent(enterEvent)
-
-      // After Enter, cursor should be at the start of the new empty line
+      expect(editor.getContent()).toBe('hell')
       const afterOffset = getLineOffset(editorDiv)
-      // "hello\n" → offset 6 = start of new empty line
-      expect(afterOffset).toBe(6)
-      expect(editor.getContent()).toBe('hello\n')
-
-      editor.destroy()
-    })
-
-    it('cursor stays on the split line after pressing Enter mid-line', async () => {
-      const mockStorage = createMockStorage()
-      const editor = await createEditor(container, { storage: mockStorage }).mount()
-      const editorDiv = container.querySelector('.wn-editor') as HTMLElement
-
-      editor.setContent('hello world')
-
-      // Place cursor after 'hello ' (offset 6)
-      const line0 = editorDiv.querySelector('[data-line="0"]') as HTMLElement
-      const textNode = line0.firstChild as Text
-      const range = document.createRange()
-      range.setStart(textNode, 6)
-      range.collapse(true)
-      const sel = window.getSelection()!
-      sel.removeAllRanges()
-      sel.addRange(range)
-
-      // Press Enter
-      const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
-      editorDiv.dispatchEvent(enterEvent)
-
-      // After Enter, cursor should be at start of second line (after "hello \n")
-      const afterOffset = getLineOffset(editorDiv)
-      // "hello \nworld" → offset 7 = start of "world" in line 1
-      expect(afterOffset).toBe(7)
+      expect(afterOffset).toBe(4)
 
       editor.destroy()
     })
