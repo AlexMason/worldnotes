@@ -323,3 +323,101 @@ describe('wn-toolbar slot', () => {
     expect(text).toContain('.wn-toolbar')
   })
 })
+
+// ─── New UI slots (header, body, sidepanels, footer) ───────────────────────────
+
+describe('new UI slots (header, body, sidepanels, footer)', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    const existing = document.getElementById('worldnotes-styles')
+    if (existing) existing.remove()
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+  })
+
+  it('createEditorDOM returns header, body, footer, leftSidepanel, rightSidepanel', () => {
+    const dom = createEditorDOM(container)
+
+    expect(dom.header).toBeDefined()
+    expect(dom.header).toBeInstanceOf(HTMLDivElement)
+    expect(dom.header.className).toBe('wn-header')
+
+    expect(dom.body).toBeDefined()
+    expect(dom.body).toBeInstanceOf(HTMLDivElement)
+    expect(dom.body.className).toBe('wn-body')
+
+    expect(dom.footer).toBeDefined()
+    expect(dom.footer).toBeInstanceOf(HTMLDivElement)
+    expect(dom.footer.className).toBe('wn-footer')
+
+    expect(dom.leftSidepanel).toBeDefined()
+    expect(dom.leftSidepanel).toBeInstanceOf(HTMLDivElement)
+    expect(dom.leftSidepanel.className).toBe('wn-left-sidepanel')
+
+    expect(dom.rightSidepanel).toBeDefined()
+    expect(dom.rightSidepanel).toBeInstanceOf(HTMLDivElement)
+    expect(dom.rightSidepanel.className).toBe('wn-right-sidepanel')
+  })
+
+  it('.wn-root children are ordered: header, topbar, toolbar, body, footer', () => {
+    const dom = createEditorDOM(container)
+
+    const children = Array.from(container.children)
+    expect(children).toHaveLength(5)
+
+    expect(children[0]).toBe(dom.header)
+    expect(children[1]).toBe(dom.topbar)
+    expect(children[2]).toBe(dom.toolbar)
+    expect(children[3]).toBe(dom.body)
+    expect(children[4]).toBe(dom.footer)
+  })
+
+  it('.wn-body contains left-sidepanel, editor-wrap, right-sidepanel in order', () => {
+    const dom = createEditorDOM(container)
+
+    const bodyChildren = Array.from(dom.body.children)
+    expect(bodyChildren).toHaveLength(3)
+
+    expect(bodyChildren[0]).toBe(dom.leftSidepanel)
+    expect(bodyChildren[1]).toBe(dom.editorWrap)
+    expect(bodyChildren[2]).toBe(dom.rightSidepanel)
+  })
+
+  it('sidepanels are display:none when empty', () => {
+    const dom = createEditorDOM(container)
+
+    expect(dom.leftSidepanel.children.length).toBe(0)
+    expect(dom.rightSidepanel.children.length).toBe(0)
+
+    const leftDisplay = window.getComputedStyle(dom.leftSidepanel).display
+    const rightDisplay = window.getComputedStyle(dom.rightSidepanel).display
+    expect(leftDisplay).toBe('none')
+    expect(rightDisplay).toBe('none')
+  })
+
+  it('sidepanel becomes visible when a child is appended', () => {
+    const dom = createEditorDOM(container)
+
+    const child = document.createElement('span')
+    child.textContent = 'panel content'
+    dom.leftSidepanel.appendChild(child)
+
+    const display = window.getComputedStyle(dom.leftSidepanel).display
+    expect(display).toBe('block')
+  })
+
+  it('CSS rules for new slots are present in injected stylesheet', () => {
+    createEditorDOM(container)
+    const text = getStyleText()
+
+    expect(text).toContain('.wn-header')
+    expect(text).toContain('.wn-body')
+    expect(text).toContain('.wn-footer')
+    expect(text).toContain('.wn-left-sidepanel')
+    expect(text).toContain('.wn-right-sidepanel')
+    expect(text).toContain('.wn-left-sidepanel:not(:empty)')
+    expect(text).toContain('.wn-right-sidepanel:not(:empty)')
+  })
+})
