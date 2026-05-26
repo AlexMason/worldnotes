@@ -293,19 +293,19 @@ describe('wn-toolbar slot', () => {
     expect(dom.toolbar.className).toBe('wn-toolbar')
   })
 
-  it('toolbar div is positioned between topbar and editor-wrap in DOM order', () => {
+  it('toolbar div is positioned between topbar and body in DOM order', () => {
     const dom = createEditorDOM(container)
 
     const children = Array.from(container.children)
-    expect(children).toHaveLength(3) // topbar, toolbar, editorWrap
+    expect(children).toHaveLength(5) // header, topbar, toolbar, body, footer
 
     const topbarIndex = children.indexOf(dom.topbar)
     const toolbarIndex = children.indexOf(dom.toolbar)
-    const editorWrapIndex = children.indexOf(dom.editorWrap)
+    const bodyIndex = children.indexOf(dom.body)
 
-    expect(topbarIndex).toBe(0)
-    expect(toolbarIndex).toBe(1)
-    expect(editorWrapIndex).toBe(2)
+    expect(topbarIndex).toBe(1)
+    expect(toolbarIndex).toBe(2)
+    expect(bodyIndex).toBe(3)
   })
 
   it('toolbar div has zero height when empty', () => {

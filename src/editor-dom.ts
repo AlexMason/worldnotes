@@ -96,6 +96,30 @@ const DEFAULT_CSS =
   flex-shrink: 0;
 }
 
+.wn-header { flex-shrink: 0; }
+
+.wn-body { display: flex; flex: 1; min-height: 0; }
+
+.wn-footer { flex-shrink: 0; }
+
+.wn-left-sidepanel {
+  display: none;
+  width: 240px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-right: 0.5px solid var(--wn-color-border, #1f1f23);
+}
+.wn-left-sidepanel:not(:empty) { display: block; }
+
+.wn-right-sidepanel {
+  display: none;
+  width: 240px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-left: 0.5px solid var(--wn-color-border, #1f1f23);
+}
+.wn-right-sidepanel:not(:empty) { display: block; }
+
 .wn-breadcrumb {
   display: flex;
   align-items: center;
@@ -151,6 +175,7 @@ const DEFAULT_CSS =
   color: var(--wn-color-fg-muted, #282838);
   pointer-events: none;
   user-select: none;
+  padding-top: 6.5px;
 }
 
 /* Punctuation */
@@ -320,6 +345,11 @@ export interface EditorDOM {
   editorDiv: HTMLDivElement
   placeholder: HTMLElement
   overlay: HTMLElement
+  header: HTMLElement
+  body: HTMLElement
+  footer: HTMLElement
+  leftSidepanel: HTMLElement
+  rightSidepanel: HTMLElement
 }
 
 /**
@@ -342,13 +372,18 @@ export function createEditorDOM(container: HTMLElement, theme?: string): EditorD
   container.innerHTML = ''
   container.className = 'wn-root'
 
+  const header = el('div', 'wn-header')
   const topbar = el('div', 'wn-topbar')
   const breadcrumb = el('div', 'wn-breadcrumb')
   const toolbar = el('div', 'wn-toolbar')
+  const body = el('div', 'wn-body')
+  const leftSidepanel = el('div', 'wn-left-sidepanel')
   const editorWrap = el('div', 'wn-editor-wrap')
   const editorDiv = el('div', 'wn-editor') as HTMLDivElement
   const placeholder = el('div', 'wn-placeholder')
   const overlay = el('div', 'wn-overlay')
+  const rightSidepanel = el('div', 'wn-right-sidepanel')
+  const footer = el('div', 'wn-footer')
 
   placeholder.textContent = 'Start writing… use [[page name]] to link deeper'
   editorDiv.contentEditable = 'true'
@@ -358,9 +393,14 @@ export function createEditorDOM(container: HTMLElement, theme?: string): EditorD
   editorWrap.appendChild(placeholder)
   editorWrap.appendChild(editorDiv)
   editorWrap.appendChild(overlay)
+  body.appendChild(leftSidepanel)
+  body.appendChild(editorWrap)
+  body.appendChild(rightSidepanel)
+  container.appendChild(header)
   container.appendChild(topbar)
   container.appendChild(toolbar)
-  container.appendChild(editorWrap)
+  container.appendChild(body)
+  container.appendChild(footer)
 
-  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder, overlay }
+  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder, overlay, header, body, footer, leftSidepanel, rightSidepanel }
 }

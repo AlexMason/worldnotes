@@ -156,7 +156,7 @@ function mockDOM(): EditorDOM {
   container.appendChild(toolbar)
   container.appendChild(editorWrap)
 
-  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder, overlay: document.createElement('div') }
+  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder, overlay: document.createElement('div'), header: document.createElement('div'), body: document.createElement('div'), footer: document.createElement('div'), leftSidepanel: document.createElement('div'), rightSidepanel: document.createElement('div') }
 }
 
 function mockRender(): EditorRenderAPI {
