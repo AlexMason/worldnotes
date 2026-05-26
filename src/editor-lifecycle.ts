@@ -332,8 +332,12 @@ export function createEditorLifecycle(
     // ── Mount UI plugins ──────────────────────────────────────────────────
 
     const slotElements: Record<string, HTMLElement> = {
+      'wn-header': dom.header,
       'wn-toolbar': dom.toolbar,
       'wn-overlay': dom.overlay,
+      'wn-left-sidepanel': dom.leftSidepanel,
+      'wn-right-sidepanel': dom.rightSidepanel,
+      'wn-footer': dom.footer,
     }
     for (const plugin of uiPlugins) {
       for (const slot of plugin.slots) {
