@@ -210,6 +210,13 @@ describe('DEFAULT_CSS (var(--wn-*) references)', () => {
     expect(text).toContain('.wn-wiki-link')
     expect(text).toContain('.wn-strikethrough')
     expect(text).toContain('.wn-link')
+    expect(text).toContain('.wn-header')
+    expect(text).toContain('.wn-body')
+    expect(text).toContain('.wn-footer')
+    expect(text).toContain('.wn-left-sidepanel')
+    expect(text).toContain('.wn-right-sidepanel')
+    expect(text).toContain('.wn-overlay')
+    expect(text).toContain('.wn-toolbar')
   })
 })
 
