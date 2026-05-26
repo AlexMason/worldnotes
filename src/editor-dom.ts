@@ -175,7 +175,6 @@ const DEFAULT_CSS =
   color: var(--wn-color-fg-muted, #282838);
   pointer-events: none;
   user-select: none;
-  padding-top: 6.5px;
 }
 
 /* Punctuation */
@@ -328,13 +327,19 @@ function injectStyles(theme?: string): void {
 /**
  * Public handle for the editor DOM elements returned by {@link createEditorDOM}.
  *
- * @property container   - The root wn-root element (the original container)
- * @property topbar      - Top bar wrapper containing breadcrumbs
- * @property breadcrumb   - Breadcrumb navigation element
- * @property toolbar     - Toolbar slot container between topbar and editor area
- * @property editorWrap  - Wrapper around editor and placeholder
- * @property editorDiv   - The contentEditable editor div
- * @property placeholder - Initial placeholder text element
+ * @property container      - The root wn-root element (the original container)
+ * @property topbar         - Top bar wrapper containing breadcrumbs
+ * @property breadcrumb      - Breadcrumb navigation element
+ * @property toolbar        - Toolbar slot container between topbar and editor area
+ * @property editorWrap     - Wrapper around editor and placeholder
+ * @property editorDiv      - The contentEditable editor div
+ * @property placeholder    - Initial placeholder text element
+ * @property overlay        - Remote cursor overlay layer (absolute positioned)
+ * @property header         - Header slot above topbar (hidden when empty)
+ * @property body           - Flex-row wrapper containing leftSidepanel + editorWrap + rightSidepanel
+ * @property footer         - Footer slot below body (hidden when empty)
+ * @property leftSidepanel  - Left sidebar slot (hidden via :not(:empty) CSS)
+ * @property rightSidepanel - Right sidebar slot (hidden via :not(:empty) CSS)
  */
 export interface EditorDOM {
   container: HTMLElement
