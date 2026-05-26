@@ -335,9 +335,9 @@ function injectStyles(theme?: string): void {
  * @property editorDiv      - The contentEditable editor div
  * @property placeholder    - Initial placeholder text element
  * @property overlay        - Remote cursor overlay layer (absolute positioned)
- * @property header         - Header slot above topbar (hidden when empty)
+ * @property header         - Header slot above topbar
  * @property body           - Flex-row wrapper containing leftSidepanel + editorWrap + rightSidepanel
- * @property footer         - Footer slot below body (hidden when empty)
+ * @property footer         - Footer slot below body
  * @property leftSidepanel  - Left sidebar slot (hidden via :not(:empty) CSS)
  * @property rightSidepanel - Right sidebar slot (hidden via :not(:empty) CSS)
  */
