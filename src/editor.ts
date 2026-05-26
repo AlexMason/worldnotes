@@ -116,7 +116,11 @@ export class EditorBuilder {
     // Store slot element references for post-mount plugin registration
     this._mounted = true
     this._slotElements = {
+      'wn-header': this.el.querySelector('.wn-header') as HTMLElement,
       'wn-toolbar': this.el.querySelector('.wn-toolbar') as HTMLElement,
+      'wn-left-sidepanel': this.el.querySelector('.wn-left-sidepanel') as HTMLElement,
+      'wn-right-sidepanel': this.el.querySelector('.wn-right-sidepanel') as HTMLElement,
+      'wn-footer': this.el.querySelector('.wn-footer') as HTMLElement,
     }
 
     return instance
