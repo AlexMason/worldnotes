@@ -97,8 +97,14 @@ export function createEditorRender(
 
   const OVERLAY_CLASS = 'wn-create-overlay'
 
+  function dismissOverlay(): void {
+    state.setPendingRequestedPage(null)
+    const existing = dom.editorWrap.querySelector(`.${OVERLAY_CLASS}`)
+    if (existing) existing.remove()
+  }
+
   function renderCreateOverlay(): void {
-    const existing = dom.body.querySelector(`.${OVERLAY_CLASS}`)
+    const existing = dom.editorWrap.querySelector(`.${OVERLAY_CLASS}`)
     if (existing) existing.remove()
 
     const statusPages = options.statusPages ?? {}
@@ -109,21 +115,21 @@ export function createEditorRender(
 
     if (currentPage !== notFoundPage || !requestedPage || !showOverlay) return
 
-    const banner = document.createElement('div')
-    banner.className = OVERLAY_CLASS
-    banner.style.cssText =
-      'padding:8px 14px;background:var(--wn-color-surface,#0a0a0c);border-bottom:0.5px solid var(--wn-color-border,#1f1f23);font-family:var(--wn-font-mono,monospace);font-size:var(--wn-font-size-small,12px);display:flex;align-items:center;gap:8px;flex-shrink:0'
+    const toast = document.createElement('div')
+    toast.className = OVERLAY_CLASS
+    toast.style.cssText =
+      'position:absolute;top:8px;right:8px;z-index:20;padding:6px 10px;background:var(--wn-color-code-bg,#17171e);border:0.5px solid var(--wn-color-wiki-link-border,#332d6a);border-radius:var(--wn-radius-wiki-link,4px);font-family:var(--wn-font-mono,monospace);font-size:var(--wn-font-size-small,12px);display:flex;align-items:center;gap:8px'
 
     const text = document.createElement('span')
     text.textContent = `Page "${requestedPage}" not found.`
     text.style.color = 'var(--wn-color-fg-muted,#4a4a5e)'
 
-    const button = document.createElement('button')
-    button.textContent = 'Create'
-    button.style.cssText =
+    const createBtn = document.createElement('button')
+    createBtn.textContent = 'Create'
+    createBtn.style.cssText =
       'padding:2px 8px;background:var(--wn-color-wiki-link-bg,#16142a);color:var(--wn-color-wiki-link,#9b8fe8);border:0.5px solid var(--wn-color-wiki-link-border,#332d6a);border-radius:var(--wn-radius-wiki-link,4px);cursor:pointer;font-family:var(--wn-font-mono,monospace);font-size:var(--wn-font-size-small,12px)'
 
-    button.addEventListener('click', () => {
+    createBtn.addEventListener('click', () => {
       const page = requestedPage
       const yDocState = state.getYDocState()
       const ytext = yDocState.getPage(page)
@@ -137,15 +143,19 @@ export function createEditorRender(
       }
     })
 
-    banner.appendChild(text)
-    banner.appendChild(button)
+    const closeBtn = document.createElement('button')
+    closeBtn.textContent = '\u00d7'
+    closeBtn.style.cssText =
+      'padding:1px 5px;background:none;color:var(--wn-color-fg-muted,#4a4a5e);border:none;cursor:pointer;font-family:var(--wn-font-mono,monospace);font-size:15px;line-height:1'
 
-    const editorWrap = dom.body.querySelector('.wn-editor-wrap')
-    if (editorWrap) {
-      dom.body.insertBefore(banner, editorWrap)
-    } else {
-      dom.body.prepend(banner)
-    }
+    closeBtn.addEventListener('click', () => {
+      dismissOverlay()
+    })
+
+    toast.appendChild(text)
+    toast.appendChild(createBtn)
+    toast.appendChild(closeBtn)
+    dom.editorWrap.appendChild(toast)
   }
 
   function checkSelectChange(): void {
