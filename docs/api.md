@@ -99,6 +99,8 @@ editor.destroy()
 | `deleteBackward()` | Delete one character before the cursor (like Backspace key). Deletes current selection if one exists. |
 | `getSelection()` | Returns `{ text, start, end }` with selected text and raw-text character offsets, or `null` if no selection. |
 | `getDoc()` | Returns the underlying `Y.Doc` (Yjs CRDT document) for direct CRDT access. Useful for custom sync or persistence logic. |
+| `notify(options)` | Show a toast notification. Returns the toast ID. Idempotent when `options.id` matches an existing visible toast. |
+| `dismiss(toastId)` | Programmatically dismiss a toast by its ID. |
 
 ## Keyboard Shortcuts
 
@@ -112,6 +114,52 @@ editor.destroy()
 | `Enter` | Insert newline (or auto-continue list with `listItemPlugin`) |
 
 Undo/redo history is per-page. Navigating to a different page or clicking a breadcrumb clears the history for the destination page.
+
+## Toast Notifications
+
+The editor includes a built-in toast notification system. Toasts are stackable,
+positionable, themeable, and support optional action buttons.
+
+### `editor.notify(options)`
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `id` | `string` | auto-generated | Fixed ID for idempotent toasts. If a toast with this ID is already visible, the call is a no-op. |
+| `message` | `string` | _(required)_ | The notification message text. |
+| `type` | `'info' \\| 'success' \\| 'warning' \\| 'error'` | `'info'` | Toast variant — affects icon, background color, and aria-live. |
+| `duration` | `number` | `4000` | Auto-dismiss after this many milliseconds. Set `0` for persistent toasts. |
+| `action` | `{ label: string, onClick: () => void }` | `undefined` | Optional action button. Clicking the button calls `onClick`, then auto-dismisses the toast. |
+| `position` | `'top-right' \\| 'top-left' \\| 'bottom-right' \\| 'bottom-left'` | `'top-right'` | Screen corner for toast stacking. |
+
+**Returns:** `string` — the toast ID, usable with `editor.dismiss()`.
+
+```ts
+// Show a success toast that auto-dismisses after 3 seconds
+editor.notify({ type: 'success', message: 'Page saved', duration: 3000 })
+
+// Show a persistent error toast with a retry button
+editor.notify({
+  type: 'error',
+  message: 'Failed to save',
+  duration: 0,
+  action: { label: 'Retry', onClick: () => savePage() },
+})
+
+// Dismiss a specific toast
+const id = editor.notify({ message: 'Loading...' })
+// ... later ...
+editor.dismiss(id)
+```
+
+### Stacking and Caps
+
+Toasts stack within their position container. Each corner is capped at 5 visible toasts;
+when exceeded, the oldest toast in that corner is immediately removed.
+
+### `editor.dismiss(toastId)`
+
+Programmatically dismiss a toast by ID. No-op if the toast doesn't exist or was
+already dismissed.
 
 ## Plugins
 

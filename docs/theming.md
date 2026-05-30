@@ -56,6 +56,13 @@ Override any token by setting it on an ancestor of the editor container.
 | `--wn-color-wiki-link-hover` | `#bbb3f8` | `color` | Wiki link text on hover |
 | `--wn-color-wiki-link-bg-hover` | `#221e42` | `background` | Wiki link background on hover |
 | `--wn-color-link` | `#9b8fe8` | `color` | External link text |
+| `--wn-toast-bg` | `#17171e` | `background` | Info toast background |
+| `--wn-toast-bg-success` | `#14241a` | `background` | Success toast background |
+| `--wn-toast-bg-warning` | `#24201a` | `background` | Warning toast background |
+| `--wn-toast-bg-error` | `#24141a` | `background` | Error toast background |
+| `--wn-toast-border` | `#332d6a` | `border-color` | Toast border color |
+| `--wn-toast-radius` | `4px` | `border-radius` | Toast border radius |
+| `--wn-toast-color` | `#c9c9d0` | `color` | Toast text color |
 
 ### Typography
 
@@ -140,6 +147,13 @@ Create a light theme by overriding tokens on a parent element:
   --wn-color-wiki-link-bg-hover: #e0ebff;
   --wn-color-link: #0066cc;
   --wn-caret-color: #0066cc;
+  --wn-toast-bg: #ffffff;
+  --wn-toast-bg-success: #f0fff0;
+  --wn-toast-bg-warning: #fffff0;
+  --wn-toast-bg-error: #fff0f0;
+  --wn-toast-border: #d0d0d0;
+  --wn-toast-radius: 6px;
+  --wn-toast-color: #333333;
 }
 ```
 
@@ -219,6 +233,17 @@ These class names are stable and will not change across versions:
 | `.wn-wiki-link` | Link span | Wiki page link |
 | `.wn-strikethrough` | Strikethrough span | Strikethrough text |
 | `.wn-link` | Link anchor | External URL link |
+| `.wn-toast-container` | Container div | Toast stacking container per corner |
+| `.wn-toast` | Toast div | Individual toast notification |
+| `.wn-toast--success` | Toast div | Success variant modifier |
+| `.wn-toast--warning` | Toast div | Warning variant modifier |
+| `.wn-toast--error` | Toast div | Error variant modifier |
+| `.wn-toast--exiting` | Toast div | Exit animation state |
+| `.wn-toast__icon` | Icon span | Toast type icon |
+| `.wn-toast__message` | Message span | Toast text content |
+| `.wn-toast__actions` | Actions span | Action + close button container |
+| `.wn-toast__action-btn` | Action button | Optional action button |
+| `.wn-toast__close-btn` | Close button | Dismiss (x) button |
 
 ## How It Works
 
