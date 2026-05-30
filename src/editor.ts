@@ -164,6 +164,8 @@ async function mountEditor(
       navigation.loadPage(page)
     },
     onTrailChange: options.onTrailChange,
+    statusPages: options.statusPages,
+    showCreateOverlay: options.showCreateOverlay,
   }
   const render = createEditorRender(dom, contentPlugins, state, renderOpts)
   navigation.setRenderAPI(render)

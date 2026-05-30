@@ -19,6 +19,8 @@ export interface EditorRenderOptions {
   onBreadcrumbNavigate?: (page: string) => void
   onTrailChange?: (trail: string[]) => void
   navigateFn?: (page: string) => void
+  statusPages?: Record<number, string>
+  showCreateOverlay?: boolean
 }
 
 function determineActiveLine(raw: string, offset: number): number {
@@ -86,6 +88,63 @@ export function createEditorRender(
       setLineOffset(editorDiv, offset)
     } catch {
       /* noop */
+    }
+
+    renderCreateOverlay()
+  }
+
+  // ── Create overlay (404 page banner) ──────────────────────────────────────
+
+  const OVERLAY_CLASS = 'wn-create-overlay'
+
+  function renderCreateOverlay(): void {
+    const existing = dom.body.querySelector(`.${OVERLAY_CLASS}`)
+    if (existing) existing.remove()
+
+    const statusPages = options.statusPages ?? {}
+    const notFoundPage = statusPages[404] ?? '404'
+    const currentPage = state.getCurrentPage()
+    const requestedPage = state.getPendingRequestedPage()
+    const showOverlay = options.showCreateOverlay !== false
+
+    if (currentPage !== notFoundPage || !requestedPage || !showOverlay) return
+
+    const banner = document.createElement('div')
+    banner.className = OVERLAY_CLASS
+    banner.style.cssText =
+      'padding:8px 14px;background:var(--wn-color-surface,#0a0a0c);border-bottom:0.5px solid var(--wn-color-border,#1f1f23);font-family:var(--wn-font-mono,monospace);font-size:var(--wn-font-size-small,12px);display:flex;align-items:center;gap:8px;flex-shrink:0'
+
+    const text = document.createElement('span')
+    text.textContent = `Page "${requestedPage}" not found.`
+    text.style.color = 'var(--wn-color-fg-muted,#4a4a5e)'
+
+    const button = document.createElement('button')
+    button.textContent = 'Create'
+    button.style.cssText =
+      'padding:2px 8px;background:var(--wn-color-wiki-link-bg,#16142a);color:var(--wn-color-wiki-link,#9b8fe8);border:0.5px solid var(--wn-color-wiki-link-border,#332d6a);border-radius:var(--wn-radius-wiki-link,4px);cursor:pointer;font-family:var(--wn-font-mono,monospace);font-size:var(--wn-font-size-small,12px)'
+
+    button.addEventListener('click', () => {
+      const page = requestedPage
+      const yDocState = state.getYDocState()
+      const ytext = yDocState.getPage(page)
+      if (ytext.toString() === '') {
+        ytext.insert(0, `# ${page}\n\n`)
+      }
+      state.setPendingRequestedPage(null)
+      const navFn = options.navigateFn
+      if (navFn) {
+        navFn(page)
+      }
+    })
+
+    banner.appendChild(text)
+    banner.appendChild(button)
+
+    const editorWrap = dom.body.querySelector('.wn-editor-wrap')
+    if (editorWrap) {
+      dom.body.insertBefore(banner, editorWrap)
+    } else {
+      dom.body.prepend(banner)
     }
   }
 
