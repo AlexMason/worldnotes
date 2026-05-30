@@ -3,6 +3,7 @@
 import type { ContentPlugin, EditorContext } from './types'
 import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
+import type { NotificationSystem } from './notifications'
 import { getLineOffset, setLineOffset } from './awareness-cursor'
 import { renderLines } from './line-renderer'
 import { renderInlineContent } from './renderer'
@@ -21,6 +22,7 @@ export interface EditorRenderOptions {
   navigateFn?: (page: string) => void
   statusPages?: Record<number, string>
   showCreateOverlay?: boolean
+  notifications?: NotificationSystem
 }
 
 function determineActiveLine(raw: string, offset: number): number {
@@ -38,6 +40,7 @@ export function createEditorRender(
   options: EditorRenderOptions = {},
 ): EditorRenderAPI {
   const { editorDiv, placeholder, breadcrumb } = dom
+  const { notifications } = options
 
   let activeLine = -1
 
@@ -90,72 +93,43 @@ export function createEditorRender(
       /* noop */
     }
 
-    renderCreateOverlay()
-  }
+    // ── 404 toast (via notification system) ────────────────────────────────
 
-  // ── Create overlay (404 page banner) ──────────────────────────────────────
+    if (notifications) {
+      const statusPages = options.statusPages ?? {}
+      const notFoundPage = statusPages[404] ?? '404'
+      const currentPage = state.getCurrentPage()
+      const requestedPage = state.getPendingRequestedPage()
+      const showOverlay = options.showCreateOverlay !== false
 
-  const OVERLAY_CLASS = 'wn-create-overlay'
-
-  function dismissOverlay(): void {
-    state.setPendingRequestedPage(null)
-    const existing = dom.editorWrap.querySelector(`.${OVERLAY_CLASS}`)
-    if (existing) existing.remove()
-  }
-
-  function renderCreateOverlay(): void {
-    const existing = dom.editorWrap.querySelector(`.${OVERLAY_CLASS}`)
-    if (existing) existing.remove()
-
-    const statusPages = options.statusPages ?? {}
-    const notFoundPage = statusPages[404] ?? '404'
-    const currentPage = state.getCurrentPage()
-    const requestedPage = state.getPendingRequestedPage()
-    const showOverlay = options.showCreateOverlay !== false
-
-    if (currentPage !== notFoundPage || !requestedPage || !showOverlay) return
-
-    const toast = document.createElement('div')
-    toast.className = OVERLAY_CLASS
-    toast.style.cssText =
-      'position:absolute;top:8px;right:8px;z-index:20;padding:6px 10px;background:var(--wn-color-code-bg,#17171e);border:0.5px solid var(--wn-color-wiki-link-border,#332d6a);border-radius:var(--wn-radius-wiki-link,4px);font-family:var(--wn-font-mono,monospace);font-size:var(--wn-font-size-small,12px);display:flex;align-items:center;gap:8px'
-
-    const text = document.createElement('span')
-    text.textContent = `Page "${requestedPage}" not found.`
-    text.style.color = 'var(--wn-color-fg-muted,#4a4a5e)'
-
-    const createBtn = document.createElement('button')
-    createBtn.textContent = 'Create'
-    createBtn.style.cssText =
-      'padding:2px 8px;background:var(--wn-color-wiki-link-bg,#16142a);color:var(--wn-color-wiki-link,#9b8fe8);border:0.5px solid var(--wn-color-wiki-link-border,#332d6a);border-radius:var(--wn-radius-wiki-link,4px);cursor:pointer;font-family:var(--wn-font-mono,monospace);font-size:var(--wn-font-size-small,12px)'
-
-    createBtn.addEventListener('click', () => {
-      const page = requestedPage
-      const yDocState = state.getYDocState()
-      const ytext = yDocState.getPage(page)
-      if (ytext.toString() === '') {
-        ytext.insert(0, `# ${page}\n\n`)
+      if (currentPage === notFoundPage && requestedPage && showOverlay) {
+        const navigateFn = options.navigateFn
+        notifications.notify({
+          id: 'wn-404',
+          message: `Page "${requestedPage}" not found.`,
+          type: 'info',
+          duration: 0,
+          action: {
+            label: 'Create',
+            onClick: () => {
+              const page = requestedPage
+              const yDocState = state.getYDocState()
+              const ytext = yDocState.getPage(page)
+              if (ytext.toString() === '') {
+                ytext.insert(0, `# ${page}\n\n`)
+              }
+              state.setPendingRequestedPage(null)
+              if (navigateFn) {
+                navigateFn(page)
+              }
+              notifications.dismiss('wn-404')
+            },
+          },
+        })
+      } else {
+        notifications.dismiss('wn-404')
       }
-      state.setPendingRequestedPage(null)
-      const navFn = options.navigateFn
-      if (navFn) {
-        navFn(page)
-      }
-    })
-
-    const closeBtn = document.createElement('button')
-    closeBtn.textContent = '\u00d7'
-    closeBtn.style.cssText =
-      'padding:1px 5px;background:none;color:var(--wn-color-fg-muted,#4a4a5e);border:none;cursor:pointer;font-family:var(--wn-font-mono,monospace);font-size:15px;line-height:1'
-
-    closeBtn.addEventListener('click', () => {
-      dismissOverlay()
-    })
-
-    toast.appendChild(text)
-    toast.appendChild(createBtn)
-    toast.appendChild(closeBtn)
-    dom.editorWrap.appendChild(toast)
+    }
   }
 
   function checkSelectChange(): void {
