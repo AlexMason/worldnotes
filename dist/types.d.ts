@@ -36,6 +36,13 @@ export interface StorageAdapter {
     keys(): Promise<string[]>;
 }
 /**
+ * Thrown by StorageAdapter.get() when the caller lacks read access.
+ * Caught by the editor navigation layer to trigger a 403 redirect.
+ */
+export declare class PermissionError extends Error {
+    constructor(message?: string);
+}
+/**
  * Runtime context passed to plugins at render time and on navigation events.
  * Gives plugins read/write access to the editor's navigation and world state.
  *
@@ -177,6 +184,20 @@ export interface EditorOptions {
     storage?: StorageAdapter;
     initialPage?: string;
     saveDebounceMs?: number;
+    /**
+     * Map of HTTP-style status codes to wiki page names.
+     * Defaults to { 404: '404', 403: '403' } when not provided.
+     *
+     * @example
+     * createEditor(el, { statusPages: { 404: 'not-found', 403: 'forbidden', 500: 'error' } })
+     */
+    statusPages?: Record<number, string>;
+    /**
+     * Show the "Create page?" overlay banner on the 404 page.
+     * When false, the 404 page displays without the overlay.
+     * Default: true.
+     */
+    showCreateOverlay?: boolean;
     /**
      * Maximum number of undo states per page (default 50).
      * Older states are evicted via FIFO when the limit is reached.

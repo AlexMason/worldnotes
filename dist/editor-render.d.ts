@@ -11,5 +11,7 @@ export interface EditorRenderOptions {
     onBreadcrumbNavigate?: (page: string) => void;
     onTrailChange?: (trail: string[]) => void;
     navigateFn?: (page: string) => void;
+    statusPages?: Record<number, string>;
+    showCreateOverlay?: boolean;
 }
 export declare function createEditorRender(dom: EditorDOM, contentPlugins: ContentPlugin[], state: EditorStateAPI, options?: EditorRenderOptions): EditorRenderAPI;

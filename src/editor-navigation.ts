@@ -73,7 +73,7 @@ export function createEditorNavigation(
     }
 
     if (!yDocState.hasPage(page)) {
-      let stored: string | null = null
+      let stored: string | null
       try {
         stored = await storage.get(page)
       } catch (e) {

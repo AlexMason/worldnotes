@@ -2,6 +2,7 @@ export { createEditor, EditorBuilder } from './editor';
 export { tokenizeLine, scanInline, tokenizeDocument } from './tokenizer';
 export { renderLineToHTML, renderInlineHTML, renderDocumentToHTML, } from './renderer';
 export type { Token, TokenDef, PluginManifest, ContentPlugin, UIPlugin, StoragePlugin, StorageAdapter, EditorContext, StaticRenderContext, EditorOptions, EditorInstance, } from './types';
+export { PermissionError } from './types';
 export { LocalStorageAdapter } from './storage/localStorage';
 export { IndexedDBAdapter } from './storage/indexedDB';
 export { EditorHistory } from './editor-history';

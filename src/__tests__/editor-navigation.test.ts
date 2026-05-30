@@ -505,7 +505,7 @@ describe('createEditorNavigation', () => {
     it('redirects to 403 page when storage.get throws PermissionError', async () => {
       const forbidStorage: StorageAdapter = {
         get: async () => { throw new PermissionError('no access') },
-        set: async () => {},
+        set: () => Promise.resolve(),
         keys: async () => [],
       }
       const s = mockState(['home'])
@@ -522,7 +522,7 @@ describe('createEditorNavigation', () => {
     it('uses default "403" page name for PermissionError when not configured', async () => {
       const forbidStorage: StorageAdapter = {
         get: async () => { throw new PermissionError() },
-        set: async () => {},
+        set: () => Promise.resolve(),
         keys: async () => [],
       }
       const s = mockState(['home'])
@@ -566,7 +566,7 @@ describe('createEditorNavigation', () => {
     it('auto-creates 403 page with default content when it does not exist', async () => {
       const forbidStorage: StorageAdapter = {
         get: async () => { throw new PermissionError() },
-        set: async () => {},
+        set: () => Promise.resolve(),
         keys: async () => [],
       }
       const s = mockState(['home'])
@@ -581,7 +581,7 @@ describe('createEditorNavigation', () => {
     it('allows re-throwing non-PermissionError exceptions from storage.get', async () => {
       const errorStorage: StorageAdapter = {
         get: async () => { throw new Error('network down') },
-        set: async () => {},
+        set: () => Promise.resolve(),
         keys: async () => [],
       }
       const s = mockState(['home'])
