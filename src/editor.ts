@@ -15,6 +15,7 @@ import { createEditorRender } from './editor-render'
 import type { EditorRenderOptions } from './editor-render'
 import { createEditorNavigation } from './editor-navigation'
 import { createEditorLifecycle } from './editor-lifecycle'
+import { createNotificationSystem, type NotificationSystem } from './notifications'
 
 // ─── Default content shown on first load when 'home' doesn't exist ───────────
 
@@ -155,6 +156,7 @@ async function mountEditor(
 ): Promise<EditorInstance> {
   const state = createEditorState(storage, options)
   const dom = createEditorDOM(container, options.theme)
+  const notifications: NotificationSystem = createNotificationSystem(dom.container)
   const navigation = createEditorNavigation(state, storage, dom, options)
   const renderOpts: EditorRenderOptions = {
     navigateFn: (page: string) => {
@@ -166,6 +168,7 @@ async function mountEditor(
     onTrailChange: options.onTrailChange,
     statusPages: options.statusPages,
     showCreateOverlay: options.showCreateOverlay,
+    notifications,
   }
   const render = createEditorRender(dom, contentPlugins, state, renderOpts)
   navigation.setRenderAPI(render)
@@ -179,6 +182,7 @@ async function mountEditor(
     navigation,
     storage,
     options,
+    notifications,
   )
   return lifecycle.mount()
 }
