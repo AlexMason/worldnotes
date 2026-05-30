@@ -204,7 +204,8 @@ describe('createEditorNavigation', () => {
 
   describe('navigateToPage', () => {
     it('creates page in world cache when not present and calls loadPage', async () => {
-      const nav = createEditorNavigation(state, storage, dom, options)
+      const storageWithPage = mockStorage({ 'new-page': '# New Page\n\n' })
+      const nav = createEditorNavigation(state, storageWithPage, dom, options)
       nav.setRenderAPI(render)
 
       await nav.navigateToPage('new-page')
@@ -236,6 +237,7 @@ describe('createEditorNavigation', () => {
 
     it('truncates trail when navigating to a page already in the trail', async () => {
       const multiTrailState = mockState(['home', 'blog', 'about'])
+      multiTrailState.getYDocState().getPage('home').insert(0, '# home')
       const nav = createEditorNavigation(multiTrailState, storage, dom, options)
       nav.setRenderAPI(render)
 
@@ -247,6 +249,7 @@ describe('createEditorNavigation', () => {
 
     it('replaces hierarchy when navigating to a flat page from a nested path', async () => {
       const multiTrailState = mockState(['home', 'blog'])
+      multiTrailState.getYDocState().getPage('about').insert(0, '# about')
       const nav = createEditorNavigation(multiTrailState, storage, dom, options)
       nav.setRenderAPI(render)
 
@@ -257,6 +260,7 @@ describe('createEditorNavigation', () => {
 
     it('pushes path segments for multi-segment page names', async () => {
       const baseState = mockState(['home'])
+      baseState.getYDocState().getPage('projects/worldnotes').insert(0, '# pw')
       const nav = createEditorNavigation(baseState, storage, dom, options)
       nav.setRenderAPI(render)
 
@@ -267,6 +271,7 @@ describe('createEditorNavigation', () => {
 
     it('skips intermediate segments already present in the trail', async () => {
       const baseState = mockState(['home', 'projects'])
+      baseState.getYDocState().getPage('projects/worldnotes').insert(0, '# pw')
       const nav = createEditorNavigation(baseState, storage, dom, options)
       nav.setRenderAPI(render)
 
@@ -277,6 +282,7 @@ describe('createEditorNavigation', () => {
 
     it('pushes deeply nested path segments', async () => {
       const baseState = mockState(['home'])
+      baseState.getYDocState().getPage('a/b/c').insert(0, '# abc')
       const nav = createEditorNavigation(baseState, storage, dom, options)
       nav.setRenderAPI(render)
 
@@ -287,6 +293,7 @@ describe('createEditorNavigation', () => {
 
     it('truncates matching segments when navigating to an ancestor path', async () => {
       const baseState = mockState(['home', 'projects', 'worldnotes'])
+      baseState.getYDocState().getPage('projects').insert(0, '# projects')
       const nav = createEditorNavigation(baseState, storage, dom, options)
       nav.setRenderAPI(render)
 
@@ -297,6 +304,7 @@ describe('createEditorNavigation', () => {
 
     it('skips intermediate segments already present in the trail', async () => {
       const baseState = mockState(['home', 'projects'])
+      baseState.getYDocState().getPage('projects/worldnotes').insert(0, '# pw')
       const nav = createEditorNavigation(baseState, storage, dom, options)
       nav.setRenderAPI(render)
 
@@ -307,6 +315,7 @@ describe('createEditorNavigation', () => {
 
     it('pushes deeply nested path segments', async () => {
       const baseState = mockState(['home'])
+      baseState.getYDocState().getPage('a/b/c').insert(0, '# abc')
       const nav = createEditorNavigation(baseState, storage, dom, options)
       nav.setRenderAPI(render)
 
@@ -316,7 +325,8 @@ describe('createEditorNavigation', () => {
     })
 
     it('creates page in world cache when not present and calls loadPage', async () => {
-      const nav = createEditorNavigation(state, storage, dom, options)
+      const storageWithPage = mockStorage({ 'new-page': '# New Page\n\n' })
+      const nav = createEditorNavigation(state, storageWithPage, dom, options)
       nav.setRenderAPI(render)
 
       await nav.navigateToPage('new-page')

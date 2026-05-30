@@ -1,6 +1,6 @@
 // ─── Editor Navigation ────────────────────────────────────────────────────────
 
-import type { StorageAdapter, EditorOptions } from './types'
+import { PermissionError, type StorageAdapter, type EditorOptions } from './types'
 import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
 import type { EditorRenderAPI } from './editor-render'
@@ -14,6 +14,15 @@ Start writing here. Use [[page name]] to link into new pages.
 ---
 
 > Every link opens a door.`
+
+const DEFAULT_STATUS_CONTENT: Record<number, string> = {
+  404: '# Page Not Found\n\n',
+  403: '# Access Denied\n\n',
+}
+
+function defaultStatusContent(code: number): string {
+  return DEFAULT_STATUS_CONTENT[code] ?? `# Error ${code}\n\n`
+}
 
 export interface EditorNavigationAPI {
   navigateToPage(page: string): Promise<void>
@@ -33,19 +42,57 @@ export function createEditorNavigation(
     _render = render
   }
 
+  function resolveStatusPage(code: number): string {
+    return options.statusPages?.[code] ?? String(code)
+  }
+
+  async function navigateToStatusPage(code: number): Promise<void> {
+    const statusPage = resolveStatusPage(code)
+    const yDocState = state.getYDocState()
+
+    if (!yDocState.hasPage(statusPage)) {
+      const ytext = yDocState.getPage(statusPage)
+      ytext.insert(0, defaultStatusContent(code))
+    }
+
+    await navigateToPage(statusPage)
+  }
+
   async function navigateToPage(page: string): Promise<void> {
     const yDocState = state.getYDocState()
 
+    // Clear pending requested page unless navigating to a status page
+    const statusPageNames = new Set([
+      ...Object.values(options.statusPages ?? {}),
+      ...Object.keys(options.statusPages ?? {}).map((k) => String(k)),
+      '404',
+      '403',
+    ])
+    if (!statusPageNames.has(page)) {
+      state.setPendingRequestedPage(null)
+    }
+
     if (!yDocState.hasPage(page)) {
-      const stored = await storage.get(page)
+      let stored: string | null = null
+      try {
+        stored = await storage.get(page)
+      } catch (e) {
+        if (e instanceof PermissionError) {
+          await navigateToStatusPage(403)
+          return
+        }
+        throw e
+      }
+
       if (stored) {
         const ytext = yDocState.getPage(page)
         if (ytext.toString() === '') {
           ytext.insert(0, stored)
         }
       } else {
-        const ytext = yDocState.getPage(page)
-        ytext.insert(0, `# ${page}\n\n`)
+        state.setPendingRequestedPage(page)
+        await navigateToStatusPage(404)
+        return
       }
     }
 
