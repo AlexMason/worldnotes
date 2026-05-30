@@ -25,6 +25,7 @@ export type {
   EditorOptions,
   EditorInstance,
 } from './types'
+export { PermissionError } from './types'
 
 // ─── Storage adapters ─────────────────────────────────────────────────────────
 export { LocalStorageAdapter } from './storage/localStorage'
