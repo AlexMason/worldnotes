@@ -99,6 +99,7 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
   let trail: string[] = initialTrail ? [...initialTrail] : ['home']
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let isNavigating = false
+  let pendingRequestedPage: string | null = null
 
   return {
     getYDocState: () => yDocState,
@@ -127,6 +128,10 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
     },
     setSaveTimer: (timer: ReturnType<typeof setTimeout> | null) => {
       saveTimer = timer
+    },
+    getPendingRequestedPage: (): string | null => pendingRequestedPage,
+    setPendingRequestedPage: (page: string | null): void => {
+      pendingRequestedPage = page
     },
     toContext: (navigate: (page: string) => void): EditorContext => ({
       ...yDocState.toContext(navigate),

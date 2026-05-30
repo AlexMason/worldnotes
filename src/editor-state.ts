@@ -30,6 +30,10 @@ export interface EditorStateAPI {
   clearSaveTimer(): void
   /** Store a reference to the save timer. */
   setSaveTimer(timer: ReturnType<typeof setTimeout> | null): void
+  /** The page name that was requested before redirecting to 404. null otherwise. */
+  getPendingRequestedPage(): string | null
+  /** Set the pending requested page (for 404 overlay). Set to null to clear. */
+  setPendingRequestedPage(page: string | null): void
   /**
    * Produce a readonly EditorContext for plugins.
    */
@@ -50,6 +54,7 @@ export function createEditorState(
   let trail: string[] = initialTrail.length ? [...initialTrail] : [initialPage]
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let isNavigating = false
+  let pendingRequestedPage: string | null = null
 
   // ── API ────────────────────────────────────────────────────────────────────
 
@@ -101,6 +106,14 @@ export function createEditorState(
 
     setSaveTimer(timer: ReturnType<typeof setTimeout> | null): void {
       saveTimer = timer
+    },
+
+    getPendingRequestedPage(): string | null {
+      return pendingRequestedPage
+    },
+
+    setPendingRequestedPage(page: string | null): void {
+      pendingRequestedPage = page
     },
 
     toContext(navigate: (page: string) => void): EditorContext {
