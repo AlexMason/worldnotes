@@ -264,6 +264,34 @@ export interface EditorOptions {
   syncServer?: string
 }
 
+// ─── Toast Notifications ─────────────────────────────────────────────────────
+
+/** Toast variant types. */
+export type ToastType = 'info' | 'success' | 'warning' | 'error'
+
+/** Screen corner for toast stacking. */
+export type ToastPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left'
+
+/** Optional action button on a toast. */
+export interface ToastAction {
+  label: string
+  onClick: () => void
+}
+
+/** Configuration for a single toast notification. */
+export interface ToastOptions {
+  /** Fixed ID for idempotent toasts (e.g., "wn-404"). Auto-generated if omitted. */
+  id?: string
+  message: string
+  /** Default: 'info' */
+  type?: ToastType
+  /** Duration in ms. Default: 4000. Set 0 for persistent. */
+  duration?: number
+  action?: ToastAction
+  /** Default: 'top-right' */
+  position?: ToastPosition
+}
+
 // ─── Editor Instance ──────────────────────────────────────────────────────────
 
 /**
@@ -321,4 +349,12 @@ export interface EditorInstance {
    * @returns Selection info, or null if there is no selection/caret
    */
   getSelection(): { text: string; start: number; end: number } | null
+  /**
+   * Show a toast notification. Returns the toast ID. If an id is
+   * provided and a toast with that id is already visible, the call
+   * is a no-op (idempotent).
+   */
+  notify(options: ToastOptions): string
+  /** Dismiss a specific toast by ID. */
+  dismiss(toastId: string): void
 }
