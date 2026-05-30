@@ -30,6 +30,31 @@ Creates an `EditorBuilder` for an existing `HTMLElement`.
 | `onTrailChange` | `(trail: string[]) => void` | `undefined` | Called whenever breadcrumbs change. |
 | `onPageLoad` | `(page: string, content: string) => void` | `undefined` | Called after content loads into the editor. |
 | `onSave` | `(page: string, content: string) => void` | `undefined` | Called after debounced persistence completes. |
+| `statusPages` | `Record<number, string>` | `{ 404: '404', 403: '403' }` | Map of HTTP-style status codes to wiki page names. When a navigation error occurs, the editor redirects to the corresponding wiki page. |
+| `showCreateOverlay` | `boolean` | `true` | When `true`, the editor shows a "Create page?" banner overlay on the 404 status page when it was reached via a missing wikilink. Set to `false` to suppress the banner. |
+
+#### `statusPages?: Record<number, string>`
+
+Map of HTTP-style status codes to wiki page names. When a navigation error
+occurs, the editor redirects to the corresponding wiki page.
+
+Default: `{ 404: '404', 403: '403' }`
+
+```ts
+createEditor(el, {
+  statusPages: {
+    404: 'not-found',
+    403: 'forbidden',
+    500: 'error',
+  },
+})
+```
+
+#### `showCreateOverlay?: boolean`
+
+When `true` (default), the editor shows a "Create page?" banner overlay on
+the 404 status page when it was reached via a missing wikilink. Set to `false`
+to suppress the banner and style the 404 page yourself.
 
 ## `EditorBuilder`
 
@@ -180,6 +205,26 @@ class RemoteStorage implements StorageAdapter {
 > **Future:** Storage adapters can be wrapped as `StoragePlugin` manifests (`kind: 'storage'`)
 > when the storage-as-plugin feature lands in a future release. For now, use
 > `editor.withStorage(adapter)`.
+
+### PermissionError
+
+`class PermissionError extends Error`
+
+Thrown by `StorageAdapter.get()` when the caller lacks read access. The editor
+catches this and redirects to the configured 403 status page.
+
+```ts
+import { PermissionError } from 'worldnotes'
+
+class RestrictedAdapter implements StorageAdapter {
+  async get(key: string): Promise<string | null> {
+    if (key.startsWith('admin/')) {
+      throw new PermissionError('Access denied')
+    }
+    return localStorage.getItem(`wn:${key}`)
+  }
+}
+```
 
 ## Import / Export
 
