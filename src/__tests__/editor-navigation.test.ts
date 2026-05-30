@@ -2,7 +2,7 @@
 
 import * as Y from 'yjs'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { StorageAdapter, EditorOptions, EditorContext } from '../types'
+import { PermissionError, type StorageAdapter, type EditorOptions, type EditorContext } from '../types'
 import type { EditorStateAPI } from '../editor-state'
 import type { EditorDOM } from '../editor-dom'
 import type { EditorRenderAPI } from '../editor-render'
@@ -437,6 +437,147 @@ describe('createEditorNavigation', () => {
 
       expect(trackingRender.render).toHaveBeenCalled()
       expect(trackingRender.renderBreadcrumb).toHaveBeenCalled()
+    })
+  })
+
+  // ── Status Pages ──────────────────────────────────────────────────────────
+
+  describe('status pages', () => {
+    it('redirects to 404 page when page does not exist in Y.Doc or storage', async () => {
+      const s = mockState(['home'])
+      const st = mockStorage({})
+      const nav = createEditorNavigation(s, st, dom, { statusPages: { 404: '404-page' } })
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('missing')
+
+      expect(s.getPendingRequestedPage()).toBe('missing')
+      expect(s.getTrail()).toContain('404-page')
+      expect(s.getWorld()).toHaveProperty('404-page')
+    })
+
+    it('uses default "404" page name when statusPages is not configured', async () => {
+      const s = mockState(['home'])
+      const st = mockStorage({})
+      const nav = createEditorNavigation(s, st, dom, {})
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('missing')
+
+      expect(s.getTrail()).toContain('404')
+      expect(s.getPendingRequestedPage()).toBe('missing')
+    })
+
+    it('does not redirect when page is found in storage', async () => {
+      const s = mockState(['home'])
+      const st = mockStorage({ 'exists': '# Exists\n\ncontent' })
+      const nav = createEditorNavigation(s, st, dom, {})
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('exists')
+
+      expect(s.getPendingRequestedPage()).toBeNull()
+      expect(s.getTrail()).toContain('exists')
+    })
+
+    it('does not redirect when page is already in Y.Doc', async () => {
+      const s = mockState(['home'])
+      s.getYDocState().getPage('cached').insert(0, '# Cached')
+      const nav = createEditorNavigation(s, storage, dom, {})
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('cached')
+
+      expect(s.getPendingRequestedPage()).toBeNull()
+      expect(s.getTrail()).toContain('cached')
+    })
+
+    it('redirects to 403 page when storage.get throws PermissionError', async () => {
+      const forbidStorage: StorageAdapter = {
+        get: async () => { throw new PermissionError('no access') },
+        set: async () => {},
+        keys: async () => [],
+      }
+      const s = mockState(['home'])
+      const nav = createEditorNavigation(s, forbidStorage, dom, { statusPages: { 403: 'forbidden' } })
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('restricted')
+
+      expect(s.getTrail()).toContain('forbidden')
+      expect(s.getWorld()).toHaveProperty('forbidden')
+      expect(s.getPendingRequestedPage()).toBeNull()
+    })
+
+    it('uses default "403" page name for PermissionError when not configured', async () => {
+      const forbidStorage: StorageAdapter = {
+        get: async () => { throw new PermissionError() },
+        set: async () => {},
+        keys: async () => [],
+      }
+      const s = mockState(['home'])
+      const nav = createEditorNavigation(s, forbidStorage, dom, {})
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('restricted')
+
+      expect(s.getTrail()).toContain('403')
+    })
+
+    it('clears pendingRequestedPage when navigating from 404 to an existing page', async () => {
+      const s = mockState(['home'])
+      const st = mockStorage({})
+      const nav = createEditorNavigation(s, st, dom, {})
+      nav.setRenderAPI(render)
+
+      // Navigate to trigger 404 redirect
+      await nav.navigateToPage('missing')
+      expect(s.getPendingRequestedPage()).toBe('missing')
+
+      // Create the page in Y.Doc, then navigate to it
+      s.getYDocState().getPage('missing').insert(0, '# content')
+      s.setPendingRequestedPage('missing')
+      // navigateToPage will clear it since target is not a status page
+      await nav.navigateToPage('missing')
+      expect(s.getPendingRequestedPage()).toBeNull()
+    })
+
+    it('auto-creates 404 page with default content when it does not exist', async () => {
+      const s = mockState(['home'])
+      const st = mockStorage({})
+      const nav = createEditorNavigation(s, st, dom, {})
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('nonexistent')
+
+      expect(s.getWorld()['404']).toContain('Page Not Found')
+    })
+
+    it('auto-creates 403 page with default content when it does not exist', async () => {
+      const forbidStorage: StorageAdapter = {
+        get: async () => { throw new PermissionError() },
+        set: async () => {},
+        keys: async () => [],
+      }
+      const s = mockState(['home'])
+      const nav = createEditorNavigation(s, forbidStorage, dom, {})
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('restricted')
+
+      expect(s.getWorld()['403']).toContain('Access Denied')
+    })
+
+    it('allows re-throwing non-PermissionError exceptions from storage.get', async () => {
+      const errorStorage: StorageAdapter = {
+        get: async () => { throw new Error('network down') },
+        set: async () => {},
+        keys: async () => [],
+      }
+      const s = mockState(['home'])
+      const nav = createEditorNavigation(s, errorStorage, dom, {})
+
+      await expect(nav.navigateToPage('any')).rejects.toThrow('network down')
     })
   })
 })
