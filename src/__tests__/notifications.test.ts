@@ -198,7 +198,7 @@ describe('createNotificationSystem', () => {
   it('clicking action button dismisses the toast', async () => {
     const id = ns.notify({
       message: 'action',
-      action: { label: 'Go', onClick: () => {} },
+      action: { label: 'Go', onClick: vi.fn() },
     })
     const btn = root.querySelector('.wn-toast__action-btn')!
     btn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
