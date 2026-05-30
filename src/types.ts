@@ -45,6 +45,19 @@ export interface StorageAdapter {
   keys(): Promise<string[]>
 }
 
+// ─── Permission Error ──────────────────────────────────────────────────────────
+
+/**
+ * Thrown by StorageAdapter.get() when the caller lacks read access.
+ * Caught by the editor navigation layer to trigger a 403 redirect.
+ */
+export class PermissionError extends Error {
+  constructor(message?: string) {
+    super(message ?? 'Permission denied')
+    this.name = 'PermissionError'
+  }
+}
+
 // ─── Editor Context ───────────────────────────────────────────────────────────
 
 /**
