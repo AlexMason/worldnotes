@@ -24,6 +24,10 @@ export type {
   StaticRenderContext,
   EditorOptions,
   EditorInstance,
+  ToastType,
+  ToastPosition,
+  ToastAction,
+  ToastOptions,
 } from './types'
 export { PermissionError } from './types'
 
@@ -60,3 +64,6 @@ export { remoteCursorsPlugin } from './plugins/remoteCursors'
 export { createYDocState } from './y-doc-state'
 export type { YDocState } from './y-doc-state'
 export { saveYDoc, loadYDoc } from './yjs-storage-bridge'
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+export { createNotificationSystem } from './notifications'
