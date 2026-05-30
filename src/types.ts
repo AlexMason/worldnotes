@@ -223,6 +223,20 @@ export interface EditorOptions {
   initialPage?: string
   saveDebounceMs?: number
   /**
+   * Map of HTTP-style status codes to wiki page names.
+   * Defaults to { 404: '404', 403: '403' } when not provided.
+   *
+   * @example
+   * createEditor(el, { statusPages: { 404: 'not-found', 403: 'forbidden', 500: 'error' } })
+   */
+  statusPages?: Record<number, string>
+  /**
+   * Show the "Create page?" overlay banner on the 404 page.
+   * When false, the 404 page displays without the overlay.
+   * Default: true.
+   */
+  showCreateOverlay?: boolean
+  /**
    * Maximum number of undo states per page (default 50).
    * Older states are evicted via FIFO when the limit is reached.
    */
