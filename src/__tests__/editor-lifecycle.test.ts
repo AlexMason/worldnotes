@@ -150,6 +150,12 @@ function mockPlugins(): ContentPlugin[] {
 
 // ─── createEditorLifecycle ─────────────────────────────────────────────────────
 
+const mockNotifications = {
+  notify: vi.fn().mockReturnValue('mock-id'),
+  dismiss: vi.fn(),
+  destroy: vi.fn(),
+}
+
 describe('createEditorLifecycle', () => {
   let storage: StorageAdapter
   let state: EditorStateAPI
@@ -179,6 +185,7 @@ describe('createEditorLifecycle', () => {
       navigation,
       storage,
       options,
+      mockNotifications,
     )
     expect(lifecycle).toBeDefined()
     expect(typeof lifecycle.mount).toBe('function')
@@ -197,6 +204,7 @@ describe('createEditorLifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       const instance = await lifecycle.mount()
 
@@ -218,6 +226,7 @@ describe('createEditorLifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       await lifecycle.mount()
 
@@ -236,6 +245,7 @@ describe('createEditorLifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       await lifecycle.mount()
 
@@ -257,6 +267,7 @@ describe('createEditorLifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       const instance = await lifecycle.mount()
 
@@ -283,6 +294,7 @@ describe('createEditorLifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       const instance = await lifecycle.mount()
 
@@ -300,6 +312,7 @@ describe('createEditorLifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       const instance = await lifecycle.mount()
 
@@ -320,6 +333,7 @@ describe('createEditorLifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       const instance = await lifecycle.mount()
 
@@ -345,6 +359,7 @@ describe('createEditorLifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       const instance = await lifecycle.mount()
 
@@ -367,6 +382,7 @@ describe('createEditorLifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       const instance = await lifecycle.mount()
 
@@ -397,6 +413,7 @@ describe('createEditorLifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       const instance = await lifecycle.mount()
 
@@ -441,6 +458,7 @@ describe('Editor lifecycle event handlers', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       await lifecycle.mount()
 
@@ -467,6 +485,7 @@ describe('Editor lifecycle event handlers', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       await lifecycle.mount()
 
@@ -509,6 +528,7 @@ describe('Editor lifecycle event handlers', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       await lifecycle.mount()
 
@@ -542,6 +562,7 @@ describe('Editor lifecycle event handlers', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       await lifecycle.mount()
 
@@ -592,6 +613,7 @@ describe('Editor lifecycle event handlers', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       await lifecycle.mount()
 
@@ -636,6 +658,7 @@ describe('Editor lifecycle event handlers', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       await lifecycle.mount()
 
@@ -679,6 +702,7 @@ describe('Editor lifecycle event handlers', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       await lifecycle.mount()
 
@@ -741,6 +765,7 @@ describe('UI plugin lifecycle', () => {
       navigation,
       storage,
       options,
+      mockNotifications,
     )
     await lifecycle.mount()
 
@@ -769,6 +794,7 @@ describe('UI plugin lifecycle', () => {
       navigation,
       storage,
       options,
+      mockNotifications,
     )
     const instance = await lifecycle.mount()
     instance.destroy()
@@ -811,6 +837,7 @@ describe('UI plugin lifecycle', () => {
       navigation,
       storage,
       options,
+      mockNotifications,
     )
     const instance = await lifecycle.mount()
     instance.destroy()
@@ -838,6 +865,7 @@ describe('UI plugin lifecycle', () => {
       navigation,
       storage,
       options,
+      mockNotifications,
     )
     await lifecycle.mount()
 
@@ -864,6 +892,7 @@ describe('UI plugin lifecycle', () => {
       navigation,
       storage,
       options,
+      mockNotifications,
     )
     const instance = await lifecycle.mount()
 
@@ -894,6 +923,7 @@ describe('EditorInstance cursor API', () => {
       navigation,
       storage,
       options,
+      mockNotifications,
     )
     editor = await lifecycle.mount()
   }
@@ -1173,6 +1203,7 @@ describe('EditorInstance cursor API', () => {
         nav,
         storage,
         { saveDebounceMs: 99999 },
+        mockNotifications,
       )
       await lifecycle.mount()
 

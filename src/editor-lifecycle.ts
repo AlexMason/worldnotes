@@ -18,6 +18,8 @@ import { getLineOffset, setLineOffset } from './awareness-cursor'
 import { saveYDoc, loadYDoc } from './yjs-storage-bridge'
 import { renderRemoteCursors } from './plugins/remoteCursors'
 import { renderInlineContent } from './renderer'
+import type { NotificationSystem } from './notifications'
+import type { ToastOptions } from './types'
 
 export interface EditorLifecycleAPI {
   mount(): Promise<EditorInstance>
@@ -32,6 +34,7 @@ export function createEditorLifecycle(
   navigation: EditorNavigationAPI,
   storage: StorageAdapter,
   options: EditorOptions,
+  notifications: NotificationSystem,
 ): EditorLifecycleAPI {
   function insertTextAtSelection(text: string): void {
     const sel = window.getSelection()
@@ -354,6 +357,7 @@ export function createEditorLifecycle(
       destroy() {
         state.clearSaveTimer()
         syncProvider?.destroy()
+        notifications.destroy()
         for (const plugin of contentPlugins) {
           try {
             plugin.onDestroy?.()
@@ -501,6 +505,14 @@ export function createEditorLifecycle(
         const end = start + text.length
 
         return { text, start, end: Math.max(start, end) }
+      },
+
+      notify(opts: ToastOptions): string {
+        return notifications.notify(opts)
+      },
+
+      dismiss(toastId: string): void {
+        notifications.dismiss(toastId)
       },
     }
   }

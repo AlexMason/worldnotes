@@ -15,6 +15,12 @@ import type { EditorNavigationAPI } from '../editor-navigation'
 import { createEditorLifecycle } from '../editor-lifecycle'
 import { createYDocState } from '../y-doc-state'
 
+const mockNotifications = {
+  notify: vi.fn().mockReturnValue('mock-id'),
+  dismiss: vi.fn(),
+  destroy: vi.fn(),
+}
+
 function mockStorage(): StorageAdapter {
   const store: Record<string, string> = {}
   return {
@@ -174,6 +180,7 @@ describe('undo/redo in editor lifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       const instance = await lifecycle.mount()
 
@@ -193,6 +200,7 @@ describe('undo/redo in editor lifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       const instance = await lifecycle.mount()
 
@@ -209,6 +217,7 @@ describe('undo/redo in editor lifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       const instance = await lifecycle.mount()
 
@@ -227,6 +236,7 @@ describe('undo/redo in editor lifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       const instance = await lifecycle.mount()
       const ytext = state.getYDocState().getPage('home')
@@ -259,6 +269,7 @@ describe('undo/redo in editor lifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       await lifecycle.mount()
 
@@ -289,6 +300,7 @@ describe('undo/redo in editor lifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       await lifecycle.mount()
 
@@ -317,6 +329,7 @@ describe('undo/redo in editor lifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       await lifecycle.mount()
 
@@ -358,6 +371,7 @@ describe('undo/redo in editor lifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       await lifecycle.mount()
 
@@ -398,6 +412,7 @@ describe('undo/redo in editor lifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       const instance = await lifecycle.mount()
 
@@ -432,6 +447,7 @@ describe('undo/redo in editor lifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       const instance = await lifecycle.mount()
 
@@ -462,6 +478,7 @@ describe('undo/redo in editor lifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       const instance = await lifecycle.mount()
 
@@ -479,6 +496,7 @@ describe('undo/redo in editor lifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       const instance = await lifecycle.mount()
 
@@ -500,6 +518,7 @@ describe('undo/redo in editor lifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       const instance = await lifecycle.mount()
 
@@ -526,6 +545,7 @@ describe('undo/redo in editor lifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       await lifecycle.mount()
 
@@ -555,6 +575,7 @@ describe('undo/redo in editor lifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       await lifecycle.mount()
 
@@ -593,6 +614,7 @@ describe('undo/redo in editor lifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       const instance = await lifecycle.mount()
 
@@ -630,6 +652,7 @@ describe('undo/redo in editor lifecycle', () => {
         navigation,
         storage,
         options,
+        mockNotifications,
       )
       const instance = await lifecycle.mount()
 
