@@ -1,6 +1,7 @@
 import { ContentPlugin } from './types';
 import { EditorStateAPI } from './editor-state';
 import { EditorDOM } from './editor-dom';
+import { NotificationSystem } from './notifications';
 export interface EditorRenderAPI {
     render(force?: boolean, cursorOffset?: number): void;
     renderBreadcrumb(): void;
@@ -13,5 +14,6 @@ export interface EditorRenderOptions {
     navigateFn?: (page: string) => void;
     statusPages?: Record<number, string>;
     showCreateOverlay?: boolean;
+    notifications?: NotificationSystem;
 }
 export declare function createEditorRender(dom: EditorDOM, contentPlugins: ContentPlugin[], state: EditorStateAPI, options?: EditorRenderOptions): EditorRenderAPI;

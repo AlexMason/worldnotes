@@ -1,7 +1,7 @@
 export { createEditor, EditorBuilder } from './editor';
 export { tokenizeLine, scanInline, tokenizeDocument } from './tokenizer';
 export { renderLineToHTML, renderInlineHTML, renderDocumentToHTML, } from './renderer';
-export type { Token, TokenDef, PluginManifest, ContentPlugin, UIPlugin, StoragePlugin, StorageAdapter, EditorContext, StaticRenderContext, EditorOptions, EditorInstance, } from './types';
+export type { Token, TokenDef, PluginManifest, ContentPlugin, UIPlugin, StoragePlugin, StorageAdapter, EditorContext, StaticRenderContext, EditorOptions, EditorInstance, ToastType, ToastPosition, ToastAction, ToastOptions, } from './types';
 export { PermissionError } from './types';
 export { LocalStorageAdapter } from './storage/localStorage';
 export { IndexedDBAdapter } from './storage/indexedDB';
@@ -21,3 +21,4 @@ export { remoteCursorsPlugin } from './plugins/remoteCursors';
 export { createYDocState } from './y-doc-state';
 export type { YDocState } from './y-doc-state';
 export { saveYDoc, loadYDoc } from './yjs-storage-bridge';
+export { createNotificationSystem } from './notifications';
