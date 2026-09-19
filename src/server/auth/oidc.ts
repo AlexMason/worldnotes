@@ -59,6 +59,24 @@ export async function createRelyingParty(
     ? { [customFetch]: deps.fetch }
     : undefined
 
+  const rpOptions: Record<string, unknown> = { ...options }
+  if (!config.isProduction) {
+    // Dev providers are often plain http (localhost Keycloak/Authentik).
+    // `execute` applies before the discovery fetch itself, so http issuers
+    // work end-to-end (a post-hoc allowInsecureRequests call is too late).
+    rpOptions.execute = [oidc.allowInsecureRequests]
+  }
+
+  // RFC 7617 plain-credentials Basic auth. Deliberately NOT openid-client's
+  // ClientSecretBasic: it form-encodes the components first (RFC 6749 App. B,
+  // percent-encoding hyphens etc.), and spec-raw servers like TinyAuth
+  // (Go/gin) compare the decoded header literally — UUID client IDs and
+  // 'ta-' secrets then fail with invalid_client.
+  const clientAuth: oidc.ClientAuth = (_as, _client, _body, headers) => {
+    const raw = Buffer.from(`${oidcCfg.clientId}:${oidcCfg.clientSecret}`, 'utf8').toString('base64')
+    headers.set('authorization', `Basic ${raw}`)
+  }
+
   const rp = await oidc.discovery(
     new URL(oidcCfg.issuer),
     oidcCfg.clientId,
@@ -70,18 +88,9 @@ export async function createRelyingParty(
       // JWT timestamp validation tolerance (host/container clock skew)
       [oidc.clockTolerance]: config.env.OIDC_CLOCK_TOLERANCE_SECONDS,
     } as never,
-    oidc.ClientSecretBasic(oidcCfg.clientSecret),
-    options,
+    clientAuth,
+    rpOptions as never,
   )
-
-  if (!config.isProduction) {
-    // Dev providers are often plain http (localhost Keycloak/Authentik).
-    try {
-      oidc.allowInsecureRequests(rp)
-    } catch {
-      /* already https */
-    }
-  }
 
   return {
     async startLogin(returnTo) {
