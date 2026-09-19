@@ -13,6 +13,7 @@ import type { EditorDOM } from './editor-dom'
 import type { EditorRenderAPI } from './editor-render'
 import type { EditorNavigationAPI } from './editor-navigation'
 import { getLineOffset, setLineOffset } from './caret-offset'
+import { extractContentText } from './content-text'
 import { renderInlineContent } from './renderer'
 import type { NotificationSystem } from './notifications'
 import type { ToastOptions } from './types'
@@ -74,31 +75,10 @@ export function createEditorLifecycle(
 
     let handlingInput = false
 
-    // Walk DOM to extract raw Markdown text, respecting data-raw attributes
-    // set by plugins (e.g. wiki links render as display text but store raw
-    // markup in data-raw). This replaces simple textContent which loses
-    // token boundaries.
-    function extractContentText(el: HTMLElement): string {
-      let text = ''
-      let hadDataLine = false
-      function walk(node: Node): void {
-        if (node.nodeType === Node.TEXT_NODE) {
-          text += (node as Text).textContent ?? ''
-        } else if (node instanceof HTMLElement) {
-          if (node.dataset.raw !== undefined) {
-            text += node.dataset.raw
-          } else {
-            if (node.dataset.line !== undefined) {
-              if (hadDataLine) text += '\n'
-              hadDataLine = true
-            }
-            node.childNodes.forEach(walk)
-          }
-        }
-      }
-      walk(el)
-      return text
-    }
+    // extractContentText lives in content-text.ts — the SINGLE raw-text model
+    // shared with caret-offset.ts (both directions of the DOM ↔ source
+    // mapping must agree node-for-node, forever; two implementations drifting
+    // apart is a silent data-loss bug).
 
     dom.editorDiv.addEventListener('input', () => {
       if (state.isNavigating()) return
@@ -175,13 +155,14 @@ export function createEditorLifecycle(
       // First plugin to return { cursorOffset } wins.
       {
         const context: EditorContext = {
-          navigate: (p: string) => { void navigation.navigateToPage(p) },
+          navigate: (p: string) => {
+            void navigation.navigateToPage(p)
+          },
           getTrail: () => state.getTrail(),
           getCurrentPage: () => state.getCurrentPage(),
           getWorld: () => buffers.getWorld(),
           getPageText: (p: string) => buffers.getPageText(p),
-          setPageText: (p: string, content: string) =>
-            buffers.setPageText(p, content),
+          setPageText: (p: string, content: string) => buffers.setPageText(p, content),
         }
         context.renderInline = (text: string): DocumentFragment => {
           return renderInlineContent(text, contentPlugins, context)
@@ -238,8 +219,7 @@ export function createEditorLifecycle(
 
     let selectChangePending = false
     document.addEventListener('selectionchange', () => {
-      if (handlingInput || selectChangePending || state.isNavigating())
-        return
+      if (handlingInput || selectChangePending || state.isNavigating()) return
       selectChangePending = true
       requestAnimationFrame(() => {
         selectChangePending = false

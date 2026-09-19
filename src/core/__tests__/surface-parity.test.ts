@@ -13,9 +13,9 @@
 // span when all other attrs/children match (the "anchor exception").
 
 import { describe, it, expect } from 'vitest'
-import { renderLine, renderInlineContent } from '../renderer'
-import { renderDocumentToHTML } from '../static-renderer'
-import { tokenizeDocument } from '../tokenizer'
+import { renderInlineContent } from '../renderer'
+import { renderLines } from '../line-renderer'
+import { renderDocumentHtml } from '../static-renderer'
 import { defaultPlugins } from '../plugins/defaults'
 import type { ContentPlugin, EditorContext } from '../types'
 
@@ -81,33 +81,27 @@ function snapshot(node: Node, root: boolean): NodeSpec {
 
 function editorRoot(): HTMLElement {
   const ctx: EditorContext = {
-    navigate: () => {},
+    navigate: () => undefined,
     getTrail: () => [],
     getCurrentPage: () => 'page',
     getWorld: () => ({ page: FIXTURE }),
     getPageText: () => FIXTURE,
-    setPageText: () => {},
+    setPageText: () => undefined,
   }
   ctx.renderInline = (t: string) => renderInlineContent(t, plugins, ctx)
 
+  // Drive the REAL editor pipeline (no hand-rolled line loop): whatever
+  // structure renderLines produces — flat divs today, block wrappers once
+  // the block pass lands — is what parity compares.
   const root = document.createElement('div')
-  const lines = tokenizeDocument(FIXTURE, plugins.flatMap((p) => p.tokens))
-  lines.forEach((tokens, i) => {
-    const container = document.createElement('div')
-    container.dataset.line = String(i)
-    const fragment = renderLine(tokens, plugins, ctx)
-    if (fragment.childNodes.length) container.appendChild(fragment)
-    else container.appendChild(document.createElement('br'))
-    root.appendChild(container)
-  })
+  renderLines(FIXTURE, plugins, ctx, root)
   return root
 }
 
 function readerRoot(): Document {
-  const html = renderDocumentToHTML(
-    tokenizeDocument(FIXTURE, plugins.flatMap((p) => p.tokens)),
-    plugins,
-  )
+  // Drive the REAL reader pipeline (renderDocumentHtml → buildDocument →
+  // model-aware static rendering), so block wrappers appear on both sides.
+  const html = renderDocumentHtml(FIXTURE, plugins)
   return new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html')
 }
 

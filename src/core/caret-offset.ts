@@ -5,25 +5,15 @@
  * Offsets are ALWAYS in "raw text" space — matching what extractContentText
  * produces and what Y.Text stores.  Elements with data-raw contribute their
  * raw length (e.g. 9 for "[[hello]]") rather than their DOM text length
- * (e.g. 5 for "hello").
+ * (e.g. 5 for "hello").  [data-line] containers nested inside block wrappers
+ * count one newline separator between consecutive lines (see content-text).
  */
+
+import { rawNodeLength } from './content-text'
 
 /** Compute the raw-text length of a DOM subtree. */
 function rawSubtreeLength(node: Node): number {
-  if (node.nodeType === Node.TEXT_NODE) {
-    return (node as Text).length
-  }
-  if (node instanceof HTMLElement) {
-    if (node.dataset.raw !== undefined) {
-      return node.dataset.raw.length
-    }
-    let len = 0
-    node.childNodes.forEach((child) => {
-      len += rawSubtreeLength(child)
-    })
-    return len
-  }
-  return 0
+  return rawNodeLength(node)
 }
 
 /** Raw-text length of one [data-line] container (respects data-raw). */
@@ -81,6 +71,15 @@ export function tryGetLineOffset(el: HTMLElement): number | null {
       let boundary = 0
       for (let i = 0; i < upto; i++) boundary += rawLineLength(kids[i]!) + 1
       return boundary
+    }
+    // Selection anchored directly on a block wrapper (caret between its line
+    // children): map to the START of the wrapper's first line — deterministic
+    // and lands the caret inside the block, which is the expand trigger.
+    if (container instanceof HTMLElement) {
+      const inner = container.querySelector('[data-line]')
+      if (inner instanceof HTMLElement && inner.dataset.line !== undefined) {
+        return getOffsetBeforeLine(el, parseInt(inner.dataset.line ?? '0', 10))
+      }
     }
     // Cursor is in a \n text node between containers.
     let prev = container.previousSibling
