@@ -12,6 +12,7 @@ interface ShellConfig {
   slug: string
   autosaveMs: number
   searchEnabled: boolean
+  allPagesEnabled: boolean
   homeSlug: string | null
   userName: string | null
   authDisabled: boolean
@@ -37,6 +38,7 @@ function readShellConfig(): ShellConfig {
     slug: slugFromPath(window.location.pathname),
     autosaveMs: 1500,
     searchEnabled: true,
+    allPagesEnabled: true,
     homeSlug: null,
     userName: null,
     authDisabled: false,
@@ -155,10 +157,12 @@ async function main(): Promise<void> {
       search.textContent = 'Search'
       actions.appendChild(search)
     }
-    const all = document.createElement('a')
-    all.href = '/all'
-    all.textContent = 'All pages'
-    actions.appendChild(all)
+    if (cfg.allPagesEnabled) {
+      const all = document.createElement('a')
+      all.href = '/all'
+      all.textContent = 'All pages'
+      actions.appendChild(all)
+    }
     const admin = document.createElement('a')
     admin.href = '/admin'
     admin.textContent = 'Admin settings'

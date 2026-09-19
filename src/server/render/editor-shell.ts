@@ -15,6 +15,8 @@ export interface EditorShellOptions {
   searchEnabled: boolean
   /** Configured home page slug (breadcrumb trail root); null = 'home'. */
   homeSlug: string | null
+  /** Show the "All pages" nav affordance in the editor chrome. */
+  allPagesEnabled: boolean
   userName: string | null
   authDisabled: boolean
   /**
@@ -41,6 +43,7 @@ export function editorShellHtml(slug: string, opts: EditorShellOptions): string 
     slug,
     autosaveMs: opts.autosaveMs,
     searchEnabled: opts.searchEnabled,
+    allPagesEnabled: opts.allPagesEnabled,
     homeSlug: opts.homeSlug,
     userName: opts.userName,
     authDisabled: opts.authDisabled,

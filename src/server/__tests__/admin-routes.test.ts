@@ -79,8 +79,43 @@ describe('admin settings', () => {
       payload: { searchEnabled: false, homeSlug: 'blog/intro' },
     })
     expect(res.statusCode).toBe(200)
-    expect(res.json()).toEqual({ searchEnabled: false, homeSlug: 'blog/intro' })
-    expect(settingsRepo.dump()).toEqual({ search_enabled: 'false', home_slug: 'blog/intro' })
+    expect(res.json()).toEqual({
+      searchEnabled: false,
+      homeSlug: 'blog/intro',
+      allPagesEnabled: true,
+    })
+    expect(settingsRepo.dump()).toEqual({
+      search_enabled: 'false',
+      home_slug: 'blog/intro',
+      all_pages_enabled: 'true',
+    })
+  })
+
+  it('renders the all-pages checkbox and honours its state', async () => {
+    const on = await app.inject({ method: 'GET', url: '/admin', headers: { cookie: auth } })
+    expect(on.body).toContain('<input type="checkbox" name="allPagesEnabled" checked>')
+
+    // Disabling without a home page is rejected with an explanatory error.
+    const bad = await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: auth, 'content-type': 'application/json' },
+      payload: { allPagesEnabled: false, homeSlug: '' },
+    })
+    expect(bad.statusCode).toBe(400)
+    expect(bad.json()).toMatchObject({ error: /home page is required/ })
+
+    const ok = await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: auth, 'content-type': 'application/json' },
+      payload: { allPagesEnabled: false, homeSlug: 'welcome' },
+    })
+    expect(ok.statusCode).toBe(200)
+    const off = await app.inject({ method: 'GET', url: '/admin', headers: { cookie: auth } })
+    expect(off.body).toContain('<input type="checkbox" name="allPagesEnabled">')
+    // The admin page chrome itself hides the "All pages" link when disabled.
+    expect(off.body).not.toContain('href="/all"')
   })
 
   it('rejects invalid values with 400', async () => {

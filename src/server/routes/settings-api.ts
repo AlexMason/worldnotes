@@ -16,10 +16,17 @@ export async function registerSettingsApiRoutes(
   deps: SettingsApiDeps,
 ): Promise<void> {
   app.put('/api/settings', { preHandler: [requireSameOrigin, requireAuth] }, async (req, reply) => {
-    const body = (req.body ?? {}) as { searchEnabled?: unknown; homeSlug?: unknown }
+    const body = (req.body ?? {}) as {
+      searchEnabled?: unknown
+      homeSlug?: unknown
+      allPagesEnabled?: unknown
+    }
 
     if (body.searchEnabled !== undefined && typeof body.searchEnabled !== 'boolean') {
       return reply.code(400).send({ error: 'searchEnabled must be a boolean' })
+    }
+    if (body.allPagesEnabled !== undefined && typeof body.allPagesEnabled !== 'boolean') {
+      return reply.code(400).send({ error: 'allPagesEnabled must be a boolean' })
     }
     if (
       body.homeSlug !== undefined &&
@@ -30,9 +37,15 @@ export async function registerSettingsApiRoutes(
     }
 
     try {
-      const patch: { searchEnabled?: boolean; homeSlug?: string | null } = {}
+      const patch: {
+        searchEnabled?: boolean
+        homeSlug?: string | null
+        allPagesEnabled?: boolean
+      } = {}
       if (body.searchEnabled !== undefined) patch.searchEnabled = body.searchEnabled as boolean
       if (body.homeSlug !== undefined) patch.homeSlug = body.homeSlug as string | null
+      if (body.allPagesEnabled !== undefined)
+        patch.allPagesEnabled = body.allPagesEnabled as boolean
       const updated = await deps.settings.update(patch, req.user?.sub ?? null)
       return updated
     } catch (e) {
