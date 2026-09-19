@@ -10,7 +10,7 @@ Browser (anonymous)                  Browser (authenticated)
    │ GET /{slug}  (SSR, ETag)          │ GET /{slug} → client editor bundle
    ▼                                   │ PUT /api/pages/{slug} (If-Match)
 ┌──────────────────────────── Fastify ────────────────────────────┐
-│ markdown-it viewer ── bounded LRU + ETag                        │
+│ core static renderer (SSR) ── bounded LRU + ETag                │
 │ / → home|index · /all · /search/{terms} · /{slug} catch-all    │
 │   (editor for auth, registered LAST) · 404 create overlay      │
 │ OIDC RP (state+PKCE+nonce) ── AES-GCM cookie sessions           │
@@ -27,9 +27,9 @@ Browser (anonymous)                  Browser (authenticated)
 
 | Directory | Runs in | Purpose |
 |---|---|---|
-| `src/core/` | browser | The inline editor: tokenizer, edit-preview renderer, editor DOM/state/render/navigation/lifecycle, plugin registry + content plugins, `PageBuffers` (content model), `PageStore` contract |
+| `src/core/` | browser + node | The ONE render engine: tokenizer, content plugins (each with an interactive `render()` and a static `renderToHTML()`), interactive DOM renderer (`renderer.ts`) + DOM-free static renderer (`static-renderer.ts`, used by the SSR read path), editor DOM/state/render/navigation/lifecycle, plugin registry, `PageBuffers` (content model), `PageStore` contract, editor stylesheets (`styles.ts`) |
 | `src/client/` | browser | Editor bootstrap: `main.ts` mounts the editor over `api-page-store.ts` (fetch + versions + conflicts) and builds the header actions (Search / All pages / Admin / sign-out) |
-| `src/server/` | node | Fastify app: config, auth (OIDC/sessions), DB (pool/migrations/repositories), render (markdown-it viewer, layout, title extraction), routes, LRU cache |
+| `src/server/` | node | Fastify app: config, auth (OIDC/sessions), DB (pool/migrations/repositories), render (reader adapter over core static renderer, layout, title extraction), routes, LRU cache |
 | `src/shared/` | both | Env-agnostic code: `slug.ts` policy, `url-policy.ts`, `url-helpers.ts`, `dto.ts` |
 
 Boundary rules (enforced by tooling):
@@ -40,10 +40,14 @@ Boundary rules (enforced by tooling):
 - The server may import DOM-free parts of `src/core` (tokenizer, navigation).
   A node-project smoke test (`src/server/__tests__/node-smoke.test.ts`) fails
   if any top-level DOM usage creeps in.
-- The **read path never uses the core editor renderers**: `renderToHTML`
-  produces edit-preview markup (literal `**` markers, `data-page` spans).
-  Readers get `src/server/render/markdown.ts` (markdown-it, `html:false`,
-  `[[wiki-link]]` rule, task checkboxes, `rel=noopener` on external links).
+- **Single renderer:** the read path IS the core engine —
+  `src/server/render/reader.ts` wraps `renderDocumentHtml` from
+  `src/core/static-renderer.ts` (import it directly, never the core barrel).
+  Reader output is the editor's shape: `div[data-line]` lines, dimmed
+  `wn-punct` markers, literal markdown source. Grammar lives only in
+  `src/core/plugins/`; cross-surface structural parity (with the documented
+  internal span→anchor divergence) is pinned by
+  `src/core/__tests__/surface-parity.test.ts`.
 
 ## Content model & save flow
 
@@ -126,10 +130,14 @@ roots and type-only files are excluded (`vitest.config.ts`).
 
 ## Security posture (read path)
 
-- markdown-it `html:false` — author HTML is escaped, never emitted
-- shared `url-policy` scheme allowlist (`http/https/mailto` + relative/same-origin)
-  applied to link hrefs, wiki-link generation, and linkify
-- `rel="noopener noreferrer nofollow"` on external links
+- source-based rendering — all text and attribute positions pass through the
+  shared escapers (`src/core/escape.ts`: `escapeHTML` for text, `escapeAttr`
+  for every `"`-delimited attribute); author HTML is never emitted
+- scheme-based link classification (`src/core/plugins/link.ts`) with the shared
+  `url-policy` allowlist (`http/https/mailto` + relative/same-origin); unsafe
+  and unfoldable targets render as escaped literal source, never anchors
+- `target=_blank` + `rel="noopener noreferrer nofollow"` on external http(s)
+  links; internal anchors ride on `validateSlug`'s charset (AGENTS.md warning)
 - cookie sessions encrypted (no claim leakage), SameSite=Lax + origin checks
   for state-changing API calls
 - slug validation everywhere (URL, body, DB CHECK); ETag/304 without

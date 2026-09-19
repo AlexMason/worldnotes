@@ -81,11 +81,23 @@ key/value table and editable from `GET /admin`.
 
 ## Viewer markdown
 
-CommonMark via markdown-it (plus tables, `~~strike~~`, single-newline breaks,
-linkify) with **raw HTML disabled** and a scheme allowlist
-(`http/https/mailto` + relative). Extensions: `[[Page]]` / `[[a/b|Display]]`
-→ `<a class="wn-wiki-link" href="/a/b">Display</a>` (targets that can't fold
-to a valid slug stay literal), `- [ ]` / `- [x]` → disabled checkboxes.
+The reader renders with the **same engine as the editor** (`src/core`:
+line-oriented tokenizer + content plugins) — no markdown-it. Output is the
+editor's read-only shape (`div[data-line]` lines with dimmed `wn-punct`
+markers). Supported grammar: `#`–`###` headings, `**bold**`, `*italic*`,
+`~~strike~~`, backtick inline code, `> ` blockquotes, `-`/`*`/`+` list lines
+(indent is visual, not semantic), `---` rules, `[text](url)` links, and
+`[[Page]]` / `[[a/b|Display]]` wiki links → `<a class="wn-wiki-link"
+href="/a/b">Display</a>` (targets that can't fold to a valid slug stay
+literal). Raw HTML is always escaped; hrefs use a scheme allowlist
+(`http/https/mailto` + relative/same-origin).
+
+**Not parsed** (renders as visible literal source): fenced/indented code
+blocks, tables, ordered lists, semantic list nesting, autolinked bare URLs,
+`- [ ]` checkboxes, `####`–`######`, images, `_underscore_` emphasis,
+backslash escapes (these produce emphasis instead — no escape grammar), HTML
+entities (shown literally), multi-backtick spans, link titles. Wiki-link
+labels show the target's LAST segment (`[[blog/my-post]]` → "my-post").
 
 ## Environment variables
 

@@ -3,8 +3,9 @@
 ## Project Overview
 
 `worldnotes` is a self-hosted markdown wiki server (TypeScript, Fastify,
-PostgreSQL): anonymous visitors get cached server-rendered HTML at `/{slug}`;
-OIDC-authenticated users get an inline markdown editor at `/edit/{slug}` with
+PostgreSQL): anonymous visitors get cached, read-only server-rendered HTML at
+`/{slug}` rendered by the SAME engine as the editor (single-renderer
+constraint); OIDC-authenticated users get an inline markdown editor with
 debounced autosave and If-Match conflict handling. Multiplayer/Yjs and npm
 library packaging were removed in the server pivot — the editor lives in
 `src/core/`, the client bootstrap in `src/client/`, the Fastify app in
@@ -49,11 +50,20 @@ All steps must pass.
 - `src/shared/` must stay environment-agnostic (no DOM, no Node APIs);
   `src/server/**` may import DOM-free parts of `src/core` (guarded by the
   node smoke test).
-- The read path must never emit edit-preview HTML: viewer rendering is
-  `src/server/render/markdown.ts`; the core plugin `renderToHTML` stays
-  edit-surface-only.
+- **Single renderer:** the read path and the editor share one engine —
+  `src/core/static-renderer.ts` (plugin `renderToHTML`) renders the reader,
+  `src/core/renderer.ts` (plugin `render()`) renders the editor DOM, both over
+  `src/core/tokenizer.ts` + `src/core/plugins/`. There is no markdown-it. Any
+  grammar change happens ONLY in `src/core/plugins/`; href safety
+  (`isSafeHref`) lives inside the plugins because their string output is served
+  to anonymous readers. The one sanctioned divergence: internal links emit
+  `<a href="/slug">` statically (zero-JS reader) but `<span data-page>` in the
+  editable DOM (clicks intercepted via `onNavigate`) — pinned by
+  `src/core/__tests__/surface-parity.test.ts`.
 - Slug policy lives in `src/shared/slug.ts` — change it, the DB `CHECK` in
-  `migrations/001_init.sql`, and both route/SSR layers together.
+  `migrations/001_init.sql`, and both route/SSR layers together. SECURITY:
+  `SEGMENT_RE`'s charset is also what makes wiki-link `href="/{slug}"`
+  injection-safe on the read path — loosening it deletes an XSS guard.
 - Update `docs/api.md` when HTTP APIs or env configuration change;
   `docs/architecture.md` when module responsibilities or request flow change;
   `docs/theming.md` when editor `--wn-*` tokens or viewer CSS change.
