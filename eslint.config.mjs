@@ -4,6 +4,7 @@
 import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import eslintConfigPrettier from 'eslint-config-prettier/flat'
+import globals from 'globals'
 
 export default tseslint.config(
   // Base JavaScript recommended rules
@@ -14,6 +15,12 @@ export default tseslint.config(
 
   // TypeScript stylistic rules (opinionated code style)
   ...tseslint.configs.stylistic,
+
+  // Node-side code (server only — src/shared must stay env-agnostic) gets Node globals
+  {
+    files: ['src/server/**/*.ts'],
+    languageOptions: { globals: { ...globals.node } },
+  },
 
   // Project-specific overrides
   {
