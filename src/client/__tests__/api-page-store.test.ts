@@ -1,0 +1,133 @@
+// ─── ApiPageStore unit tests (fetch stubbed) ─────────────────────────────────
+
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { createApiPageStore } from '../api-page-store'
+
+interface Stub {
+  status: number
+  body?: unknown
+}
+
+function stubFetch(...stubs: Stub[]): ReturnType<typeof vi.fn> {
+  const calls: Request[] = []
+  const fn = vi.fn(async (url: string, init?: RequestInit) => {
+    calls.push({ url: url, ...init } as unknown as Request)
+    const stub = stubs.shift() ?? { status: 500 }
+    return Response.json(stub.body ?? {}, { status: stub.status })
+  })
+  const f = fn as unknown as ReturnType<typeof vi.fn>
+  ;(f as unknown as { calls_: Request[] }).calls_ = calls
+  vi.stubGlobal('fetch', fn)
+  return f
+}
+
+function recordedCalls(fn: ReturnType<typeof vi.fn>): { url: string; init?: RequestInit }[] {
+  return fn.mock.calls.map(([url, init]) => ({ url: url as string, init: init as RequestInit }))
+}
+
+describe('createApiPageStore', () => {
+  beforeEach(() => vi.unstubAllGlobals())
+
+  it('load fetches by slug-folded path and records the version', async () => {
+    const fn = stubFetch({ status: 200, body: { slug: 'blog/post', title: 'P', content: 'hello', version: 3 } })
+    const store = createApiPageStore({ onConflict: vi.fn() })
+
+    await expect(store.load('Blog/Post')).resolves.toBe('hello')
+    expect(recordedCalls(fn)[0]!.url).toBe('/api/pages/blog/post')
+    expect(store.versionOf('blog/post')).toBe(3)
+    expect(store.versionOf('Blog/Post')).toBe(3) // folded key
+  })
+
+  it('load maps 404 and 400 to null', async () => {
+    stubFetch({ status: 404 }, { status: 400, body: { error: 'bad slug' } })
+    const store = createApiPageStore({ onConflict: vi.fn() })
+    await expect(store.load('gone')).resolves.toBeNull()
+    await expect(store.load('Bad Name!')).resolves.toBeNull()
+  })
+
+  it('save PUTs with If-Match and advances the version', async () => {
+    const onSaved = vi.fn()
+    const fn = stubFetch(
+      { status: 200, body: { slug: 'a', title: 'A', content: '', version: 1 } }, // load
+      { status: 200, body: { slug: 'a', title: 'A', content: 'x', version: 2 } }, // save
+    )
+    const store = createApiPageStore({ onConflict: vi.fn(), onSaved })
+
+    await store.load('a')
+    await store.save('a', 'x')
+
+    const put = recordedCalls(fn)[1]!
+    expect(put.init?.method).toBe('PUT')
+    expect((put.init?.headers as Record<string, string>)['if-match']).toBe('"1"')
+    expect(store.versionOf('a')).toBe(2)
+    expect(onSaved).toHaveBeenCalledWith('a', 'x')
+  })
+
+  it('save surfaces 409 conflicts with the server snapshot', async () => {
+    const onConflict = vi.fn()
+    stubFetch(
+      { status: 200, body: { slug: 'a', title: 'A', content: '', version: 1 } }, // load
+      { status: 409, body: { error: 'version conflict', current: { version: 5 } } }, // save
+      { status: 200, body: { slug: 'a', title: 'A', content: 'theirs', version: 5 } }, // refetch
+    )
+    const store = createApiPageStore({ onConflict })
+
+    await store.load('a')
+    await store.save('a', 'mine')
+
+    expect(onConflict).toHaveBeenCalledWith('a', {
+      slug: 'a',
+      title: 'A',
+      content: 'theirs',
+      version: 5,
+    })
+    expect(store.versionOf('a')).toBe(5)
+  })
+
+  it('saving an unsaved page creates it via POST', async () => {
+    const onSaved = vi.fn()
+    const fn = stubFetch(
+      { status: 201, body: { slug: 'new', title: 'New', content: 'body', version: 1 } }, // POST
+      { status: 200, body: { slug: 'new', title: 'New', content: 'body', version: 1 } }, // snapshot
+    )
+    const store = createApiPageStore({ onConflict: vi.fn(), onSaved })
+
+    await store.save('new', 'body')
+
+    expect(recordedCalls(fn)[0]!.url).toBe('/api/pages')
+    expect(recordedCalls(fn)[0]!.init?.method).toBe('POST')
+    expect(onSaved).toHaveBeenCalledWith('new', 'body')
+  })
+
+  it('401 on save notifies auth loss', async () => {
+    const onAuthLost = vi.fn()
+    stubFetch(
+      { status: 200, body: { slug: 'a', title: 'A', content: '', version: 1 } }, // load
+      { status: 401, body: { error: 'unauthorized' } }, // save
+    )
+    const store = createApiPageStore({ onConflict: vi.fn(), onAuthLost })
+
+    await store.load('a')
+    await expect(store.save('a', 'x')).rejects.toThrow(/authentication/)
+    expect(onAuthLost).toHaveBeenCalled()
+  })
+
+  it('retry once when the server demands a version (428)', async () => {
+    const fn = stubFetch(
+      { status: 200, body: { slug: 'a', title: 'A', content: '', version: 1 } }, // load
+      { status: 428, body: { error: 'If-Match required' } }, // save #1
+      { status: 200, body: { slug: 'a', title: 'A', content: '', version: 7 } }, // refetch
+      { status: 200, body: { slug: 'a', title: 'A', content: 'x', version: 8 } }, // save #2
+    )
+    const store = createApiPageStore({ onConflict: vi.fn() })
+
+    await store.load('a')
+    store.versionOf('a')
+    // simulate lost version knowledge while keeping the "known page" marker
+    await store.save('a', 'x')
+
+    const secondPut = recordedCalls(fn)[3]!
+    expect(secondPut.init?.method).toBe('PUT')
+    expect((secondPut.init?.headers as Record<string, string>)['if-match']).toBe('"7"')
+  })
+})

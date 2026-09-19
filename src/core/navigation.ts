@@ -16,30 +16,3 @@ export function parseWikiLink(value: string): WikiLinkTarget {
   return { page, display: display || pageDisplayName(page) }
 }
 
-export function encodePathSearch(search: string, trail: string[]): string {
-  const params = search.replace(/^\?/, '').split('&').filter(Boolean)
-  const withoutPath = params.filter((param) => {
-    const [name = ''] = param.split('=', 1)
-    return decodeURIComponent(name.replace(/\+/g, ' ')) !== 'path'
-  })
-  const path = trail.map((page) => encodeURIComponent(page)).join('/')
-  const next = [...withoutPath, `path=${path}`]
-  return `?${next.join('&')}`
-}
-
-export function decodePathSearch(search: string): string[] {
-  const params = search.replace(/^\?/, '').split('&').filter(Boolean)
-  const pathParam = params.find((param) => {
-    const [name = ''] = param.split('=', 1)
-    return decodeURIComponent(name.replace(/\+/g, ' ')) === 'path'
-  })
-  if (!pathParam) return []
-
-  const equalsIndex = pathParam.indexOf('=')
-  const rawPath = equalsIndex === -1 ? '' : pathParam.slice(equalsIndex + 1)
-  if (!rawPath) return []
-  return rawPath
-    .split('/')
-    .filter(Boolean)
-    .map((page) => decodeURIComponent(page))
-}

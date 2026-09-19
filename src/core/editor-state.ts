@@ -1,7 +1,6 @@
 // ─── Editor State ────────────────────────────────────────────────────────────
 
 import type { EditorContext, EditorOptions } from './types'
-import { decodePathSearch } from './navigation'
 import { createPageBuffers, type PageBuffers } from './page-buffers'
 
 /**
@@ -45,12 +44,10 @@ export function createEditorState(
   pageBuffers: PageBuffers = createPageBuffers({ historyDepth: options.historyDepth }),
 ): EditorStateAPI {
   const configuredInitialPage = options.initialPage ?? 'home'
-  const initialTrail = decodePathSearch(window.location.search)
-  const initialPage = initialTrail[initialTrail.length - 1] ?? configuredInitialPage
 
   // ── Mutable state ──────────────────────────────────────────────────────────
 
-  let trail: string[] = initialTrail.length ? [...initialTrail] : [initialPage]
+  let trail: string[] = [configuredInitialPage]
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let isNavigating = false
   let pendingRequestedPage: string | null = null

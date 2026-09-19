@@ -106,7 +106,6 @@ function mockRender(state: EditorStateAPI, dom: EditorDOM): EditorRenderAPI {
       }
     }),
     renderBreadcrumb: vi.fn(),
-    syncUrlToTrail: vi.fn(),
     checkSelectChange: vi.fn(),
   }
 }

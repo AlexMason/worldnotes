@@ -25,7 +25,12 @@ async function main(): Promise<void> {
     relyingParty = await createRelyingParty(config)
   }
 
-  const app = await buildApp({ config, pages: createPgPagesRepository(pool), relyingParty })
+  const app = await buildApp({
+    config,
+    pages: createPgPagesRepository(pool),
+    relyingParty,
+    clientAssetsDir: resolve(here, '../../dist/client'),
+  })
 
   app.log.info(
     `WorldNotes server on http://${config.env.HOST}:${config.env.PORT} (auth ${config.authDisabled ? 'DISABLED' : 'OIDC'})`,

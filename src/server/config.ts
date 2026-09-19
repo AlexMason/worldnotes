@@ -29,6 +29,9 @@ const EnvSchema = z.object({
   // Read-path render cache
   CACHE_MAX_ENTRIES: z.coerce.number().int().positive().default(200),
   CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(55),
+
+  // Editor client autosave debounce
+  AUTOSAVE_DEBOUNCE_MS: z.coerce.number().int().positive().default(1500),
 })
 
 export type Env = z.infer<typeof EnvSchema>

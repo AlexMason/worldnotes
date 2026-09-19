@@ -93,7 +93,6 @@ function mockRender(): EditorRenderAPI {
   return {
     render: vi.fn(),
     renderBreadcrumb: vi.fn(),
-    syncUrlToTrail: vi.fn(),
     checkSelectChange: vi.fn(),
   }
 }
@@ -360,8 +359,7 @@ describe('createEditorNavigation', () => {
       const trackingRender: EditorRenderAPI = {
         render: vi.fn(),
         renderBreadcrumb: vi.fn(),
-        syncUrlToTrail: vi.fn(),
-        checkSelectChange: vi.fn(),
+            checkSelectChange: vi.fn(),
       }
       const nav = createEditorNavigation(state, storage, dom, options)
       nav.setRenderAPI(trackingRender)

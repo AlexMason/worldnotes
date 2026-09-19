@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseWikiLink, pageDisplayName, encodePathSearch, decodePathSearch } from '../navigation'
+import { parseWikiLink, pageDisplayName } from '../navigation'
 
 // ─── parseWikiLink ────────────────────────────────────────────────────────────
 
@@ -51,58 +51,5 @@ describe('pageDisplayName', () => {
   it('returns empty string for slashes-only input', () => {
     // '///'.trim() → '', .replace(/\/+$/,'') → '', split/filter → [] → ?? '' → ''
     expect(pageDisplayName('///')).toBe('')
-  })
-})
-
-// ─── encodePathSearch ─────────────────────────────────────────────────────────
-
-describe('encodePathSearch', () => {
-  it('serializes breadcrumb trail', () => {
-    expect(encodePathSearch('?theme=dark', ['home', 'projects', 'acme'])).toBe(
-      '?theme=dark&path=home/projects/acme',
-    )
-  })
-
-  it('handles empty trail by producing only the path key', () => {
-    expect(encodePathSearch('?theme=dark', [])).toBe('?theme=dark&path=')
-  })
-
-  it('handles search string without leading question mark', () => {
-    expect(encodePathSearch('theme=dark', ['home'])).toBe('?theme=dark&path=home')
-  })
-})
-
-// ─── decodePathSearch ─────────────────────────────────────────────────────────
-
-describe('decodePathSearch', () => {
-  it('restores breadcrumb trail', () => {
-    expect(decodePathSearch('?theme=dark&path=home/projects/acme')).toEqual([
-      'home',
-      'projects',
-      'acme',
-    ])
-  })
-
-  it('handles page names with encoded characters', () => {
-    expect(decodePathSearch('?theme=dark&path=home/my%20page')).toEqual([
-      'home',
-      'my page',
-    ])
-  })
-
-  it('returns empty array when no path parameter exists', () => {
-    expect(decodePathSearch('?theme=dark')).toEqual([])
-  })
-
-  it('returns empty array when path parameter has no value', () => {
-    expect(decodePathSearch('?path=')).toEqual([])
-  })
-
-  it('returns empty array for empty search string', () => {
-    expect(decodePathSearch('')).toEqual([])
-  })
-
-  it('returns empty array when path param has no equals sign', () => {
-    expect(decodePathSearch('?path')).toEqual([])
   })
 })

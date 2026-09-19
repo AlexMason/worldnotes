@@ -284,51 +284,10 @@ describe('createEditorRender: renderBreadcrumb()', () => {
   })
 })
 
-// ─── createEditorRender: syncUrlToTrail() ───────────────────────────────────────
-
-describe('createEditorRender: syncUrlToTrail()', () => {
-  let dom: EditorDOM
-  let plugins: ContentPlugin[]
-  let state: ReturnType<typeof createEditorState>
-
-  beforeEach(() => {
-    dom = createTestDOM()
-    plugins = [testPlugin()]
-    state = createEditorState({ initialPage: 'home' })
-  })
-
-  // Test 12: syncUrlToTrail updates window.location via history.replaceState
-  it('updates URL via history.replaceState', () => {
-    // Spy on history.replaceState
-    const replaceState = vi.spyOn(window.history, 'replaceState')
-
-    const render = createEditorRender(dom, plugins, state, {})
-
-    state.setTrail(['home', 'about'])
-    render.syncUrlToTrail()
-
-    expect(replaceState).toHaveBeenCalled()
-    const url = (replaceState.mock.calls[0] as [unknown, string, string])[2]
-    expect(url).toContain('path=home/about')
-  })
-
-  // Test 13: renderBreadcrumb calls syncUrlToTrail internally
-  it('renderBreadcrumb calls syncUrlToTrail internally', () => {
-    const replaceState = vi.spyOn(window.history, 'replaceState')
-
-    const render = createEditorRender(dom, plugins, state, {})
-
-    state.setTrail(['home', 'about'])
-    render.renderBreadcrumb()
-
-    expect(replaceState).toHaveBeenCalled()
-  })
-})
-
 // ─── createEditorRender: Module shape ───────────────────────────────────────────
 
 describe('createEditorRender: module shape', () => {
-  it('returns EditorRenderAPI with render, renderBreadcrumb, syncUrlToTrail, checkSelectChange', () => {
+  it('returns EditorRenderAPI with render, renderBreadcrumb, checkSelectChange', () => {
     const dom = createTestDOM()
     const plugins: ContentPlugin[] = [testPlugin()]
     const state = createEditorState({ initialPage: 'test' })
@@ -337,7 +296,6 @@ describe('createEditorRender: module shape', () => {
 
     expect(typeof api.render).toBe('function')
     expect(typeof api.renderBreadcrumb).toBe('function')
-    expect(typeof api.syncUrlToTrail).toBe('function')
   })
 })
 

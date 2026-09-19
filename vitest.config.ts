@@ -43,6 +43,8 @@ export default defineConfig({
         'src/core/plugins/defaults.ts',
         'src/server/index.ts',    // bootstrap only; server modules ARE covered
         'src/server/app.ts',      // composition root
+        'src/client/main.ts',     // bootstrap only
+        'src/shared/dto.ts',      // types only
       ],
       // Coverage thresholds enforce quality gates in CI.
       // Must be met by npm run test:coverage to pass.

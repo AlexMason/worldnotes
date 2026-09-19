@@ -7,12 +7,11 @@ import type { NotificationSystem } from './notifications'
 import { getLineOffset, setLineOffset } from './caret-offset'
 import { renderLines } from './line-renderer'
 import { renderInlineContent } from './renderer'
-import { pageDisplayName, encodePathSearch } from './navigation'
+import { pageDisplayName } from './navigation'
 
 export interface EditorRenderAPI {
   render(force?: boolean, cursorOffset?: number): void
   renderBreadcrumb(): void
-  syncUrlToTrail(): void
   checkSelectChange(): void
 }
 
@@ -160,20 +159,7 @@ export function createEditorRender(
     })
 
     options.onTrailChange?.(state.getTrail())
-    syncUrlToTrail()
   }
 
-  // ── URL sync ──────────────────────────────────────────────────────────────
-
-  function syncUrlToTrail(): void {
-    const trail = state.getTrail()
-    const search = encodePathSearch(window.location.search, trail)
-    window.history.replaceState(
-      null,
-      '',
-      `${window.location.pathname}${search}${window.location.hash}`,
-    )
-  }
-
-  return { render, renderBreadcrumb, syncUrlToTrail, checkSelectChange }
+  return { render, renderBreadcrumb, checkSelectChange }
 }

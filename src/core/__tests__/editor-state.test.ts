@@ -143,22 +143,22 @@ describe('createEditorState', () => {
     expect(state.getWorld()).toEqual({ 'page-one': '# One', 'page-two': '# Two' })
   })
 
-  it('initial trail is decoded from URL search via decodePathSearch', () => {
+  it('ignores legacy ?path= query strings (real URLs own navigation)', () => {
     setupLocation('?path=foo/bar%2Fbaz')
-    const state = createEditorState({})
+    const state = createEditorState({ initialPage: 'blog/real-url' })
 
-    const trail = state.getTrail()
-    expect(trail).toEqual(['foo', 'bar/baz'])
+    expect(state.getTrail()).toEqual(['blog/real-url'])
+    expect(state.getCurrentPage()).toBe('blog/real-url')
   })
 
-  it('falls back to options.initialPage when URL has no path', () => {
+  it('initial trail comes from options.initialPage', () => {
     setupLocation('')
     const state = createEditorState({ initialPage: 'custom-start' })
 
     expect(state.getTrail()).toEqual(['custom-start'])
   })
 
-  it('initial page defaults to home when URL has no path and options.initialPage is undefined', () => {
+  it('initial page defaults to home when options.initialPage is undefined', () => {
     setupLocation('')
     const state = createEditorState({})
 
