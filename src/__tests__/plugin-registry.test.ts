@@ -2,7 +2,7 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { PluginRegistry } from '../plugin-registry'
-import type { ContentPlugin, UIPlugin, StoragePlugin } from '../types'
+import type { ContentPlugin, UIPlugin } from '../types'
 
 // ─── Test Helpers ─────────────────────────────────────────────────────────────
 
@@ -31,21 +31,6 @@ function makeUIPlugin(overrides: Partial<UIPlugin> = {}): UIPlugin {
   }
 }
 
-function makeStoragePlugin(overrides: Partial<StoragePlugin> = {}): StoragePlugin {
-  return {
-    name: 'test-storage',
-    version: '1.0.0',
-    kind: 'storage',
-    adapter: {
-      get: async () => null,
-      set: async (_key: string, _value: string) => {
-        // noop — default stub, override via overrides
-      },
-      keys: async () => [],
-    },
-    ...overrides,
-  }
-}
 
 // ─── A. Semver Validation (PLUG-06) ────────────────────────────────────────────
 
@@ -457,11 +442,9 @@ describe('Accessors', () => {
     const registry = new PluginRegistry()
     registry.register(makeContentPlugin({ name: 'content' }))
     registry.register(makeUIPlugin({ name: 'ui' }))
-    registry.register(makeStoragePlugin({ name: 'storage' }))
 
     expect(registry.getPlugin('content')!.kind).toBe('content')
     expect(registry.getPlugin('ui')!.kind).toBe('ui')
-    expect(registry.getPlugin('storage')!.kind).toBe('storage')
     expect(registry.getPlugin('unknown')).toBeUndefined()
   })
 
@@ -480,12 +463,11 @@ describe('Accessors', () => {
       }),
     )
     registry.register(makeUIPlugin({ name: 'u1' }))
-    registry.register(makeStoragePlugin({ name: 's1' }))
 
     const all = registry.getAllPlugins()
-    expect(all).toHaveLength(4)
+    expect(all).toHaveLength(3)
     const names = all.map((p) => p.name)
-    expect(names).toEqual(['c1', 'c2', 'u1', 's1'])
+    expect(names).toEqual(['c1', 'c2', 'u1'])
   })
 })
 
@@ -515,21 +497,11 @@ describe('Edge Cases', () => {
     expect(registry.getPlugin('test-content')).toBeDefined()
   })
 
-  it('registering a storage plugin succeeds without conflict detection', () => {
-    const registry = new PluginRegistry()
-    const s1 = makeStoragePlugin({ name: 'storage-a' })
-    const s2 = makeStoragePlugin({ name: 'storage-b' })
 
-    expect(() => registry.register(s1)).not.toThrow()
-    expect(() => registry.register(s2)).not.toThrow()
-    expect(registry.getAllPlugins()).toHaveLength(2)
-  })
-
-  it('allContentPlugins filters out UI and storage plugins', () => {
+  it('allContentPlugins filters out UI plugins', () => {
     const registry = new PluginRegistry()
     registry.register(makeContentPlugin({ name: 'c1' }))
     registry.register(makeUIPlugin({ name: 'u1' }))
-    registry.register(makeStoragePlugin({ name: 's1' }))
 
     const content = registry.allContentPlugins()
     expect(content).toHaveLength(1)

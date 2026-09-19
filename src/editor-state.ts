@@ -1,20 +1,20 @@
 // ─── Editor State ────────────────────────────────────────────────────────────
 
-import type { EditorContext, StorageAdapter, EditorOptions } from './types'
+import type { EditorContext, EditorOptions } from './types'
 import { decodePathSearch } from './navigation'
-import { createYDocState, type YDocState } from './y-doc-state'
+import { createPageBuffers, type PageBuffers } from './page-buffers'
 
 /**
  * Full API surface for editor mutable state.
  */
 export interface EditorStateAPI {
-  /** Return the Yjs-backed document state. */
-  getYDocState(): YDocState
+  /** Return the in-memory page content store. */
+  getPageBuffers(): PageBuffers
   /** Return a defensive copy of the breadcrumb trail (flat path segments). */
   getTrail(): string[]
   /** Reconstruct the full current page name from trail segments. */
   getCurrentPage(): string
-  /** Return a defensive copy of the world cache (delegates to YDocState). */
+  /** Return a defensive copy of the world cache (delegates to PageBuffers). */
   getWorld(): Record<string, string>
   /** Append a page name to the trail. */
   pushTrail(page: string): void
@@ -41,10 +41,9 @@ export interface EditorStateAPI {
 }
 
 export function createEditorState(
-  _storage: StorageAdapter,
   options: EditorOptions = {},
+  pageBuffers: PageBuffers = createPageBuffers({ historyDepth: options.historyDepth }),
 ): EditorStateAPI {
-  const yDocState = createYDocState()
   const configuredInitialPage = options.initialPage ?? 'home'
   const initialTrail = decodePathSearch(window.location.search)
   const initialPage = initialTrail[initialTrail.length - 1] ?? configuredInitialPage
@@ -59,8 +58,8 @@ export function createEditorState(
   // ── API ────────────────────────────────────────────────────────────────────
 
   return {
-    getYDocState(): YDocState {
-      return yDocState
+    getPageBuffers(): PageBuffers {
+      return pageBuffers
     },
 
     getTrail(): string[] {
@@ -73,7 +72,7 @@ export function createEditorState(
     },
 
     getWorld(): Record<string, string> {
-      return yDocState.getWorld()
+      return pageBuffers.getWorld()
     },
 
     pushTrail(page: string): void {
@@ -117,7 +116,14 @@ export function createEditorState(
     },
 
     toContext(navigate: (page: string) => void): EditorContext {
-      const context = yDocState.toContext(navigate)
+      const context: EditorContext = {
+        navigate,
+        getTrail: () => [],
+        getCurrentPage: () => '',
+        getWorld: () => pageBuffers.getWorld(),
+        getPageText: (page: string) => pageBuffers.getPageText(page),
+        setPageText: (page: string, content: string) => pageBuffers.setPageText(page, content),
+      }
       return {
         ...context,
         getTrail: () => [...trail],

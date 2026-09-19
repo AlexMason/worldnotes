@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect } from 'vitest'
-import { getLineOffset, setLineOffset } from '../awareness-cursor'
+import { getLineOffset, setLineOffset } from '../caret-offset'
 
 function setCaretAt(node: Node, offset: number): void {
   const range = document.createRange()

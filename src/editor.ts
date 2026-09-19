@@ -2,11 +2,12 @@ import type {
   ContentPlugin,
   UIPlugin,
   PluginManifest,
-  StorageAdapter,
+  PageStore,
   EditorOptions,
   EditorInstance,
 } from './types'
-import { LocalStorageAdapter } from './storage/localStorage'
+import { createMemoryPageStore } from './memory-page-store'
+import { createPageBuffers } from './page-buffers'
 import { defaultPlugins } from './plugins/defaults'
 import { PluginRegistry } from './plugin-registry'
 import { createEditorState } from './editor-state'
@@ -17,19 +18,6 @@ import { createEditorNavigation } from './editor-navigation'
 import { createEditorLifecycle } from './editor-lifecycle'
 import { createNotificationSystem, type NotificationSystem } from './notifications'
 
-// ─── Default content shown on first load when 'home' doesn't exist ───────────
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const DEFAULT_HOME = `# Welcome to your world
-
-Start writing here. Use [[page name]] to link into new pages.
-
-**Bold**, *italic*, and \`inline code\` all render as you type.
-
----
-
-> Every link opens a door.`
-
 // ─── EditorBuilder ────────────────────────────────────────────────────────────
 
 /**
@@ -39,7 +27,7 @@ Start writing here. Use [[page name]] to link into new pages.
 export class EditorBuilder {
   private readonly el: HTMLElement
   private registry = new PluginRegistry()
-  private storage: StorageAdapter = new LocalStorageAdapter()
+  private pageStore: PageStore | null = null
   private options: EditorOptions = {}
   private _mounted = false
   private _slotElements: Record<string, HTMLElement> | null = null
@@ -47,7 +35,7 @@ export class EditorBuilder {
   constructor(el: HTMLElement, options: EditorOptions = {}) {
     this.el = el
     this.options = options
-    if (options.storage) this.storage = options.storage
+    if (options.pageStore) this.pageStore = options.pageStore
     // Register default plugins via registry (D-09: order preserved, conflict-free)
     for (const plugin of defaultPlugins) {
       this.registry.register(plugin)
@@ -88,12 +76,12 @@ export class EditorBuilder {
   }
 
   /**
-   * Replace the storage adapter.
+   * Replace the page store backend.
    *
-   * @param adapter - Any object implementing StorageAdapter
+   * @param store - Any object implementing PageStore
    */
-  withStorage(adapter: StorageAdapter): this {
-    this.storage = adapter
+  withPageStore(store: PageStore): this {
+    this.pageStore = store
     return this
   }
 
@@ -110,7 +98,7 @@ export class EditorBuilder {
       this.el,
       this.registry.allContentPlugins(),
       uiPlugins,
-      this.storage,
+      this.pageStore ?? createMemoryPageStore(),
       this.options,
     )
 
@@ -140,7 +128,7 @@ export class EditorBuilder {
  * @example
  * const editor = createEditor(document.getElementById('app'))
  *   .use(myCustomPlugin)
- *   .withStorage(new IndexedDBAdapter())
+ *   .withPageStore(myStore)
  *   .mount()
  */
 export function createEditor(el: HTMLElement, options: EditorOptions = {}): EditorBuilder {
@@ -151,13 +139,14 @@ async function mountEditor(
   container: HTMLElement,
   contentPlugins: ContentPlugin[],
   allUIPlugins: UIPlugin[],
-  storage: StorageAdapter,
+  pageStore: PageStore,
   options: EditorOptions,
 ): Promise<EditorInstance> {
-  const state = createEditorState(storage, options)
+  const buffers = createPageBuffers({ historyDepth: options.historyDepth })
+  const state = createEditorState(options, buffers)
   const dom = createEditorDOM(container, options.theme)
   const notifications: NotificationSystem = createNotificationSystem(dom.container)
-  const navigation = createEditorNavigation(state, storage, dom, options)
+  const navigation = createEditorNavigation(state, pageStore, dom, options)
   const renderOpts: EditorRenderOptions = {
     navigateFn: (page: string) => {
       navigation.navigateToPage(page)
@@ -180,7 +169,7 @@ async function mountEditor(
     state,
     render,
     navigation,
-    storage,
+    pageStore,
     options,
     notifications,
   )

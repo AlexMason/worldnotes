@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 
-import * as Y from 'yjs'
 import { describe, it, expect } from 'vitest'
 import { listItemPlugin } from '../plugins/listItem'
+import { createPageBuffers } from '../page-buffers'
 import type { Token, EditorContext } from '../types'
 
 function createToken(type: string, raw: string, groups: string[]): Token {
@@ -10,15 +10,16 @@ function createToken(type: string, raw: string, groups: string[]): Token {
 }
 
 function createContext(overrides: Partial<EditorContext> = {}): EditorContext {
-  const mockDoc = new Y.Doc()
+  const buffers = createPageBuffers()
   return {
     navigate: () => {
       // noop
     },
     getTrail: () => ['home'],
     getCurrentPage: () => 'home',
-    getWorld: () => ({}),
-    getDoc: () => mockDoc,
+    getWorld: () => buffers.getWorld(),
+    getPageText: (page: string) => buffers.getPageText(page),
+    setPageText: (page: string, content: string) => buffers.setPageText(page, content),
     ...overrides,
   }
 }
@@ -214,10 +215,7 @@ describe('listItemPlugin renderToHTML', () => {
 describe('listItemPlugin onKeydown', () => {
   it('returns false for non-list-item line on Tab', () => {
     const context = createContext()
-    const doc = context.getDoc()
-    const pages = doc.getMap('pages') as Y.Map<Y.Text>
-    const ytext = new Y.Text('hello world')
-    pages.set('home', ytext)
+    context.setPageText('home', 'hello world')
 
     const editorDiv = document.createElement('div')
     document.body.appendChild(editorDiv)
@@ -240,10 +238,7 @@ describe('listItemPlugin onKeydown', () => {
 
   it('indents a list item on Tab', () => {
     const context = createContext()
-    const doc = context.getDoc()
-    const pages = doc.getMap('pages') as Y.Map<Y.Text>
-    const ytext = new Y.Text('- milk\n- eggs')
-    pages.set('home', ytext)
+    context.setPageText('home', '- milk\n- eggs')
 
     const editorDiv = document.createElement('div')
     document.body.appendChild(editorDiv)
@@ -264,7 +259,7 @@ describe('listItemPlugin onKeydown', () => {
     const keydownResult = result as { cursorOffset: number }
     expect(keydownResult.cursorOffset).toBeGreaterThan(0)
 
-    const newRaw = (pages.get('home') as Y.Text).toString()
+    const newRaw = context.getPageText('home')
     expect(newRaw).toContain('  - milk')
 
     document.body.removeChild(editorDiv)
@@ -272,10 +267,7 @@ describe('listItemPlugin onKeydown', () => {
 
   it('dedents a list item on Shift+Tab', () => {
     const context = createContext()
-    const doc = context.getDoc()
-    const pages = doc.getMap('pages') as Y.Map<Y.Text>
-    const ytext = new Y.Text('  - milk\n- eggs')
-    pages.set('home', ytext)
+    context.setPageText('home', '  - milk\n- eggs')
 
     const editorDiv = document.createElement('div')
     document.body.appendChild(editorDiv)
@@ -293,7 +285,7 @@ describe('listItemPlugin onKeydown', () => {
     const result = listItemPlugin.onKeydown!(event, context)
 
     expect(result).not.toBeFalsy()
-    const newRaw = (pages.get('home') as Y.Text).toString()
+    const newRaw = context.getPageText('home')
     expect(newRaw).toContain('- milk')
     expect(newRaw).not.toContain('  - milk')
 
@@ -302,10 +294,7 @@ describe('listItemPlugin onKeydown', () => {
 
   it('consumes event but makes no change for list item at level 0 on Shift+Tab', () => {
     const context = createContext()
-    const doc = context.getDoc()
-    const pages = doc.getMap('pages') as Y.Map<Y.Text>
-    const ytext = new Y.Text('- milk')
-    pages.set('home', ytext)
+    context.setPageText('home', '- milk')
 
     const editorDiv = document.createElement('div')
     document.body.appendChild(editorDiv)
@@ -324,7 +313,7 @@ describe('listItemPlugin onKeydown', () => {
 
     // Should consume the event even though no change is made
     expect(result).not.toBeFalsy()
-    const newRaw = (pages.get('home') as Y.Text).toString()
+    const newRaw = context.getPageText('home')
     expect(newRaw).toBe('- milk') // unchanged
 
     document.body.removeChild(editorDiv)
@@ -334,10 +323,7 @@ describe('listItemPlugin onKeydown', () => {
 
   it('auto-continues list item on Enter (splits at cursor)', () => {
     const context = createContext()
-    const doc = context.getDoc()
-    const pages = doc.getMap('pages') as Y.Map<Y.Text>
-    const ytext = new Y.Text('- milk\nplain')
-    pages.set('home', ytext)
+    context.setPageText('home', '- milk\nplain')
 
     const editorDiv = document.createElement('div')
     document.body.appendChild(editorDiv)
@@ -356,7 +342,7 @@ describe('listItemPlugin onKeydown', () => {
     const result = listItemPlugin.onKeydown!(event, context)
 
     expect(result).not.toBeFalsy()
-    const newRaw = (pages.get('home') as Y.Text).toString()
+    const newRaw = context.getPageText('home')
     const lines = newRaw.split('\n')
     expect(lines[0]).toBe('- ')
     expect(lines[1]).toBe('- milk')
@@ -367,10 +353,7 @@ describe('listItemPlugin onKeydown', () => {
 
   it('removes empty list item on Enter (exits list)', () => {
     const context = createContext()
-    const doc = context.getDoc()
-    const pages = doc.getMap('pages') as Y.Map<Y.Text>
-    const ytext = new Y.Text('- \nplain')
-    pages.set('home', ytext)
+    context.setPageText('home', '- \nplain')
 
     const editorDiv = document.createElement('div')
     document.body.appendChild(editorDiv)
@@ -388,7 +371,7 @@ describe('listItemPlugin onKeydown', () => {
     const result = listItemPlugin.onKeydown!(event, context)
 
     expect(result).not.toBeFalsy()
-    const newRaw = (pages.get('home') as Y.Text).toString()
+    const newRaw = context.getPageText('home')
     const lines = newRaw.split('\n')
     expect(lines[0]).toBe('')
     expect(lines[1]).toBe('plain')
@@ -398,10 +381,7 @@ describe('listItemPlugin onKeydown', () => {
 
   it('returns false for non-list-item line on Enter', () => {
     const context = createContext()
-    const doc = context.getDoc()
-    const pages = doc.getMap('pages') as Y.Map<Y.Text>
-    const ytext = new Y.Text('hello world')
-    pages.set('home', ytext)
+    context.setPageText('home', 'hello world')
 
     const editorDiv = document.createElement('div')
     document.body.appendChild(editorDiv)

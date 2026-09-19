@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import type { ContentPlugin, StorageAdapter, EditorContext, Token } from '../types'
+import type { ContentPlugin, EditorContext, Token } from '../types'
 import { createEditorState } from '../editor-state'
 import type { EditorDOM } from '../editor-dom'
 import { createNotificationSystem } from '../notifications'
@@ -9,21 +9,6 @@ import { createNotificationSystem } from '../notifications'
 import { createEditorRender } from '../editor-render'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
-
-function mockStorage(): StorageAdapter {
-  const store: Record<string, string> = {}
-  return {
-    async get(key: string): Promise<string | null> {
-      return store[key] ?? null
-    },
-    async set(key: string, value: string): Promise<void> {
-      store[key] = value
-    },
-    async keys(): Promise<string[]> {
-      return Object.keys(store)
-    },
-  }
-}
 
 function createTestDOM(): EditorDOM {
   const container = document.createElement('div')
@@ -91,16 +76,15 @@ describe('createEditorRender: render()', () => {
   beforeEach(() => {
     dom = createTestDOM()
     plugins = [testPlugin()]
-    state = createEditorState(mockStorage(), { initialPage: 'test' })
+    state = createEditorState({ initialPage: 'test' })
   })
 
   // Test 1: render() extracts, tokenizes, renders, sets innerHTML, restores caret
   it('extracts text, tokenizes, renders, sets innerHTML, and restores caret', () => {
     const render = createEditorRender(dom, plugins, state, {})
 
-    // Write content to Y.Text — render() reads from Y.Text, not DOM
-    const ytext = state.getYDocState().getPage('test')
-    ytext.insert(0, 'hello world')
+    // Write content to buffers — render() reads from buffers, not DOM
+    state.getPageBuffers().setPageText('test', 'hello world')
 
     render.render()
 
@@ -114,10 +98,8 @@ describe('createEditorRender: render()', () => {
   it('hides placeholder when editor has text content', () => {
     const render = createEditorRender(dom, plugins, state, {})
 
-    // Write content to Y.Text — the render() reads from Y.Text, not DOM
-    const ytext = state.getYDocState().getPage('test')
-    ytext.delete(0, ytext.length)
-    ytext.insert(0, 'some text')
+    // Write content to buffers — the render() reads from buffers, not DOM
+    state.getPageBuffers().setPageText('test', 'some text')
     render.render()
     expect(dom.placeholder.style.display).toBe('none')
   })
@@ -146,13 +128,11 @@ describe('createEditorRender: render()', () => {
     const render = createEditorRender(dom, plugins, state, {})
 
     // Write initial content to Y.Text
-    const ytext = state.getYDocState().getPage('test')
-    ytext.insert(0, 'hello world')
+    state.getPageBuffers().setPageText('test', 'hello world')
     render.render()
 
     // Change content in Y.Text and re-render
-    ytext.delete(0, ytext.length)
-    ytext.insert(0, 'hello world again')
+    state.getPageBuffers().setPageText('test', 'hello world again')
     render.render()
 
     expect(dom.editorDiv.innerHTML.length).toBeGreaterThan(0)
@@ -163,8 +143,7 @@ describe('createEditorRender: render()', () => {
   it('produces line separators between multi-line content', () => {
     const render = createEditorRender(dom, plugins, state, {})
 
-    const ytext = state.getYDocState().getPage('test')
-    ytext.insert(0, 'line1\nline2')
+    state.getPageBuffers().setPageText('test', 'line1\nline2')
     render.render()
 
     // The rendered output should contain both lines
@@ -176,7 +155,7 @@ describe('createEditorRender: render()', () => {
   // Test 6: navigateFn is wired through state.toContext during render
   it('passes navigateFn through state.toContext during render', () => {
     const testDom = createTestDOM()
-    const testState = createEditorState(mockStorage(), { initialPage: 'test' })
+    const testState = createEditorState({ initialPage: 'test' })
     const navigateFn = vi.fn()
 
     // Spy on toContext to verify navigateFn is forwarded
@@ -205,40 +184,6 @@ describe('createEditorRender: render()', () => {
     expect(args[0]).toBe(navigateFn)
   })
 
-  // Test: remote cursor active lines are preserved during render
-  it('preserves active lines from remote awareness cursors', () => {
-    const testDom = createTestDOM()
-    const testState = createEditorState(mockStorage(), { initialPage: 'test' })
-
-    const ytext = testState.getYDocState().getPage('test')
-    ytext.insert(0, 'line0\nline1\nline2')
-
-    const testPlugin = (): ContentPlugin => ({
-      name: 'test',
-      version: '1.0.0',
-      kind: 'content' as const,
-      tokens: [{ type: 'test-text', pattern: /\w+/ }],
-      render(token: Token): HTMLElement | Text {
-        return document.createTextNode(token.raw)
-      },
-    })
-
-    const fakeStates = new Map<number, { cursor?: { page?: string; activeLine?: number } }>()
-    fakeStates.set(123, {
-      cursor: { page: 'test', activeLine: 1 },
-    })
-
-    const yDocState = testState.getYDocState()
-    const originalAwareness = yDocState.awareness
-    yDocState.awareness = { getStates: () => fakeStates }
-
-    const render = createEditorRender(testDom, [testPlugin()], testState, {})
-
-    ytext.insert(0, 'line0\nline1\nline2')
-    render.render()
-
-    yDocState.awareness = originalAwareness
-  })
 })
 
 // ─── createEditorRender: renderBreadcrumb() ─────────────────────────────────────
@@ -251,7 +196,7 @@ describe('createEditorRender: renderBreadcrumb()', () => {
   beforeEach(() => {
     dom = createTestDOM()
     plugins = [testPlugin()]
-    state = createEditorState(mockStorage(), { initialPage: 'home' })
+    state = createEditorState({ initialPage: 'home' })
   })
 
   // Test 7: builds breadcrumb DOM with correct classes
@@ -349,7 +294,7 @@ describe('createEditorRender: syncUrlToTrail()', () => {
   beforeEach(() => {
     dom = createTestDOM()
     plugins = [testPlugin()]
-    state = createEditorState(mockStorage(), { initialPage: 'home' })
+    state = createEditorState({ initialPage: 'home' })
   })
 
   // Test 12: syncUrlToTrail updates window.location via history.replaceState
@@ -386,7 +331,7 @@ describe('createEditorRender: module shape', () => {
   it('returns EditorRenderAPI with render, renderBreadcrumb, syncUrlToTrail, checkSelectChange', () => {
     const dom = createTestDOM()
     const plugins: ContentPlugin[] = [testPlugin()]
-    const state = createEditorState(mockStorage(), { initialPage: 'test' })
+    const state = createEditorState({ initialPage: 'test' })
 
     const api = createEditorRender(dom, plugins, state, {})
 
@@ -407,7 +352,7 @@ describe('createEditorRender: 404 toast', () => {
   beforeEach(() => {
     dom = createTestDOM()
     plugins = [testPlugin()]
-    state = createEditorState(mockStorage(), { initialPage: 'test' })
+    state = createEditorState({ initialPage: 'test' })
     const root = document.createElement('div')
     document.body.appendChild(root)
     notifications = createNotificationSystem(root)
@@ -427,8 +372,7 @@ describe('createEditorRender: 404 toast', () => {
       showCreateOverlay: true,
     })
 
-    const ytext = state.getYDocState().getPage('404')
-    ytext.insert(0, '# Page Not Found\n\n')
+    state.getPageBuffers().setPageText('404', '# Page Not Found\n\n')
     render.render()
 
     const toast = document.body.querySelector('.wn-toast')
@@ -446,8 +390,7 @@ describe('createEditorRender: 404 toast', () => {
       showCreateOverlay: false,
     })
 
-    const ytext = state.getYDocState().getPage('404')
-    ytext.insert(0, '# Page Not Found\n\n')
+    state.getPageBuffers().setPageText('404', '# Page Not Found\n\n')
     render.render()
 
     const toast = document.body.querySelector('.wn-toast')
@@ -463,8 +406,7 @@ describe('createEditorRender: 404 toast', () => {
       showCreateOverlay: true,
     })
 
-    const ytext = state.getYDocState().getPage('404')
-    ytext.insert(0, '# Page Not Found\n\n')
+    state.getPageBuffers().setPageText('404', '# Page Not Found\n\n')
     render.render()
 
     expect(document.body.querySelector('.wn-toast')).not.toBeNull()

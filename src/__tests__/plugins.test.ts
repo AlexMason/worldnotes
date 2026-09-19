@@ -1,6 +1,5 @@
 // @vitest-environment happy-dom
 
-import * as Y from 'yjs'
 import { describe, it, expect, vi } from 'vitest'
 import { headingsPlugin } from '../plugins/headings'
 import {
@@ -17,8 +16,6 @@ import type { Token, EditorContext } from '../types'
 
 // ─── Test Helpers ─────────────────────────────────────────────────────────────
 
-const mockDoc = new Y.Doc()
-
 function createToken(type: string, raw: string, groups: string[]): Token {
   return { type, raw, groups }
 }
@@ -31,7 +28,10 @@ function createContext(overrides: Partial<EditorContext> = {}): EditorContext {
     getTrail: () => [],
     getCurrentPage: () => 'home',
     getWorld: () => ({}),
-    getDoc: () => mockDoc,
+    getPageText: () => '',
+    setPageText: () => {
+      // noop — mock context
+    },
     ...overrides,
   }
 }

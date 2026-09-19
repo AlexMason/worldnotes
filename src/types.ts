@@ -1,5 +1,3 @@
-import type * as Y from 'yjs'
-
 // ─── Token ───────────────────────────────────────────────────────────────────
 
 /**
@@ -28,34 +26,20 @@ export interface TokenDef {
   pattern: RegExp
 }
 
-// ─── Storage Adapter ─────────────────────────────────────────────────────────
+// ─── Page Store ──────────────────────────────────────────────────────────────
 
 /**
- * Async key/value interface for persisting page content.
- * Implement this to swap out localStorage for IndexedDB, a REST API,
- * Electron's filesystem, or any other backend.
+ * Async source of page content — the boundary between the editor and its
+ * persistence backend (HTTP API, in-memory store, test fixtures).
  *
- * @method get  - Retrieve a page by name; returns null if not found
- * @method set  - Persist a page by name
- * @method keys - List all stored page names
+ * Replaces the former StorageAdapter + Yjs-bridge persistence model.
+ *
+ * @method load - Fetch raw Markdown for a page; null when it does not exist
+ * @method save - Persist raw Markdown for a page (whole-document write)
  */
-export interface StorageAdapter {
-  get(key: string): Promise<string | null>
-  set(key: string, value: string): Promise<void>
-  keys(): Promise<string[]>
-}
-
-// ─── Permission Error ──────────────────────────────────────────────────────────
-
-/**
- * Thrown by StorageAdapter.get() when the caller lacks read access.
- * Caught by the editor navigation layer to trigger a 403 redirect.
- */
-export class PermissionError extends Error {
-  constructor(message?: string) {
-    super(message ?? 'Permission denied')
-    this.name = 'PermissionError'
-  }
+export interface PageStore {
+  load(page: string): Promise<string | null>
+  save(page: string, content: string): Promise<void>
 }
 
 // ─── Editor Context ───────────────────────────────────────────────────────────
@@ -68,14 +52,16 @@ export class PermissionError extends Error {
  * @method getTrail       - Return the current breadcrumb trail (flat path segments)
  * @method getCurrentPage - Return the full current page name
  * @method getWorld       - Return a snapshot of all in-memory page content
- * @method getDoc         - Return the Yjs Y.Doc instance for CRDT access
+ * @method getPageText    - Return raw Markdown for a page ('' if unknown)
+ * @method setPageText    - Replace a page's whole content (undo-recorded)
  */
 export interface EditorContext {
   navigate(page: string): void
   getTrail(): string[]
   getCurrentPage(): string
   getWorld(): Record<string, string>
-  getDoc(): Y.Doc
+  getPageText(page: string): string
+  setPageText(page: string, content: string): void
   /**
    * Render inline markdown text (tokenize + render through inline plugins).
    * Optional — plugins that need to render inline content within line-level
@@ -134,9 +120,10 @@ export interface ContentPlugin extends PluginLifecycle {
    * provide the new cursor position after the operation.
    * Return false/void to let the next plugin or default handler run.
    *
-   * IMPORTANT: The plugin must mutate the Y.Doc directly (via context.getDoc())
-   * to persist changes. DOM changes alone will not persist since there is no
-   * extractContentText pass after plugin keydown handling.
+   * IMPORTANT: The plugin must persist changes via `context.setPageText()`
+   * (whole-document replacement, undo-recorded). DOM changes alone will not
+   * persist since there is no extractContentText pass after plugin keydown
+   * handling.
    *
    * @param event   - The raw KeyboardEvent
    * @param context - EditorContext for document access
@@ -176,23 +163,7 @@ export interface UIPlugin extends PluginLifecycle {
   onMount(slotEl: HTMLElement): void
 }
 
-// ─── Storage Plugin ────────────────────────────────────────────────────────────
-
-/**
- * A storage plugin provides a persistence adapter for page content.
- *
- * @property kind    - Discriminant: 'storage'
- * @property version - Semver version string (validated at registration)
- * @property adapter - The StorageAdapter implementation
- */
-export interface StoragePlugin extends PluginLifecycle {
-  name: string
-  version: string
-  kind: 'storage'
-  adapter: StorageAdapter
-}
-
-// ─── Plugin Manifest (Discriminated Union) ─────────────────────────────────────
+// ─── Plugin Manifest (Discriminated Union) ────────────────────────────────────────
 
 /**
  * A plugin manifest — the unified plugin registration type.
@@ -200,14 +171,14 @@ export interface StoragePlugin extends PluginLifecycle {
  * Use discriminated union narrowing via `switch (manifest.kind)` for
  * exhaustiveness checking and type-safe field access.
  */
-export type PluginManifest = ContentPlugin | UIPlugin | StoragePlugin
+export type PluginManifest = ContentPlugin | UIPlugin
 
 // ─── Editor Options ───────────────────────────────────────────────────────────
 
 /**
  * Configuration passed to createEditor().
  *
- * @property storage         - StorageAdapter instance (defaults to localStorage)
+ * @property pageStore      - PageStore backend for loading/saving pages (defaults to in-memory)
  * @property initialPage     - Page name to load on mount (defaults to 'home')
  * @property saveDebounceMs  - Milliseconds to debounce saves after input (default 600)
  * @property theme           - Optional CSS string that replaces the entire default stylesheet.
@@ -219,7 +190,7 @@ export type PluginManifest = ContentPlugin | UIPlugin | StoragePlugin
  * @property onSave          - Called after a page is successfully persisted
  */
 export interface EditorOptions {
-  storage?: StorageAdapter
+  pageStore?: PageStore
   initialPage?: string
   saveDebounceMs?: number
   /**
@@ -260,8 +231,6 @@ export interface EditorOptions {
   onTrailChange?: (trail: string[]) => void
   onPageLoad?: (page: string, content: string) => void
   onSave?: (page: string, content: string) => void
-  /** WebSocket URL for real-time sync via y-websocket (e.g. ws://localhost:1234) */
-  syncServer?: string
 }
 
 // ─── Toast Notifications ─────────────────────────────────────────────────────

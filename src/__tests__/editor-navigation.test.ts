@@ -1,100 +1,22 @@
 // @vitest-environment happy-dom
 
-import * as Y from 'yjs'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { PermissionError, type StorageAdapter, type EditorOptions, type EditorContext } from '../types'
+import type { PageStore, EditorOptions, EditorContext } from '../types'
 import type { EditorStateAPI } from '../editor-state'
 import type { EditorDOM } from '../editor-dom'
 import type { EditorRenderAPI } from '../editor-render'
-import type { YDocState } from '../y-doc-state'
 import { createEditorNavigation } from '../editor-navigation'
+import { createPageBuffers } from '../page-buffers'
+import { createMemoryPageStore } from '../memory-page-store'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
-function mockStorage(initialStore?: Record<string, string>): StorageAdapter {
-  const store: Record<string, string> = { ...initialStore }
-  return {
-    async get(key: string): Promise<string | null> {
-      return store[key] ?? null
-    },
-    async set(key: string, value: string): Promise<void> {
-      store[key] = value
-    },
-    async keys(): Promise<string[]> {
-      return Object.keys(store)
-    },
-  }
+function mockStorage(initialStore?: Record<string, string>): PageStore {
+  return createMemoryPageStore(initialStore)
 }
 
 function mockState(initialTrail?: string[]): EditorStateAPI {
-  const doc = new Y.Doc()
-  const pages = doc.getMap<Y.Text>('pages')
-  let _awareness: unknown = null
-  let _undoManager: Y.UndoManager | null = null
-
-  function getPage(page: string): Y.Text {
-    let ytext = pages.get(page)
-    if (!ytext) {
-      ytext = new Y.Text()
-      pages.set(page, ytext)
-    }
-    return ytext
-  }
-
-  const yDocState: YDocState = {
-    doc,
-    pages,
-    get awareness(): unknown {
-      return _awareness
-    },
-    set awareness(val: unknown) {
-      _awareness = val
-    },
-    get undoManager(): Y.UndoManager | null {
-      return _undoManager
-    },
-    set undoManager(val: Y.UndoManager | null) {
-      _undoManager = val
-    },
-    getDoc(): Y.Doc {
-      return doc
-    },
-    getPage,
-    hasPage(page: string): boolean {
-      return pages.has(page)
-    },
-    getWorld(): Record<string, string> {
-      const world: Record<string, string> = {}
-      for (const [key, ytext] of pages.entries()) {
-        world[key] = ytext.toString()
-      }
-      return world
-    },
-    setAwareness(awareness: unknown): void {
-      _awareness = awareness
-    },
-    setUndoManager(um: Y.UndoManager): void {
-      _undoManager = um
-    },
-    toContext(navigate: (page: string) => void): EditorContext {
-      return {
-        navigate,
-        getTrail: () => [],
-        getCurrentPage: () => '',
-        getWorld: () => yDocState.getWorld(),
-        getDoc: () => doc,
-      }
-    },
-    encodeStateAsUpdate(): Uint8Array {
-      return Y.encodeStateAsUpdate(doc)
-    },
-    applyUpdate(update: Uint8Array): void {
-      Y.applyUpdate(doc, update)
-    },
-    destroy(): void {
-      doc.destroy()
-    },
-  }
+  const pageBuffers = createPageBuffers()
 
   let trail: string[] = initialTrail ? [...initialTrail] : ['home']
   let saveTimer: ReturnType<typeof setTimeout> | null = null
@@ -102,10 +24,10 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
   let pendingRequestedPage: string | null = null
 
   return {
-    getYDocState: () => yDocState,
+    getPageBuffers: () => pageBuffers,
     getTrail: () => [...trail],
     getCurrentPage: () => trail.length <= 1 ? trail[0] : trail.slice(1).join('/'),
-    getWorld: () => yDocState.getWorld(),
+    getWorld: () => pageBuffers.getWorld(),
     pushTrail: (page: string) => {
       trail.push(page)
     },
@@ -134,9 +56,12 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
       pendingRequestedPage = page
     },
     toContext: (navigate: (page: string) => void): EditorContext => ({
-      ...yDocState.toContext(navigate),
+      navigate,
       getTrail: () => [...trail],
       getCurrentPage: () => trail.length <= 1 ? trail[0] : trail.slice(1).join('/'),
+      getWorld: () => pageBuffers.getWorld(),
+      getPageText: (pg: string) => pageBuffers.getPageText(pg),
+      setPageText: (pg: string, content: string) => pageBuffers.setPageText(pg, content),
     }),
   }
 }
@@ -176,7 +101,7 @@ function mockRender(): EditorRenderAPI {
 // ─── createEditorNavigation ────────────────────────────────────────────────────
 
 describe('createEditorNavigation', () => {
-  let storage: StorageAdapter
+  let storage: PageStore
   let state: EditorStateAPI
   let dom: EditorDOM
   let render: EditorRenderAPI
@@ -215,14 +140,14 @@ describe('createEditorNavigation', () => {
     })
 
     it('does not re-fetch page already in world cache', async () => {
-      const getSpy = vi.spyOn(storage, 'get')
-      state.getYDocState().getPage('cached-page').insert(0, '# Cached\n\nsome content')
+      const loadSpy = vi.spyOn(storage, 'load')
+      state.getPageBuffers().setPageText('cached-page', '# Cached\n\nsome content')
       const nav = createEditorNavigation(state, storage, dom, options)
       nav.setRenderAPI(render)
 
       await nav.navigateToPage('cached-page')
 
-      expect(getSpy).not.toHaveBeenCalledWith('cached-page')
+      expect(loadSpy).not.toHaveBeenCalledWith('cached-page')
     })
 
     it('fetches from storage when page is not in cache', async () => {
@@ -237,7 +162,7 @@ describe('createEditorNavigation', () => {
 
     it('truncates trail when navigating to a page already in the trail', async () => {
       const multiTrailState = mockState(['home', 'blog', 'about'])
-      multiTrailState.getYDocState().getPage('home').insert(0, '# home')
+      multiTrailState.getPageBuffers().setPageText('home', '# home')
       const nav = createEditorNavigation(multiTrailState, storage, dom, options)
       nav.setRenderAPI(render)
 
@@ -249,7 +174,7 @@ describe('createEditorNavigation', () => {
 
     it('replaces hierarchy when navigating to a flat page from a nested path', async () => {
       const multiTrailState = mockState(['home', 'blog'])
-      multiTrailState.getYDocState().getPage('about').insert(0, '# about')
+      multiTrailState.getPageBuffers().setPageText('about', '# about')
       const nav = createEditorNavigation(multiTrailState, storage, dom, options)
       nav.setRenderAPI(render)
 
@@ -260,7 +185,7 @@ describe('createEditorNavigation', () => {
 
     it('pushes path segments for multi-segment page names', async () => {
       const baseState = mockState(['home'])
-      baseState.getYDocState().getPage('projects/worldnotes').insert(0, '# pw')
+      baseState.getPageBuffers().setPageText('projects/worldnotes', '# pw')
       const nav = createEditorNavigation(baseState, storage, dom, options)
       nav.setRenderAPI(render)
 
@@ -271,7 +196,7 @@ describe('createEditorNavigation', () => {
 
     it('skips intermediate segments already present in the trail', async () => {
       const baseState = mockState(['home', 'projects'])
-      baseState.getYDocState().getPage('projects/worldnotes').insert(0, '# pw')
+      baseState.getPageBuffers().setPageText('projects/worldnotes', '# pw')
       const nav = createEditorNavigation(baseState, storage, dom, options)
       nav.setRenderAPI(render)
 
@@ -282,7 +207,7 @@ describe('createEditorNavigation', () => {
 
     it('pushes deeply nested path segments', async () => {
       const baseState = mockState(['home'])
-      baseState.getYDocState().getPage('a/b/c').insert(0, '# abc')
+      baseState.getPageBuffers().setPageText('a/b/c', '# abc')
       const nav = createEditorNavigation(baseState, storage, dom, options)
       nav.setRenderAPI(render)
 
@@ -293,7 +218,7 @@ describe('createEditorNavigation', () => {
 
     it('truncates matching segments when navigating to an ancestor path', async () => {
       const baseState = mockState(['home', 'projects', 'worldnotes'])
-      baseState.getYDocState().getPage('projects').insert(0, '# projects')
+      baseState.getPageBuffers().setPageText('projects', '# projects')
       const nav = createEditorNavigation(baseState, storage, dom, options)
       nav.setRenderAPI(render)
 
@@ -304,7 +229,7 @@ describe('createEditorNavigation', () => {
 
     it('skips intermediate segments already present in the trail', async () => {
       const baseState = mockState(['home', 'projects'])
-      baseState.getYDocState().getPage('projects/worldnotes').insert(0, '# pw')
+      baseState.getPageBuffers().setPageText('projects/worldnotes', '# pw')
       const nav = createEditorNavigation(baseState, storage, dom, options)
       nav.setRenderAPI(render)
 
@@ -315,7 +240,7 @@ describe('createEditorNavigation', () => {
 
     it('pushes deeply nested path segments', async () => {
       const baseState = mockState(['home'])
-      baseState.getYDocState().getPage('a/b/c').insert(0, '# abc')
+      baseState.getPageBuffers().setPageText('a/b/c', '# abc')
       const nav = createEditorNavigation(baseState, storage, dom, options)
       nav.setRenderAPI(render)
 
@@ -356,27 +281,26 @@ describe('createEditorNavigation', () => {
       nav.setRenderAPI(render)
 
       // Create the page first (it now exists in the map)
-      const ytext = state.getYDocState().getPage('home')
-      ytext.insert(0, '# old')
+      state.getPageBuffers().setPageText('home', '# old')
       // Then delete all content
-      ytext.delete(0, ytext.length)
+      state.getPageBuffers().setPageText('home', '')
 
       await nav.loadPage('home')
 
       // Page should remain empty, not get DEFAULT_HOME
-      expect(state.getYDocState().getPage('home').toString()).toBe('')
+      expect(state.getPageBuffers().getPageText('home')).toBe('')
     })
 
-    it('reads page content from Y.Text and triggers render', async () => {
+    it('reads page content from buffers and triggers render', async () => {
       const nav = createEditorNavigation(state, storage, dom, options)
       nav.setRenderAPI(render)
 
       const content = '# hello\n\ntest content'
-      state.getYDocState().getPage('home').insert(0, content)
+      state.getPageBuffers().setPageText('home', content)
 
       await nav.loadPage('home')
 
-      expect(state.getYDocState().getPage('home').toString()).toBe(content)
+      expect(state.getPageBuffers().getPageText('home')).toBe(content)
       expect(render.render).toHaveBeenCalled()
       expect(render.renderBreadcrumb).toHaveBeenCalled()
     })
@@ -396,7 +320,7 @@ describe('createEditorNavigation', () => {
       nav.setRenderAPI(render)
 
       const content = '# Test\n\ncontent'
-      state.getYDocState().getPage('home').insert(0, content)
+      state.getPageBuffers().setPageText('home', content)
 
       await nav.loadPage('home')
 
@@ -442,7 +366,7 @@ describe('createEditorNavigation', () => {
       const nav = createEditorNavigation(state, storage, dom, options)
       nav.setRenderAPI(trackingRender)
 
-      state.getYDocState().getPage('home').insert(0, '# test')
+      state.getPageBuffers().setPageText('home', '# test')
       await nav.loadPage('home')
 
       expect(trackingRender.render).toHaveBeenCalled()
@@ -492,7 +416,7 @@ describe('createEditorNavigation', () => {
 
     it('does not redirect when page is already in Y.Doc', async () => {
       const s = mockState(['home'])
-      s.getYDocState().getPage('cached').insert(0, '# Cached')
+      s.getPageBuffers().setPageText('cached', '# Cached')
       const nav = createEditorNavigation(s, storage, dom, {})
       nav.setRenderAPI(render)
 
@@ -502,37 +426,7 @@ describe('createEditorNavigation', () => {
       expect(s.getTrail()).toContain('cached')
     })
 
-    it('redirects to 403 page when storage.get throws PermissionError', async () => {
-      const forbidStorage: StorageAdapter = {
-        get: async () => { throw new PermissionError('no access') },
-        set: () => Promise.resolve(),
-        keys: async () => [],
-      }
-      const s = mockState(['home'])
-      const nav = createEditorNavigation(s, forbidStorage, dom, { statusPages: { 403: 'forbidden' } })
-      nav.setRenderAPI(render)
 
-      await nav.navigateToPage('restricted')
-
-      expect(s.getTrail()).toContain('forbidden')
-      expect(s.getWorld()).toHaveProperty('forbidden')
-      expect(s.getPendingRequestedPage()).toBeNull()
-    })
-
-    it('uses default "403" page name for PermissionError when not configured', async () => {
-      const forbidStorage: StorageAdapter = {
-        get: async () => { throw new PermissionError() },
-        set: () => Promise.resolve(),
-        keys: async () => [],
-      }
-      const s = mockState(['home'])
-      const nav = createEditorNavigation(s, forbidStorage, dom, {})
-      nav.setRenderAPI(render)
-
-      await nav.navigateToPage('restricted')
-
-      expect(s.getTrail()).toContain('403')
-    })
 
     it('clears pendingRequestedPage when navigating from 404 to an existing page', async () => {
       const s = mockState(['home'])
@@ -545,7 +439,7 @@ describe('createEditorNavigation', () => {
       expect(s.getPendingRequestedPage()).toBe('missing')
 
       // Create the page in Y.Doc, then navigate to it
-      s.getYDocState().getPage('missing').insert(0, '# content')
+      s.getPageBuffers().setPageText('missing', '# content')
       s.setPendingRequestedPage('missing')
       // navigateToPage will clear it since target is not a status page
       await nav.navigateToPage('missing')
@@ -563,26 +457,11 @@ describe('createEditorNavigation', () => {
       expect(s.getWorld()['404']).toContain('Page Not Found')
     })
 
-    it('auto-creates 403 page with default content when it does not exist', async () => {
-      const forbidStorage: StorageAdapter = {
-        get: async () => { throw new PermissionError() },
-        set: () => Promise.resolve(),
-        keys: async () => [],
-      }
-      const s = mockState(['home'])
-      const nav = createEditorNavigation(s, forbidStorage, dom, {})
-      nav.setRenderAPI(render)
 
-      await nav.navigateToPage('restricted')
-
-      expect(s.getWorld()['403']).toContain('Access Denied')
-    })
-
-    it('allows re-throwing non-PermissionError exceptions from storage.get', async () => {
-      const errorStorage: StorageAdapter = {
-        get: async () => { throw new Error('network down') },
-        set: () => Promise.resolve(),
-        keys: async () => [],
+    it('propagates load errors from the page store', async () => {
+      const errorStorage: PageStore = {
+        load: async () => { throw new Error('network down') },
+        save: () => Promise.resolve(),
       }
       const s = mockState(['home'])
       const nav = createEditorNavigation(s, errorStorage, dom, {})

@@ -1,10 +1,10 @@
 // ─── Core ─────────────────────────────────────────────────────────────────────
 export { createEditor, EditorBuilder } from './editor'
 
-// ─── Tokenizer ─────────────────────────────────────────────────────────────────
+// ─── Tokenizer ────────────────────────────────────────────────────────────────
 export { tokenizeLine, scanInline, tokenizeDocument } from './tokenizer'
 
-// ─── Static HTML Renderer ──────────────────────────────────────────────────────
+// ─── Static HTML Renderer ─────────────────────────────────────────────────────
 export {
   renderLineToHTML,
   renderInlineHTML,
@@ -18,8 +18,7 @@ export type {
   PluginManifest,
   ContentPlugin,
   UIPlugin,
-  StoragePlugin,
-  StorageAdapter,
+  PageStore,
   EditorContext,
   StaticRenderContext,
   EditorOptions,
@@ -29,21 +28,16 @@ export type {
   ToastAction,
   ToastOptions,
 } from './types'
-export { PermissionError } from './types'
 
-// ─── Storage adapters ─────────────────────────────────────────────────────────
-export { LocalStorageAdapter } from './storage/localStorage'
-export { IndexedDBAdapter } from './storage/indexedDB'
+// ─── Content model ────────────────────────────────────────────────────────────
+export { createPageBuffers } from './page-buffers'
+export type { PageBuffers, PageBuffersOptions } from './page-buffers'
+export { createMemoryPageStore } from './memory-page-store'
+export type { MemoryPageStore } from './memory-page-store'
 
 // ─── Undo/Redo ────────────────────────────────────────────────────────────────
 export { EditorHistory } from './editor-history'
 export type { EditorHistoryOptions } from './editor-history'
-
-// ─── Import / Export ─────────────────────────────────────────────────────────
-export { exportWorld, importWorld } from './export-import'
-export type { ConflictStrategy, ImportResult } from './export-import'
-export { createImportExportPlugin } from './plugins/importExport'
-export type { ImportExportPluginOptions } from './plugins/importExport'
 
 // ─── Built-in plugins ─────────────────────────────────────────────────────────
 export { defaultPlugins } from './plugins/defaults'
@@ -58,12 +52,6 @@ export {
 } from './plugins/inline'
 export { strikethroughPlugin } from './plugins/strikethrough'
 export { linkPlugin } from './plugins/link'
-export { remoteCursorsPlugin } from './plugins/remoteCursors'
-
-// ─── CRDT / Sync ──────────────────────────────────────────────────────────────
-export { createYDocState } from './y-doc-state'
-export type { YDocState } from './y-doc-state'
-export { saveYDoc, loadYDoc } from './yjs-storage-bridge'
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 export { createNotificationSystem } from './notifications'

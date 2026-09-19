@@ -1,6 +1,6 @@
 // ─── Editor Navigation ────────────────────────────────────────────────────────
 
-import { PermissionError, type StorageAdapter, type EditorOptions } from './types'
+import type { PageStore, EditorOptions } from './types'
 import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
 import type { EditorRenderAPI } from './editor-render'
@@ -17,7 +17,6 @@ Start writing here. Use [[page name]] to link into new pages.
 
 const DEFAULT_STATUS_CONTENT: Record<number, string> = {
   404: '# Page Not Found\n\n',
-  403: '# Access Denied\n\n',
 }
 
 function defaultStatusContent(code: number): string {
@@ -32,7 +31,7 @@ export interface EditorNavigationAPI {
 
 export function createEditorNavigation(
   state: EditorStateAPI,
-  storage: StorageAdapter,
+  pageStore: PageStore,
   dom: EditorDOM,
   options: EditorOptions,
 ): EditorNavigationAPI {
@@ -48,46 +47,34 @@ export function createEditorNavigation(
 
   async function navigateToStatusPage(code: number): Promise<void> {
     const statusPage = resolveStatusPage(code)
-    const yDocState = state.getYDocState()
+    const buffers = state.getPageBuffers()
 
-    if (!yDocState.hasPage(statusPage)) {
-      const ytext = yDocState.getPage(statusPage)
-      ytext.insert(0, defaultStatusContent(code))
+    if (!buffers.hasPage(statusPage)) {
+      buffers.setPageText(statusPage, defaultStatusContent(code))
     }
 
     await navigateToPage(statusPage)
   }
 
   async function navigateToPage(page: string): Promise<void> {
-    const yDocState = state.getYDocState()
+    const buffers = state.getPageBuffers()
 
     // Clear pending requested page unless navigating to a status page
     const statusPageNames = new Set([
       ...Object.values(options.statusPages ?? {}),
       ...Object.keys(options.statusPages ?? {}).map((k) => String(k)),
       '404',
-      '403',
     ])
     if (!statusPageNames.has(page)) {
       state.setPendingRequestedPage(null)
     }
 
-    if (!yDocState.hasPage(page)) {
-      let stored: string | null
-      try {
-        stored = await storage.get(page)
-      } catch (e) {
-        if (e instanceof PermissionError) {
-          await navigateToStatusPage(403)
-          return
-        }
-        throw e
-      }
+    if (!buffers.hasPage(page)) {
+      const stored = await pageStore.load(page)
 
-      if (stored) {
-        const ytext = yDocState.getPage(page)
-        if (ytext.toString() === '') {
-          ytext.insert(0, stored)
+      if (stored !== null) {
+        if (buffers.getPageText(page) === '') {
+          buffers.setPageText(page, stored)
         }
       } else {
         state.setPendingRequestedPage(page)
@@ -126,17 +113,17 @@ export function createEditorNavigation(
   async function loadPage(page: string): Promise<void> {
     state.setNavigating(true)
 
-    const yDocState = state.getYDocState()
-    const pageExisted = yDocState.hasPage(page)
-    const ytext = yDocState.getPage(page)
-    const content = ytext.toString()
+    const buffers = state.getPageBuffers()
+    const pageExisted = buffers.hasPage(page)
+    let content = buffers.getPageText(page)
 
     if (!content && !pageExisted) {
       if (page === 'home') {
-        ytext.insert(0, DEFAULT_HOME)
+        content = DEFAULT_HOME
       } else {
-        ytext.insert(0, `# ${page}\n\n`)
+        content = `# ${page}\n\n`
       }
+      buffers.setPageText(page, content)
     }
 
     // Force full re-render for page load
@@ -166,7 +153,7 @@ export function createEditorNavigation(
       /* best-effort */
     }
 
-    options.onPageLoad?.(page, ytext.toString())
+    options.onPageLoad?.(page, content)
     state.setNavigating(false)
     dom.editorDiv.focus()
   }

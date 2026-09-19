@@ -1,11 +1,10 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import type * as Y from 'yjs'
 import type {
   ContentPlugin,
   UIPlugin,
-  StorageAdapter,
+  PageStore,
   EditorOptions,
   EditorContext,
   EditorInstance,
@@ -16,38 +15,28 @@ import type { EditorDOM } from '../editor-dom'
 import type { EditorRenderAPI } from '../editor-render'
 import type { EditorNavigationAPI } from '../editor-navigation'
 import { createEditorLifecycle } from '../editor-lifecycle'
-import { createYDocState } from '../y-doc-state'
+import { createPageBuffers } from '../page-buffers'
+import { createMemoryPageStore } from '../memory-page-store'
 import { extractText } from '../cursor'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
-function mockStorage(): StorageAdapter {
-  const store: Record<string, string> = {}
-  return {
-    async get(key: string): Promise<string | null> {
-      return store[key] ?? null
-    },
-    async set(key: string, value: string): Promise<void> {
-      store[key] = value
-    },
-    async keys(): Promise<string[]> {
-      return Object.keys(store)
-    },
-  }
+function mockStorage(): PageStore {
+  return createMemoryPageStore()
 }
 
 function mockState(initialTrail?: string[]): EditorStateAPI {
-  const yDocState = createYDocState()
+  const pageBuffers = createPageBuffers()
   let trail: string[] = initialTrail ? [...initialTrail] : ['home']
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let isNavigating = false
   let pendingRequestedPage: string | null = null
 
   return {
-    getYDocState: () => yDocState,
+    getPageBuffers: () => pageBuffers,
     getTrail: () => [...trail],
     getCurrentPage: () => trail.length <= 1 ? trail[0] : trail.slice(1).join('/'),
-    getWorld: () => yDocState.getWorld(),
+    getWorld: () => pageBuffers.getWorld(),
     pushTrail: (page: string) => {
       trail.push(page)
     },
@@ -79,8 +68,9 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
       navigate: _navigate,
       getTrail: () => [...trail],
       getCurrentPage: () => trail.length <= 1 ? trail[0] : trail.slice(1).join('/'),
-      getWorld: () => yDocState.getWorld(),
-      getDoc: () => yDocState.doc,
+      getWorld: () => pageBuffers.getWorld(),
+      getPageText: (p: string) => pageBuffers.getPageText(p),
+      setPageText: (p: string, c: string) => pageBuffers.setPageText(p, c),
     }),
   }
 }
@@ -112,8 +102,7 @@ function mockRender(state: EditorStateAPI, dom: EditorDOM): EditorRenderAPI {
     render: vi.fn((force?: boolean) => {
       if (force) {
         const page = state.getCurrentPage()
-        const ytext = state.getYDocState().getPage(page)
-        dom.editorDiv.textContent = ytext.toString()
+        dom.editorDiv.textContent = state.getPageBuffers().getPageText(page)
       }
     }),
     renderBreadcrumb: vi.fn(),
@@ -157,7 +146,7 @@ const mockNotifications = {
 }
 
 describe('createEditorLifecycle', () => {
-  let storage: StorageAdapter
+  let storage: PageStore
   let state: EditorStateAPI
   let dom: EditorDOM
   let render: EditorRenderAPI
@@ -363,7 +352,7 @@ describe('createEditorLifecycle', () => {
       )
       const instance = await lifecycle.mount()
 
-      state.getYDocState().getPage('home').insert(0, 'hello world')
+      state.getPageBuffers().setPageText('home', 'hello world')
 
       expect(instance.getContent()).toBe('hello world')
     })
@@ -391,8 +380,8 @@ describe('createEditorLifecycle', () => {
 
       instance.setContent('new content')
 
-      // Y.Text should be updated
-      expect(state.getYDocState().getPage('home').toString()).toBe('new content')
+      // Page buffer should be updated
+      expect(state.getPageBuffers().getPageText('home')).toBe('new content')
       // editorDiv textContent should be set
       expect(dom.editorDiv.textContent).toBe('new content')
       // render should be called again
@@ -427,7 +416,7 @@ describe('createEditorLifecycle', () => {
 // ─── Event Handlers ────────────────────────────────────────────────────────────
 
 describe('Editor lifecycle event handlers', () => {
-  let storage: StorageAdapter
+  let storage: PageStore
   let state: EditorStateAPI
   let dom: EditorDOM
   let render: EditorRenderAPI
@@ -587,11 +576,7 @@ describe('Editor lifecycle event handlers', () => {
   describe('keydown plugin dispatch', () => {
     it('consumes the event when onKeydown returns { cursorOffset }', async () => {
       const onKeydown = vi.fn((_e: KeyboardEvent, _ctx: EditorContext) => {
-        _ctx.getDoc().transact(() => {
-          const ytext = _ctx.getDoc().getMap('pages').get('home') as Y.Text
-          ytext.delete(0, ytext.length)
-          ytext.insert(0, 'plugin handled')
-        })
+        _ctx.setPageText('home', 'plugin handled')
         return { cursorOffset: 14 }
       })
       const pluginWithKeydown: ContentPlugin = {
@@ -633,7 +618,7 @@ describe('Editor lifecycle event handlers', () => {
       expect(preventDefault).toHaveBeenCalled()
       expect(onKeydown).toHaveBeenCalled()
       expect(
-        state.getYDocState().getPage('home').toString(),
+        state.getPageBuffers().getPageText('home'),
       ).toBe('plugin handled')
     })
 
@@ -728,7 +713,7 @@ describe('Editor lifecycle event handlers', () => {
 // ─── UI Plugin Lifecycle (Plan 05-01 Task 3) ──────────────────────────────────
 
 describe('UI plugin lifecycle', () => {
-  let storage: StorageAdapter
+  let storage: PageStore
   let state: EditorStateAPI
   let dom: EditorDOM
   let render: EditorRenderAPI
@@ -903,7 +888,7 @@ describe('UI plugin lifecycle', () => {
 // ─── EditorInstance Cursor API ─────────────────────────────────────────────────
 
 describe('EditorInstance cursor API', () => {
-  let storage: StorageAdapter
+  let storage: PageStore
   let state: EditorStateAPI
   let dom: EditorDOM
   let render: EditorRenderAPI
@@ -938,11 +923,7 @@ describe('EditorInstance cursor API', () => {
   }
 
   function setContentAndFocus(text: string): void {
-    state.getYDocState().doc.transact(() => {
-      const ytext = state.getYDocState().getPage('home')
-      ytext.delete(0, ytext.length)
-      ytext.insert(0, text)
-    })
+    state.getPageBuffers().setPageText('home', text)
     dom.editorDiv.textContent = text
     dom.editorDiv.focus()
   }
@@ -1214,8 +1195,7 @@ describe('EditorInstance cursor API', () => {
 
       dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
 
-      const ytext = state.getYDocState().getPage('home')
-      expect(ytext.toString()).toBe('raw text content')
+      expect(state.getPageBuffers().getPageText('home')).toBe('raw text content')
     })
   })
 })

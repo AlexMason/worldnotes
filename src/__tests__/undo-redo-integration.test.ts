@@ -3,7 +3,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type {
   ContentPlugin,
-  StorageAdapter,
+  PageStore,
   EditorOptions,
   EditorContext,
   Token,
@@ -13,7 +13,8 @@ import type { EditorDOM } from '../editor-dom'
 import type { EditorRenderAPI } from '../editor-render'
 import type { EditorNavigationAPI } from '../editor-navigation'
 import { createEditorLifecycle } from '../editor-lifecycle'
-import { createYDocState } from '../y-doc-state'
+import { createPageBuffers } from '../page-buffers'
+import { createMemoryPageStore } from '../memory-page-store'
 
 const mockNotifications = {
   notify: vi.fn().mockReturnValue('mock-id'),
@@ -21,33 +22,22 @@ const mockNotifications = {
   destroy: vi.fn(),
 }
 
-function mockStorage(): StorageAdapter {
-  const store: Record<string, string> = {}
-  return {
-    async get(key: string): Promise<string | null> {
-      return store[key] ?? null
-    },
-    async set(key: string, value: string): Promise<void> {
-      store[key] = value
-    },
-    async keys(): Promise<string[]> {
-      return Object.keys(store)
-    },
-  }
+function mockStorage(): PageStore {
+  return createMemoryPageStore()
 }
 
 function mockState(initialTrail?: string[]): EditorStateAPI {
-  const yDocState = createYDocState()
+  const pageBuffers = createPageBuffers()
   let trail: string[] = initialTrail ? [...initialTrail] : ['home']
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let isNavigating = false
   let pendingRequestedPage: string | null = null
 
   return {
-    getYDocState: () => yDocState,
+    getPageBuffers: () => pageBuffers,
     getTrail: () => [...trail],
     getCurrentPage: () => trail.length <= 1 ? trail[0] : trail.slice(1).join('/'),
-    getWorld: () => yDocState.getWorld(),
+    getWorld: () => pageBuffers.getWorld(),
     pushTrail: (page: string) => {
       trail.push(page)
     },
@@ -79,8 +69,9 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
       navigate: _navigate,
       getTrail: () => [...trail],
       getCurrentPage: () => trail.length <= 1 ? trail[0] : trail.slice(1).join('/'),
-      getWorld: () => yDocState.getWorld(),
-      getDoc: () => yDocState.doc,
+      getWorld: () => pageBuffers.getWorld(),
+      getPageText: (pg: string) => pageBuffers.getPageText(pg),
+      setPageText: (pg: string, c: string) => pageBuffers.setPageText(pg, c),
     }),
   }
 }
@@ -112,8 +103,7 @@ function mockRender(state: EditorStateAPI, dom: EditorDOM): EditorRenderAPI {
     render: vi.fn((force?: boolean) => {
       if (force) {
         const page = state.getCurrentPage()
-        const ytext = state.getYDocState().getPage(page)
-        dom.editorDiv.textContent = ytext.toString()
+        dom.editorDiv.textContent = state.getPageBuffers().getPageText(page)
       }
     }),
     renderBreadcrumb: vi.fn(),
@@ -151,7 +141,7 @@ function mockPlugins(): ContentPlugin[] {
 // ─── Undo/Redo Integration Tests ───────────────────────────────────────────────
 
 describe('undo/redo in editor lifecycle', () => {
-  let storage: StorageAdapter
+  let storage: PageStore
   let state: EditorStateAPI
   let dom: EditorDOM
   let render: EditorRenderAPI
@@ -239,21 +229,21 @@ describe('undo/redo in editor lifecycle', () => {
         mockNotifications,
       )
       const instance = await lifecycle.mount()
-      const ytext = state.getYDocState().getPage('home')
+      state.getPageBuffers().setPageText('home', 'initial content')
 
       dom.editorDiv.textContent = 'initial content'
       dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
 
-      expect(ytext.toString()).toBe('initial content')
+      expect(state.getPageBuffers().getPageText('home')).toBe('initial content')
 
       dom.editorDiv.textContent = 'modified content'
       dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
 
-      expect(ytext.toString()).toBe('modified content')
+      expect(state.getPageBuffers().getPageText('home')).toBe('modified content')
       expect(instance.canUndo()).toBe(true)
 
       instance.undo()
-      expect(ytext.toString()).toBe('initial content')
+      expect(state.getPageBuffers().getPageText('home')).toBe('initial content')
       expect(dom.editorDiv.textContent).toBe('initial content')
     })
   })
@@ -422,7 +412,7 @@ describe('undo/redo in editor lifecycle', () => {
       instance.setContent('after')
 
       // Y.Text should be updated
-      expect(state.getYDocState().getPage('home').toString()).toBe('after')
+      expect(state.getPageBuffers().getPageText('home')).toBe('after')
 
       // Undo should restore 'before'
       const ctrlz = new KeyboardEvent('keydown', {
@@ -459,11 +449,11 @@ describe('undo/redo in editor lifecycle', () => {
 
       expect(instance.undo()).toBe(true)
       expect(dom.editorDiv.textContent).toBe('first')
-      expect(state.getYDocState().getPage('home').toString()).toBe('first')
+      expect(state.getPageBuffers().getPageText('home')).toBe('first')
 
       expect(instance.redo()).toBe(true)
       expect(dom.editorDiv.textContent).toBe('second')
-      expect(state.getYDocState().getPage('home').toString()).toBe('second')
+      expect(state.getPageBuffers().getPageText('home')).toBe('second')
     })
   })
 

@@ -1,4 +1,3 @@
-import type * as Y from 'yjs'
 import type {
   ContentPlugin,
   Token,
@@ -10,7 +9,7 @@ import {
   indentLine,
   dedentLine,
 } from '../editor-indentation'
-import { getLineOffset } from '../awareness-cursor'
+import { getLineOffset } from '../caret-offset'
 
 function escapeHTML(text: string): string {
   return text
@@ -104,12 +103,8 @@ export const listItemPlugin: ContentPlugin = {
 // ── Keydown handlers ───────────────────────────────────────────────────────────
 
 function handleTab(context: EditorContext): { cursorOffset: number } | false {
-  const doc = context.getDoc()
   const page = context.getCurrentPage()
-  const pages = doc.getMap<Y.Text>('pages')
-
-  const ytext = pages.get(page)
-  if (!ytext) return false
+  if (!(page in context.getWorld())) return false
 
   const sel = window.getSelection()
   if (!sel || !sel.rangeCount) return false
@@ -126,34 +121,21 @@ function handleTab(context: EditorContext): { cursorOffset: number } | false {
   if (!editorEl) return false
   const cursorOffset = getLineOffset(editorEl as HTMLElement)
 
-  const result = doc.transact(() => {
-    const raw = ytext.toString()
-    const lines = raw.split('\n')
-    const lineText = lines[lineIndex] ?? ''
-    const parsed = parseListItem(lineText)
-    if (!parsed) return null
+  const raw = context.getPageText(page)
+  const lines = raw.split('\n')
+  const lineText = lines[lineIndex] ?? ''
+  const parsed = parseListItem(lineText)
+  if (!parsed) return false
 
-    const newLine = indentLine(lineText)
-    lines[lineIndex] = newLine
-    const newRaw = lines.join('\n')
+  lines[lineIndex] = indentLine(lineText)
+  context.setPageText(page, lines.join('\n'))
 
-    ytext.delete(0, raw.length)
-    ytext.insert(0, newRaw)
-
-    return cursorOffset + 2
-  })
-
-  if (result === null) return false
-  return { cursorOffset: result }
+  return { cursorOffset: cursorOffset + 2 }
 }
 
 function handleShiftTab(context: EditorContext): { cursorOffset: number } | false {
-  const doc = context.getDoc()
   const page = context.getCurrentPage()
-  const pages = doc.getMap<Y.Text>('pages')
-
-  const ytext = pages.get(page)
-  if (!ytext) return false
+  if (!(page in context.getWorld())) return false
 
   const sel = window.getSelection()
   if (!sel || !sel.rangeCount) return false
@@ -170,37 +152,25 @@ function handleShiftTab(context: EditorContext): { cursorOffset: number } | fals
   if (!editorEl) return false
   const cursorOffset = getLineOffset(editorEl as HTMLElement)
 
-  const result = doc.transact(() => {
-    const raw = ytext.toString()
-    const lines = raw.split('\n')
-    const lineText = lines[lineIndex] ?? ''
-    const parsed = parseListItem(lineText)
-    if (!parsed) return null
+  const raw = context.getPageText(page)
+  const lines = raw.split('\n')
+  const lineText = lines[lineIndex] ?? ''
+  const parsed = parseListItem(lineText)
+  if (!parsed) return false
 
-    const dedented = dedentLine(lineText)
-    if (dedented === null) return cursorOffset
+  const dedented = dedentLine(lineText)
+  if (dedented === null) return { cursorOffset }
 
-    lines[lineIndex] = dedented
-    const newRaw = lines.join('\n')
+  lines[lineIndex] = dedented
+  context.setPageText(page, lines.join('\n'))
 
-    ytext.delete(0, raw.length)
-    ytext.insert(0, newRaw)
-
-    const lineStart = getLineStart(raw, lineIndex)
-    return Math.max(lineStart, cursorOffset - 2)
-  })
-
-  if (result === null) return false
-  return { cursorOffset: result }
+  const lineStart = getLineStart(raw, lineIndex)
+  return { cursorOffset: Math.max(lineStart, cursorOffset - 2) }
 }
 
 function handleEnter(context: EditorContext): { cursorOffset: number } | false {
-  const doc = context.getDoc()
   const page = context.getCurrentPage()
-  const pages = doc.getMap<Y.Text>('pages')
-
-  const ytext = pages.get(page)
-  if (!ytext) return false
+  if (!(page in context.getWorld())) return false
 
   const sel = window.getSelection()
   if (!sel || !sel.rangeCount) return false
@@ -217,45 +187,36 @@ function handleEnter(context: EditorContext): { cursorOffset: number } | false {
   if (!editorEl) return false
   const cursorOffset = getLineOffset(editorEl as HTMLElement)
 
-  const result = doc.transact(() => {
-    const raw = ytext.toString()
-    const lines = raw.split('\n')
-    const lineText = lines[lineIndex] ?? ''
-    const parsed = parseListItem(lineText)
-    if (!parsed) return null
+  const raw = context.getPageText(page)
+  const lines = raw.split('\n')
+  const lineText = lines[lineIndex] ?? ''
+  const parsed = parseListItem(lineText)
+  if (!parsed) return false
 
-    const lineStart = getLineStart(raw, lineIndex)
-    const cursorPosInLine = cursorOffset - lineStart
-    const clamped = Math.max(0, Math.min(cursorPosInLine, lineText.length))
+  const lineStart = getLineStart(raw, lineIndex)
+  const cursorPosInLine = cursorOffset - lineStart
+  const clamped = Math.max(0, Math.min(cursorPosInLine, lineText.length))
 
-    const prefix = parsed.indent + parsed.marker + ' '
-    const totalContent = parsed.content
+  const prefix = parsed.indent + parsed.marker + ' '
 
-    if (totalContent.trim() === '') {
-      lines.splice(lineIndex, 1, '')
-      const newRaw = lines.join('\n')
-      ytext.delete(0, raw.length)
-      ytext.insert(0, newRaw)
-      return lineStart
-    }
+  if (parsed.content.trim() === '') {
+    lines.splice(lineIndex, 1, '')
+    context.setPageText(page, lines.join('\n'))
+    return { cursorOffset: lineStart }
+  }
 
-    const contentOffset = Math.max(0, clamped - prefix.length)
-    const leftContent = parsed.content.slice(0, contentOffset)
-    const rightContent = parsed.content.slice(contentOffset)
-    const newFirstLine = prefix + leftContent
-    const newSecondLine = prefix + rightContent
+  const contentOffset = Math.max(0, clamped - prefix.length)
+  const leftContent = parsed.content.slice(0, contentOffset)
+  const rightContent = parsed.content.slice(contentOffset)
+  const newFirstLine = prefix + leftContent
+  const newSecondLine = prefix + rightContent
 
-    lines.splice(lineIndex, 1, newFirstLine, newSecondLine)
-    const newRaw = lines.join('\n')
-    ytext.delete(0, raw.length)
-    ytext.insert(0, newRaw)
+  lines.splice(lineIndex, 1, newFirstLine, newSecondLine)
+  const newRaw = lines.join('\n')
+  context.setPageText(page, newRaw)
 
-    const newLineStart = getLineStart(newRaw, lineIndex + 1)
-    return newLineStart + newSecondLine.length
-  })
-
-  if (result === null) return false
-  return { cursorOffset: result }
+  const newLineStart = getLineStart(newRaw, lineIndex + 1)
+  return { cursorOffset: newLineStart + newSecondLine.length }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@
 // and renderer with a Map-based registry providing O(1) name lookup and
 // conflict detection at registration time.
 
-import type { PluginManifest, ContentPlugin, UIPlugin, StoragePlugin, TokenDef } from './types'
+import type { PluginManifest, ContentPlugin, UIPlugin, TokenDef } from './types'
 
 /**
  * Semver validation regex per D-02.
@@ -17,7 +17,7 @@ const SEMVER_RE = /^\d+\.\d+\.\d+(-[\w.]+)?$/
 /**
  * Centralized registry for plugin manifests.
  *
- * Stores plugins by category (content, ui, storage) in internal Maps
+ * Stores plugins by category (content, ui) in internal Maps
  * and provides conflict detection, semver validation, and lifecycle
  * hook orchestration at registration time.
  *
@@ -36,9 +36,6 @@ export class PluginRegistry {
 
   /** UI plugins keyed by name */
   private uiPlugins = new Map<string, UIPlugin>()
-
-  /** Storage plugins keyed by name */
-  private storagePlugins = new Map<string, StoragePlugin>()
 
   /** TokenDef.type → owning plugin name (content plugins only) */
   private tokenTypeOwners = new Map<string, string>()
@@ -97,12 +94,6 @@ export class PluginRegistry {
       return
     }
 
-    // Check storage plugins
-    const storagePlugin = this.storagePlugins.get(name)
-    if (storagePlugin) {
-      storagePlugin.onDestroy?.()
-      this.storagePlugins.delete(name)
-    }
   }
 
   // ── Registration ────────────────────────────────────────────────────────────
@@ -129,9 +120,6 @@ export class PluginRegistry {
         break
       case 'ui':
         this.registerUI(manifest)
-        break
-      case 'storage':
-        this.registerStorage(manifest)
         break
     }
 
@@ -199,11 +187,6 @@ export class PluginRegistry {
     this.uiPlugins.set(plugin.name, plugin)
   }
 
-  /** Register a storage plugin (no conflict detection needed). */
-  private registerStorage(plugin: StoragePlugin): void {
-    this.storagePlugins.set(plugin.name, plugin)
-  }
-
   // ── Accessors ───────────────────────────────────────────────────────────────
 
   /** Return all registered content plugins (no UI/storage plugins). */
@@ -232,7 +215,7 @@ export class PluginRegistry {
    */
   getPlugin(name: string): PluginManifest | undefined {
     return (
-      this.contentPlugins.get(name) ?? this.uiPlugins.get(name) ?? this.storagePlugins.get(name)
+      this.contentPlugins.get(name) ?? this.uiPlugins.get(name)
     )
   }
 
@@ -241,7 +224,6 @@ export class PluginRegistry {
     return [
       ...this.contentPlugins.values(),
       ...this.uiPlugins.values(),
-      ...this.storagePlugins.values(),
     ]
   }
 
@@ -272,11 +254,6 @@ export class PluginRegistry {
       .filter(Boolean) // safety: skip if plugin was removed but slot assignment lingered
   }
 
-  /** Return all registered storage plugins. */
-  allStoragePlugins(): StoragePlugin[] {
-    return Array.from(this.storagePlugins.values())
-  }
-
   // ── Teardown ────────────────────────────────────────────────────────────────
 
   /**
@@ -289,7 +266,6 @@ export class PluginRegistry {
   clear(): void {
     this.contentPlugins.clear()
     this.uiPlugins.clear()
-    this.storagePlugins.clear()
     this.tokenTypeOwners.clear()
     this.slotAssignments.clear()
   }

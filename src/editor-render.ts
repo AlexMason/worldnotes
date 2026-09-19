@@ -4,7 +4,7 @@ import type { ContentPlugin, EditorContext } from './types'
 import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
 import type { NotificationSystem } from './notifications'
-import { getLineOffset, setLineOffset } from './awareness-cursor'
+import { getLineOffset, setLineOffset } from './caret-offset'
 import { renderLines } from './line-renderer'
 import { renderInlineContent } from './renderer'
 import { pageDisplayName, encodePathSearch } from './navigation'
@@ -49,28 +49,13 @@ export function createEditorRender(
   function render(_force = false, cursorOffset?: number): void {
     const offset = cursorOffset ?? getLineOffset(editorDiv)
 
-    const yDocState = state.getYDocState()
+    const buffers = state.getPageBuffers()
     const page = state.getCurrentPage()
-    const ytext = yDocState.getPage(page)
-    const raw = ytext.toString()
+    const raw = buffers.getPageText(page)
 
     activeLine = determineActiveLine(raw, offset)
 
     const activeLines = new Set<number>([activeLine])
-
-    const aw = yDocState.awareness as {
-      getStates: () => Map<number, { cursor?: { page?: string; activeLine?: number } }>
-    } | null
-    if (aw) {
-      const localId = yDocState.doc.clientID
-      for (const [clientId, state] of aw.getStates().entries()) {
-        if (clientId !== localId && state.cursor?.page === page) {
-          if (state.cursor.activeLine !== undefined) {
-            activeLines.add(state.cursor.activeLine)
-          }
-        }
-      }
-    }
 
     const context: EditorContext = state.toContext(
       options.navigateFn ??
@@ -113,10 +98,9 @@ export function createEditorRender(
             label: 'Create',
             onClick: () => {
               const page = requestedPage
-              const yDocState = state.getYDocState()
-              const ytext = yDocState.getPage(page)
-              if (ytext.toString() === '') {
-                ytext.insert(0, `# ${page}\n\n`)
+              const buffers = state.getPageBuffers()
+              if (buffers.getPageText(page) === '') {
+                buffers.setPageText(page, `# ${page}\n\n`)
               }
               state.setPendingRequestedPage(null)
               if (navigateFn) {
@@ -137,9 +121,9 @@ export function createEditorRender(
     if (!sel || !sel.isCollapsed) return
 
     const offset = getLineOffset(editorDiv)
-    const yDocState = state.getYDocState()
+    const buffers = state.getPageBuffers()
     const page = state.getCurrentPage()
-    const raw = yDocState.getPage(page).toString()
+    const raw = buffers.getPageText(page)
     const newLine = determineActiveLine(raw, offset)
 
     if (newLine !== activeLine) {

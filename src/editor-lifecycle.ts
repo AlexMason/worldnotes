@@ -1,11 +1,9 @@
 // ─── Editor Lifecycle ──────────────────────────────────────────────────────────
 
-import * as Y from 'yjs'
-import { WebsocketProvider } from 'y-websocket'
 import type {
   ContentPlugin,
   UIPlugin,
-  StorageAdapter,
+  PageStore,
   EditorOptions,
   EditorInstance,
   EditorContext,
@@ -14,9 +12,7 @@ import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
 import type { EditorRenderAPI } from './editor-render'
 import type { EditorNavigationAPI } from './editor-navigation'
-import { getLineOffset, setLineOffset } from './awareness-cursor'
-import { saveYDoc, loadYDoc } from './yjs-storage-bridge'
-import { renderRemoteCursors } from './plugins/remoteCursors'
+import { getLineOffset, setLineOffset } from './caret-offset'
 import { renderInlineContent } from './renderer'
 import type { NotificationSystem } from './notifications'
 import type { ToastOptions } from './types'
@@ -32,7 +28,7 @@ export function createEditorLifecycle(
   state: EditorStateAPI,
   render: EditorRenderAPI,
   navigation: EditorNavigationAPI,
-  storage: StorageAdapter,
+  pageStore: PageStore,
   options: EditorOptions,
   notifications: NotificationSystem,
 ): EditorLifecycleAPI {
@@ -56,58 +52,20 @@ export function createEditorLifecycle(
 
   async function mount(): Promise<EditorInstance> {
     const saveDebounce = options.saveDebounceMs ?? 600
-    const yDocState = state.getYDocState()
-
-    // Load persisted state
-    await loadYDoc(yDocState.doc, storage)
-
-    // Connect sync provider if configured
-    let syncProvider: WebsocketProvider | null = null
-    if (options.syncServer) {
-      const page = state.getCurrentPage()
-      const roomName = `worldnotes-${page}`
-      syncProvider = new WebsocketProvider(
-        options.syncServer,
-        roomName,
-        yDocState.doc,
-      )
-      yDocState.setAwareness(syncProvider.awareness)
-
-      // Wire remote cursor rendering
-      const awareness = syncProvider.awareness
-      awareness.on('change', () => {
-        renderRemoteCursors(
-          dom.overlay,
-          awareness as Parameters<typeof renderRemoteCursors>[1],
-          dom.editorDiv,
-          yDocState.doc.clientID,
-        )
-      })
-
-      syncProvider.on('status', (event: { status: string }) => {
-        if (event.status === 'connected') {
-          render.render(true)
-        }
-      })
-
-      yDocState.doc.on('update', (_update: Uint8Array, origin: unknown) => {
-        if (origin === syncProvider) {
-          render.render(true)
-        }
-      })
-    }
-
-    const saveImmediate = async (): Promise<void> => {
-      await saveYDoc(yDocState.doc, storage)
-    }
+    const buffers = state.getPageBuffers()
 
     const saveDebounced = (): void => {
       state.clearSaveTimer()
       const timer = setTimeout(async () => {
-        await saveImmediate()
         const page = state.getCurrentPage()
-        const ytext = yDocState.getPage(page)
-        options.onSave?.(page, ytext.toString())
+        const content = buffers.getPageText(page)
+        try {
+          await pageStore.save(page, content)
+          options.onSave?.(page, content)
+        } catch (e) {
+          console.error('worldnotes: page save failed', e)
+          notifications.notify({ message: 'Failed to save page', type: 'error' })
+        }
       }, saveDebounce)
       state.setSaveTimer(timer)
     }
@@ -148,30 +106,13 @@ export function createEditorLifecycle(
       handlingInput = true
 
       const page = state.getCurrentPage()
-      const ytext = yDocState.getPage(page)
 
       // Use extractContentText to preserve data-raw token boundaries
       // (e.g. [[wiki links]]) instead of plain textContent which loses them.
       const raw = extractContentText(dom.editorDiv)
-      const current = ytext.toString()
-      if (raw !== current) {
-        yDocState.doc.transact(() => {
-          ytext.delete(0, current.length)
-          ytext.insert(0, raw)
-        })
+      if (raw !== buffers.getPageText(page)) {
+        buffers.setPageText(page, raw)
       }
-
-      const offset = getLineOffset(dom.editorDiv)
-
-      let activeLine = 0
-      for (let i = 0; i < Math.min(offset, raw.length); i++) {
-        if (raw[i] === '\n') activeLine++
-      }
-
-      const aw = yDocState.awareness as {
-        setLocalStateField: (field: string, value: unknown) => void
-      } | null
-      aw?.setLocalStateField?.('cursor', { offset, page, activeLine })
 
       render.render()
 
@@ -198,10 +139,10 @@ export function createEditorLifecycle(
       // Ctrl+Z / Cmd+Z — undo
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') {
         e.preventDefault()
-        const um = yDocState.undoManager
-        if (um?.canUndo()) {
-          um.undo()
+        const page = state.getCurrentPage()
+        if (buffers.undo(page) !== null) {
           render.render(true)
+          saveDebounced()
         }
         return
       }
@@ -209,10 +150,10 @@ export function createEditorLifecycle(
       // Ctrl+Shift+Z / Cmd+Shift+Z — redo
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') {
         e.preventDefault()
-        const um = yDocState.undoManager
-        if (um?.canRedo()) {
-          um.redo()
+        const page = state.getCurrentPage()
+        if (buffers.redo(page) !== null) {
           render.render(true)
+          saveDebounced()
         }
         return
       }
@@ -220,10 +161,10 @@ export function createEditorLifecycle(
       // Ctrl+Y — redo (Windows alternative)
       if (e.ctrlKey && !e.shiftKey && e.key === 'y') {
         e.preventDefault()
-        const um = yDocState.undoManager
-        if (um?.canRedo()) {
-          um.redo()
+        const page = state.getCurrentPage()
+        if (buffers.redo(page) !== null) {
           render.render(true)
+          saveDebounced()
         }
         return
       }
@@ -233,14 +174,14 @@ export function createEditorLifecycle(
       // implement custom behaviors (list indentation, etc.).
       // First plugin to return { cursorOffset } wins.
       {
-        const page = state.getCurrentPage()
-
         const context: EditorContext = {
           navigate: (p: string) => { void navigation.navigateToPage(p) },
           getTrail: () => state.getTrail(),
           getCurrentPage: () => state.getCurrentPage(),
-          getWorld: () => yDocState.getWorld(),
-          getDoc: () => yDocState.doc,
+          getWorld: () => buffers.getWorld(),
+          getPageText: (p: string) => buffers.getPageText(p),
+          setPageText: (p: string, content: string) =>
+            buffers.setPageText(p, content),
         }
         context.renderInline = (text: string): DocumentFragment => {
           return renderInlineContent(text, contentPlugins, context)
@@ -252,16 +193,6 @@ export function createEditorLifecycle(
           if (result !== undefined && result !== false && 'cursorOffset' in result) {
             e.preventDefault()
             render.render(true, result.cursorOffset)
-
-            const raw = yDocState.getPage(page).toString()
-            let activeLine = 0
-            for (let i = 0; i < Math.min(result.cursorOffset, raw.length); i++) {
-              if (raw[i] === '\n') activeLine++
-            }
-            const aw = yDocState.awareness as {
-              setLocalStateField: (field: string, value: unknown) => void
-            } | null
-            aw?.setLocalStateField?.('cursor', { offset: result.cursorOffset, page, activeLine })
 
             saveDebounced()
             return
@@ -293,13 +224,9 @@ export function createEditorLifecycle(
         const offset = getLineOffset(dom.editorDiv)
         if (offset > 0) {
           const page = state.getCurrentPage()
-          const ytext = yDocState.getPage(page)
-          const raw = ytext.toString()
+          const raw = buffers.getPageText(page)
           const updated = raw.slice(0, offset - 1) + raw.slice(offset)
-          yDocState.doc.transact(() => {
-            ytext.delete(0, raw.length)
-            ytext.insert(0, updated)
-          })
+          buffers.setPageText(page, updated)
           render.render()
           setLineOffset(dom.editorDiv, offset - 1)
           saveDebounced()
@@ -326,13 +253,7 @@ export function createEditorLifecycle(
 
     await navigation.loadPage(initialPage)
 
-    // Set up undo manager AFTER loadPage so hasPage() correctly
-    // reflects whether the page existed before loading
-    const ytext = yDocState.getPage(initialPage)
-    const undoManager = new Y.UndoManager(ytext, { captureTimeout: 0 })
-    yDocState.setUndoManager(undoManager)
-
-    // ── Mount UI plugins ──────────────────────────────────────────────────
+    // ── Mount UI plugins ───────────────────────────────────────────────────
 
     const slotElements: Record<string, HTMLElement> = {
       'wn-header': dom.header,
@@ -356,7 +277,6 @@ export function createEditorLifecycle(
     return {
       destroy() {
         state.clearSaveTimer()
-        syncProvider?.destroy()
         notifications.destroy()
         for (const plugin of contentPlugins) {
           try {
@@ -372,7 +292,6 @@ export function createEditorLifecycle(
             console.error(`UI plugin "${plugin.name}" onDestroy failed:`, e)
           }
         }
-        yDocState.destroy()
         dom.container.innerHTML = ''
       },
 
@@ -390,41 +309,37 @@ export function createEditorLifecycle(
 
       getContent(): string {
         const page = state.getCurrentPage()
-        return yDocState.getPage(page).toString()
+        return buffers.getPageText(page)
       },
 
       setContent(content: string): void {
         const page = state.getCurrentPage()
-        const yt = yDocState.getPage(page)
-        yDocState.doc.transact(() => {
-          yt.delete(0, yt.length)
-          yt.insert(0, content)
-        })
+        buffers.setPageText(page, content)
         render.render(true)
       },
 
       undo(): boolean {
-        const um = yDocState.undoManager
-        if (!um?.canUndo()) return false
-        um.undo()
+        const page = state.getCurrentPage()
+        if (buffers.undo(page) === null) return false
         render.render(true)
+        saveDebounced()
         return true
       },
 
       redo(): boolean {
-        const um = yDocState.undoManager
-        if (!um?.canRedo()) return false
-        um.redo()
+        const page = state.getCurrentPage()
+        if (buffers.redo(page) === null) return false
         render.render(true)
+        saveDebounced()
         return true
       },
 
       canUndo(): boolean {
-        return yDocState.undoManager?.canUndo() ?? false
+        return buffers.canUndo(state.getCurrentPage())
       },
 
       canRedo(): boolean {
-        return yDocState.undoManager?.canRedo() ?? false
+        return buffers.canRedo(state.getCurrentPage())
       },
 
       insertText(text: string): void {
@@ -440,16 +355,11 @@ export function createEditorLifecycle(
             sel.modify('extend', 'forward', 'character')
           } catch {
             const page = state.getCurrentPage()
-            const raw = yDocState.getPage(page).toString()
+            const raw = buffers.getPageText(page)
             const offset = getLineOffset(dom.editorDiv)
             if (offset >= raw.length) return
             const next = raw.slice(0, offset) + raw.slice(offset + 1)
-            yDocState
-              .getPage(page)
-              .delete(0, raw.length)
-            yDocState
-              .getPage(page)
-              .insert(0, next)
+            buffers.setPageText(page, next)
             render.render(true)
             setLineOffset(dom.editorDiv, offset)
             return
@@ -472,16 +382,11 @@ export function createEditorLifecycle(
             sel.modify('extend', 'backward', 'character')
           } catch {
             const page = state.getCurrentPage()
-            const raw = yDocState.getPage(page).toString()
+            const raw = buffers.getPageText(page)
             const offset = getLineOffset(dom.editorDiv)
             if (offset <= 0) return
             const next = raw.slice(0, offset - 1) + raw.slice(offset)
-            yDocState
-              .getPage(page)
-              .delete(0, raw.length)
-            yDocState
-              .getPage(page)
-              .insert(0, next)
+            buffers.setPageText(page, next)
             render.render(true)
             setLineOffset(dom.editorDiv, offset - 1)
             return

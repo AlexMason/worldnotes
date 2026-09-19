@@ -2,8 +2,9 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { createEditor } from '../editor'
-import type { ContentPlugin, Token, EditorContext, StorageAdapter, UIPlugin } from '../types'
-import { getLineOffset, setLineOffset } from '../awareness-cursor'
+import { createMemoryPageStore } from '../memory-page-store'
+import type { ContentPlugin, Token, EditorContext, PageStore, UIPlugin } from '../types'
+import { getLineOffset, setLineOffset } from '../caret-offset'
 
 // ─── Test Helpers ─────────────────────────────────────────────────────────────
 
@@ -42,14 +43,8 @@ const mockPluginB: ContentPlugin = {
 
 // ─── Mock Storage Adapter ─────────────────────────────────────────────────────
 
-function createMockStorage(): StorageAdapter {
-  return {
-    get: async (_key: string) => null as string | null,
-    set: async (_key: string, _value: string) => {
-      // noop — mock storage
-    },
-    keys: async () => [] as string[],
-  }
+function createMockStorage(): PageStore {
+  return createMemoryPageStore()
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -79,7 +74,7 @@ describe('createEditor', () => {
     expect(builder).toBeDefined()
     expect(typeof builder.use).toBe('function')
     expect(typeof builder.clearPlugins).toBe('function')
-    expect(typeof builder.withStorage).toBe('function')
+    expect(typeof builder.withPageStore).toBe('function')
     expect(typeof builder.mount).toBe('function')
   })
 
@@ -108,7 +103,7 @@ describe('createEditor', () => {
 describe('EditorBuilder mount lifecycle', () => {
   it('mount() creates editor DOM with .wn-root class', async () => {
     const mockStorage = createMockStorage()
-    const editor = await createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { pageStore: mockStorage }).mount()
 
     // Container gets .wn-root class synchronously
     expect(container.className).toBe('wn-root')
@@ -122,7 +117,7 @@ describe('EditorBuilder mount lifecycle', () => {
 
   it('mount() returns EditorInstance with required methods', async () => {
     const mockStorage = createMockStorage()
-    const editor = await createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { pageStore: mockStorage }).mount()
 
     expect(typeof editor.destroy).toBe('function')
     expect(typeof editor.navigate).toBe('function')
@@ -137,7 +132,7 @@ describe('EditorBuilder mount lifecycle', () => {
 
   it('destroy() removes editor DOM from container', async () => {
     const mockStorage = createMockStorage()
-    const editor = await createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { pageStore: mockStorage }).mount()
 
     expect(container.children.length).toBeGreaterThan(0)
 
@@ -147,11 +142,11 @@ describe('EditorBuilder mount lifecycle', () => {
     expect(container.innerHTML).toBe('')
   })
 
-  it('createEditor accepts custom storage adapter via options', async () => {
+  it('createEditor accepts custom page store via options', async () => {
     const mockStorage = createMockStorage()
-    const editor = await createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { pageStore: mockStorage }).mount()
 
-    // Should mount without error — custom storage is accepted
+    // Should mount without error — custom page store is accepted
     expect(container.className).toBe('wn-root')
 
     editor.destroy()
@@ -159,7 +154,7 @@ describe('EditorBuilder mount lifecycle', () => {
 
   it('getContent returns text content from editor', async () => {
     const mockStorage = createMockStorage()
-    const editor = await createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { pageStore: mockStorage }).mount()
 
     const content = editor.getContent()
     expect(typeof content).toBe('string')
@@ -174,10 +169,10 @@ describe('EditorBuilder mount lifecycle', () => {
     expect(result).toBe(builder)
   })
 
-  it('withStorage() replaces the storage adapter and returns this', () => {
+  it('withPageStore() replaces the page store and returns this', () => {
     const builder = createEditor(container)
     const mockStorage = createMockStorage()
-    const result = builder.withStorage(mockStorage)
+    const result = builder.withPageStore(mockStorage)
 
     expect(result).toBe(builder)
   })
@@ -185,7 +180,7 @@ describe('EditorBuilder mount lifecycle', () => {
   it('getCurrentPage() returns the current page name', async () => {
     const mockStorage = createMockStorage()
     const editor = await createEditor(container, {
-      storage: mockStorage,
+      pageStore: mockStorage,
       initialPage: 'test-page',
     }).mount()
 
@@ -198,7 +193,7 @@ describe('EditorBuilder mount lifecycle', () => {
 
   it('getTrail() returns a copy of the navigation trail', async () => {
     const mockStorage = createMockStorage()
-    const editor = await createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { pageStore: mockStorage }).mount()
 
     const trail = editor.getTrail()
     expect(Array.isArray(trail)).toBe(true)
@@ -209,7 +204,7 @@ describe('EditorBuilder mount lifecycle', () => {
 
   it('setContent() updates editor content synchronously', async () => {
     const mockStorage = createMockStorage()
-    const editor = await createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { pageStore: mockStorage }).mount()
 
     editor.setContent('new content')
     const content = editor.getContent()
@@ -223,7 +218,7 @@ describe('EditorBuilder mount lifecycle', () => {
 
   it('navigate() calls through to internal page navigation', async () => {
     const mockStorage = createMockStorage()
-    const editor = await createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { pageStore: mockStorage }).mount()
 
     // navigate should not throw
     expect(() => {
@@ -239,7 +234,7 @@ describe('EditorBuilder mount lifecycle', () => {
 describe('Editor keyboard and paste handling', () => {
   it('handles Tab key by inserting two spaces', async () => {
     const mockStorage = createMockStorage()
-    const editor = await createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { pageStore: mockStorage }).mount()
 
     const editorDiv = container.querySelector('.wn-editor') as HTMLElement
     expect(editorDiv).toBeTruthy()
@@ -273,7 +268,7 @@ describe('Editor keyboard and paste handling', () => {
 
   it('handles Enter key by inserting newline', async () => {
     const mockStorage = createMockStorage()
-    const editor = await createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { pageStore: mockStorage }).mount()
 
     const editorDiv = container.querySelector('.wn-editor') as HTMLElement
     expect(editorDiv).toBeTruthy()
@@ -306,7 +301,7 @@ describe('Editor keyboard and paste handling', () => {
 
   it('handles paste event by inserting plain text', async () => {
     const mockStorage = createMockStorage()
-    const editor = await createEditor(container, { storage: mockStorage }).mount()
+    const editor = await createEditor(container, { pageStore: mockStorage }).mount()
 
     const editorDiv = container.querySelector('.wn-editor') as HTMLElement
 
@@ -334,7 +329,7 @@ describe('Editor keyboard and paste handling', () => {
   describe('Backspace on empty line', () => {
     it('removes the empty line when pressing Backspace at start of empty line', async () => {
       const mockStorage = createMockStorage()
-      const editor = await createEditor(container, { storage: mockStorage }).mount()
+      const editor = await createEditor(container, { pageStore: mockStorage }).mount()
       const editorDiv = container.querySelector('.wn-editor') as HTMLElement
 
       // Set up two-line content: "hello\n" (second line is empty)
@@ -363,7 +358,7 @@ describe('Editor keyboard and paste handling', () => {
 
     it('removes empty middle line when pressing Backspace', async () => {
       const mockStorage = createMockStorage()
-      const editor = await createEditor(container, { storage: mockStorage }).mount()
+      const editor = await createEditor(container, { pageStore: mockStorage }).mount()
       const editorDiv = container.querySelector('.wn-editor') as HTMLElement
 
       // Three lines with empty middle: "line1\n\nline3"
@@ -388,7 +383,7 @@ describe('Editor keyboard and paste handling', () => {
 
     it('deletes character before cursor when not at start of line', async () => {
       const mockStorage = createMockStorage()
-      const editor = await createEditor(container, { storage: mockStorage }).mount()
+      const editor = await createEditor(container, { pageStore: mockStorage }).mount()
       const editorDiv = container.querySelector('.wn-editor') as HTMLElement
 
       editor.setContent('hello')
@@ -420,7 +415,7 @@ describe('Editor keyboard and paste handling', () => {
   describe('wiki link data-raw preservation', () => {
     it('preserves [[wiki link]] markup after typing elsewhere', async () => {
       const mockStorage = createMockStorage()
-      const editor = await createEditor(container, { storage: mockStorage }).mount()
+      const editor = await createEditor(container, { pageStore: mockStorage }).mount()
       const editorDiv = container.querySelector('.wn-editor') as HTMLElement
 
       // Set content with a wiki link
@@ -453,7 +448,7 @@ describe('Editor keyboard and paste handling', () => {
 
     it('preserves [[wiki link]] markup after Backspace', async () => {
       const mockStorage = createMockStorage()
-      const editor = await createEditor(container, { storage: mockStorage }).mount()
+      const editor = await createEditor(container, { pageStore: mockStorage }).mount()
       const editorDiv = container.querySelector('.wn-editor') as HTMLElement
 
       editor.setContent('[[hello]] world')
@@ -488,7 +483,7 @@ describe('Editor keyboard and paste handling', () => {
   describe('post-mount UI plugin', () => {
     it('mounts UI plugin registered after editor mount', async () => {
       const mockStorage = createMockStorage()
-      const builder = createEditor(container, { storage: mockStorage })
+      const builder = createEditor(container, { pageStore: mockStorage })
       const editor = await builder.mount()
 
       const onMountSpy = vi.fn()
@@ -520,7 +515,7 @@ describe('Editor keyboard and paste handling', () => {
         onMount: onMountSpy,
       }
 
-      const builder = createEditor(container, { storage: mockStorage })
+      const builder = createEditor(container, { pageStore: mockStorage })
       builder.use(uiPlugin)
       const editor = await builder.mount()
 
