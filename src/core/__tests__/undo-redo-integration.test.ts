@@ -78,7 +78,7 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
 
 function mockDOM(): EditorDOM {
   const container = document.createElement('div')
-  const topbar = document.createElement('div')
+  const actions = document.createElement('div')
   const breadcrumb = document.createElement('div')
   const toolbar = document.createElement('div')
   toolbar.className = 'wn-toolbar'
@@ -88,14 +88,14 @@ function mockDOM(): EditorDOM {
 
   editorDiv.contentEditable = 'true'
   editorDiv.spellcheck = false
-  topbar.appendChild(breadcrumb)
+  actions.appendChild(breadcrumb)
   editorWrap.appendChild(placeholder)
   editorWrap.appendChild(editorDiv)
-  container.appendChild(topbar)
+  container.appendChild(actions)
   container.appendChild(toolbar)
   container.appendChild(editorWrap)
 
-  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder, overlay: document.createElement('div'), header: document.createElement('div'), body: document.createElement('div'), footer: document.createElement('div'), leftSidepanel: document.createElement('div'), rightSidepanel: document.createElement('div') }
+  return { container, actions, breadcrumb, toolbar, editorWrap, editorDiv, placeholder, overlay: document.createElement('div'), header: document.createElement('div'), body: document.createElement('div'), footer: document.createElement('div'), leftSidepanel: document.createElement('div'), rightSidepanel: document.createElement('div') }
 }
 
 function mockRender(state: EditorStateAPI, dom: EditorDOM): EditorRenderAPI {

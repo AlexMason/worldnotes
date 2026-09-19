@@ -1,76 +1,101 @@
 // ─── Design tokens ───────────────────────────────────────────────────────────
+//
+// The editor palette mirrors the viewer (src/server/render/layout.ts) so the
+// edit surface and the reading surface share one look: warm paper background,
+// ink foreground, serif body text, blue accent — with an automatic dark palette
+// via `prefers-color-scheme`.
 
 const DEFAULT_TOKENS = `
 /* ===== WorldNotes Design Tokens ===== */
 .wn-root {
-  /* Colors */
-  --wn-color-bg: #0e0e10;            /* root background */
-  --wn-color-surface: #0a0a0c;       /* topbar background */
-  --wn-color-fg: #c9c9d0;            /* primary text / chrome foreground */
-  --wn-color-fg-muted: #4a4a5e;      /* secondary text (breadcrumb crumb) */
-  --wn-color-accent: #9b8fe8;        /* accent: links, code, crumb hover, caret */
-  --wn-color-accent-hover: #bbb3f8;  /* accent hover: wiki-link hover, link hover */
-  --wn-color-border: #1f1f23;        /* borders: topbar, blockquote, hr */
-  --wn-color-punct: #2e2e44;         /* punctuation markers */
-  --wn-color-heading-h1: #e2e1f4;    /* H1 text color */
-  --wn-color-heading-h2: #c8c7e2;    /* H2 text color */
-  --wn-color-heading-h3: #a8a8c4;    /* H3 text color */
-  --wn-color-bold: #d4d4ea;          /* bold text color */
-  --wn-color-italic: #7878a0;        /* italic text color */
-  --wn-color-code: #9b8fe8;          /* inline code text color */
-  --wn-color-code-bg: #17171e;       /* inline code background */
-  --wn-color-blockquote: #4a4a66;    /* blockquote text color */
-  --wn-color-hr: #1e1e2c;            /* horizontal rule color */
-  --wn-color-wiki-link: #9b8fe8;     /* wiki link text color */
-  --wn-color-wiki-link-bg: #16142a;  /* wiki link background */
-  --wn-color-wiki-link-border: #332d6a; /* wiki link border */
-  --wn-color-link: #9b8fe8;          /* external link color */
-  --wn-color-wiki-link-hover: #bbb3f8;     /* wiki link hover text color */
-  --wn-color-wiki-link-bg-hover: #221e42;  /* wiki link hover background */
+  /* Colors — mirror the viewer palette */
+  --wn-color-bg: #fbfaf7;            /* root background */
+  --wn-color-surface: #fbfaf7;       /* header background */
+  --wn-color-fg: #23211d;            /* primary text / chrome foreground */
+  --wn-color-fg-muted: #6f6a61;      /* secondary text (crumbs, markers) */
+  --wn-color-accent: #1a5fb4;        /* links, caret */
+  --wn-color-accent-hover: #3f79c4;  /* link hover */
+  --wn-color-border: #e3ded4;        /* borders */
+  --wn-color-code-bg: #f0ede6;       /* inline code background */
+  --wn-color-punct: #a39b8d;         /* markdown punctuation markers */
+  --wn-color-heading-h1: #23211d;    /* H1 text */
+  --wn-color-heading-h2: #23211d;    /* H2 text */
+  --wn-color-heading-h3: #23211d;    /* H3 text */
+  --wn-color-bold: #23211d;          /* bold text */
+  --wn-color-italic: #23211d;        /* italic text */
+  --wn-color-code: #23211d;          /* inline code text */
+  --wn-color-blockquote: #6f6a61;    /* blockquote text */
+  --wn-color-hr: #e3ded4;            /* horizontal rule */
+  --wn-color-wiki-link: #1a5fb4;     /* wiki link text */
+  --wn-color-link: #1a5fb4;          /* external link text */
 
   /* Typography */
-  --wn-font-family: sans-serif;      /* heading font family */
-  --wn-font-mono: monospace;         /* body/code font family */
-  --wn-font-size-body: 14px;         /* editor body text size */
-  --wn-font-size-h1: 22px;           /* H1 text size */
-  --wn-font-size-h2: 17px;           /* H2 text size */
-  --wn-font-size-h3: 14px;           /* H3 text size */
-  --wn-font-size-small: 12px;        /* breadcrumb, code text, wiki link size */
-  --wn-line-height: 1.9;             /* editor line height */
+  --wn-font-family: ui-serif, Georgia, 'Times New Roman', serif; /* headings */
+  --wn-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; /* code */
+  --wn-font-size-body: 16px;         /* editor body text size */
+  --wn-font-size-h1: 1.6rem;         /* H1 text size */
+  --wn-font-size-h2: 1.3rem;         /* H2 text size */
+  --wn-font-size-h3: 1.1rem;         /* H3 text size */
+  --wn-font-size-small: 14px;        /* chrome + code text size */
+  --wn-line-height: 1.65;            /* editor line height */
 
   /* Spacing */
-  --wn-padding-editor-y: 28px;       /* editor vertical padding */
-  --wn-padding-editor-x: 36px;       /* editor horizontal padding */
-  --wn-padding-topbar-y: 10px;       /* topbar vertical padding */
-  --wn-padding-topbar-x: 14px;       /* topbar horizontal padding */
-  --wn-block-padding-left: 10px;     /* blockquote left padding */
+  --wn-padding-editor-y: 2rem;       /* editor vertical padding */
+  --wn-padding-editor-x: 1.2rem;     /* editor horizontal padding */
+  --wn-block-padding-left: 1em;      /* blockquote left padding */
   --wn-gap-breadcrumb: 0;            /* breadcrumb gap */
 
   /* Radii */
-  --wn-radius-crumb: 4px;           /* breadcrumb crumb border radius */
-  --wn-radius-code: 3px;            /* inline code border radius */
-  --wn-radius-wiki-link: 4px;       /* wiki link border radius */
-
-  /* Shadows */
-  --wn-shadow-wiki-link: none;       /* wiki link shadow (default: no shadow) */
-  --wn-shadow-wiki-link-hover: none; /* wiki link hover shadow (default: no shadow) */
+  --wn-radius-code: 4px;            /* inline code border radius */
 
   /* Transitions */
-  --wn-transition-color: color 0.15s;          /* color transition duration */
-  --wn-transition-bg: background 0.12s;        /* background transition duration */
+  --wn-transition-color: color 0.15s;
 
   /* Misc */
-  --wn-caret-color: #9b8fe8;         /* text cursor color */
-  --wn-font-weight-bold: 600;        /* bold text weight */
+  --wn-caret-color: #1a5fb4;         /* text cursor color */
+  --wn-font-weight-bold: 700;        /* bold text weight */
 
   /* Toast */
-  --wn-toast-bg: #17171e;            /* info toast background */
-  --wn-toast-bg-success: #14241a;    /* success toast background */
-  --wn-toast-bg-warning: #24201a;    /* warning toast background */
-  --wn-toast-bg-error: #24141a;      /* error toast background */
-  --wn-toast-border: #332d6a;        /* toast border color */
-  --wn-toast-radius: 4px;            /* toast border radius */
-  --wn-toast-color: #c9c9d0;         /* toast text color */
+  --wn-toast-bg: #fbfaf7;            /* info toast background */
+  --wn-toast-bg-success: #eef6ee;    /* success toast background */
+  --wn-toast-bg-warning: #f7f2e4;    /* warning toast background */
+  --wn-toast-bg-error: #f7e9e9;      /* error toast background */
+  --wn-toast-border: #e3ded4;        /* toast border color */
+  --wn-toast-radius: 6px;            /* toast border radius */
+  --wn-toast-color: #23211d;         /* toast text color */
+  --wn-toast-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  .wn-root {
+    --wn-color-bg: #191816;
+    --wn-color-surface: #191816;
+    --wn-color-fg: #dcd7cd;
+    --wn-color-fg-muted: #9a948a;
+    --wn-color-accent: #78a9e0;
+    --wn-color-accent-hover: #9cc0ec;
+    --wn-color-border: #33302b;
+    --wn-color-code-bg: #232120;
+    --wn-color-punct: #6f6a61;
+    --wn-color-heading-h1: #dcd7cd;
+    --wn-color-heading-h2: #dcd7cd;
+    --wn-color-heading-h3: #dcd7cd;
+    --wn-color-bold: #dcd7cd;
+    --wn-color-italic: #dcd7cd;
+    --wn-color-code: #dcd7cd;
+    --wn-color-blockquote: #9a948a;
+    --wn-color-hr: #33302b;
+    --wn-color-wiki-link: #78a9e0;
+    --wn-color-link: #78a9e0;
+    --wn-caret-color: #78a9e0;
+    --wn-toast-bg: #232120;
+    --wn-toast-bg-success: #1e2a20;
+    --wn-toast-bg-warning: #2a2519;
+    --wn-toast-bg-error: #2a1d1d;
+    --wn-toast-border: #33302b;
+    --wn-toast-color: #dcd7cd;
+    --wn-toast-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
 }
 `
 
@@ -79,22 +104,27 @@ const DEFAULT_TOKENS = `
 const DEFAULT_CSS =
   DEFAULT_TOKENS +
   `
+* { box-sizing: border-box; }
+
 .wn-root {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--wn-color-bg, #0e0e10);
-  font-family: var(--wn-font-mono, monospace);
-  color: var(--wn-color-fg, #c9c9d0);
+  background: var(--wn-color-bg, #fbfaf7);
+  color: var(--wn-color-fg, #23211d);
+  font: var(--wn-font-size-body, 16px)/var(--wn-line-height, 1.65) var(--wn-font-family, serif);
   overflow: hidden;
 }
 
-.wn-topbar {
+/* Header bar — mirrors the viewer header.wn-view-bar */
+.wn-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  padding: var(--wn-padding-topbar-y, 10px) var(--wn-padding-topbar-x, 14px);
-  border-bottom: 0.5px solid var(--wn-color-border, #1f1f23);
-  background: var(--wn-color-surface, #0a0a0c);
+  gap: 1rem;
+  padding: .6rem 1.2rem;
+  border-bottom: 1px solid var(--wn-color-border, #e3ded4);
+  font: var(--wn-font-size-small, 14px)/1.4 system-ui, sans-serif;
   flex-shrink: 0;
 }
 
@@ -103,9 +133,10 @@ const DEFAULT_CSS =
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+  padding: .4rem 1.2rem;
+  border-bottom: 1px solid var(--wn-color-border, #e3ded4);
 }
-
-.wn-header { flex-shrink: 0; }
+.wn-toolbar:empty { display: none; }
 
 .wn-body { display: flex; flex: 1; min-height: 0; }
 
@@ -116,7 +147,7 @@ const DEFAULT_CSS =
   width: 240px;
   flex-shrink: 0;
   overflow-y: auto;
-  border-right: 0.5px solid var(--wn-color-border, #1f1f23);
+  border-right: 1px solid var(--wn-color-border, #e3ded4);
 }
 .wn-left-sidepanel:not(:empty) { display: block; }
 
@@ -125,144 +156,144 @@ const DEFAULT_CSS =
   width: 240px;
   flex-shrink: 0;
   overflow-y: auto;
-  border-left: 0.5px solid var(--wn-color-border, #1f1f23);
+  border-left: 1px solid var(--wn-color-border, #e3ded4);
 }
 .wn-right-sidepanel:not(:empty) { display: block; }
 
+/* Breadcrumb — mirrors the viewer nav.wn-crumbs */
 .wn-breadcrumb {
   display: flex;
   align-items: center;
   gap: var(--wn-gap-breadcrumb, 0);
-  font-size: var(--wn-font-size-small, 12px);
+  font-size: var(--wn-font-size-small, 14px);
   flex: 1;
+  min-width: 0;
   overflow: hidden;
 }
 
 .wn-crumb {
-  color: var(--wn-color-fg-muted, #4a4a5e);
+  color: var(--wn-color-fg-muted, #6f6a61);
   cursor: pointer;
   white-space: nowrap;
   padding: 3px 6px;
-  border-radius: var(--wn-radius-crumb, 4px);
+  border-radius: 4px;
   transition: var(--wn-transition-color, color 0.15s);
 }
-.wn-crumb:hover { color: var(--wn-color-accent, #9b8fe8); }
-.wn-crumb--active { color: var(--wn-color-fg, #c9c9d0); cursor: default; }
+.wn-crumb:hover { color: var(--wn-color-accent, #1a5fb4); }
+.wn-crumb--active { color: var(--wn-color-fg, #23211d); cursor: default; }
 
 .wn-crumb-sep {
-  color: var(--wn-color-punct, #252530);
-  font-size: 11px;
+  color: var(--wn-color-fg-muted, #6f6a61);
+  font-size: 13px;
   padding: 0 1px;
   user-select: none;
 }
 
+/* Header actions — mirrors the viewer .wn-view-actions */
+.wn-actions {
+  display: flex;
+  gap: .8rem;
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.wn-actions a { color: var(--wn-color-fg-muted, #6f6a61); text-decoration: none; }
+.wn-actions a:hover { color: var(--wn-color-accent, #1a5fb4); }
+.wn-actions span { color: var(--wn-color-fg-muted, #6f6a61); }
+
+/* Editor area — mirrors the viewer main (centered ~46rem column) */
 .wn-editor-wrap {
   flex: 1;
   overflow-y: auto;
-  padding: var(--wn-padding-editor-y, 28px) var(--wn-padding-editor-x, 36px);
+  padding: var(--wn-padding-editor-y, 2rem) var(--wn-padding-editor-x, 1.2rem) 5rem;
+  position: relative;
+}
+
+.wn-editor-col {
+  max-width: 46rem;
+  margin: 0 auto;
   position: relative;
 }
 
 .wn-editor {
   outline: none;
   min-height: 100%;
-  font-family: var(--wn-font-mono, monospace);
-  font-size: var(--wn-font-size-body, 14px);
-  line-height: var(--wn-line-height, 1.9);
-  color: var(--wn-color-fg, #9090a8);
+  font: var(--wn-font-size-body, 16px)/var(--wn-line-height, 1.65) var(--wn-font-family, serif);
+  color: var(--wn-color-fg, #23211d);
   white-space: pre-wrap;
   word-break: break-word;
-  caret-color: var(--wn-caret-color, #9b8fe8);
+  caret-color: var(--wn-caret-color, #1a5fb4);
 }
 
 .wn-placeholder {
   position: absolute;
-  top: 28px;
-  left: 36px;
-  font-family: var(--wn-font-mono, monospace);
-  font-size: var(--wn-font-size-body, 14px);
-  color: var(--wn-color-fg-muted, #282838);
+  top: 0;
+  left: 0;
+  font: var(--wn-font-size-body, 16px)/var(--wn-line-height, 1.65) var(--wn-font-family, serif);
+  color: var(--wn-color-fg-muted, #6f6a61);
   pointer-events: none;
   user-select: none;
 }
 
-/* Punctuation */
-.wn-punct { color: var(--wn-color-punct, #2e2e44); font-size: 0.85em; }
+/* Punctuation (markdown markers) */
+.wn-punct { color: var(--wn-color-punct, #a39b8d); }
 
-/* Headings */
-.wn-h1, .wn-h1-text { font-size: var(--wn-font-size-h1, 22px); font-weight: 500; color: var(--wn-color-heading-h1, #e2e1f4); font-family: var(--wn-font-family, sans-serif); }
-.wn-h2, .wn-h2-text { font-size: var(--wn-font-size-h2, 17px); font-weight: 500; color: var(--wn-color-heading-h2, #c8c7e2); font-family: var(--wn-font-family, sans-serif); }
-.wn-h3, .wn-h3-text { font-size: var(--wn-font-size-h3, 14px); font-weight: 500; color: var(--wn-color-heading-h3, #a8a8c4); font-family: var(--wn-font-family, sans-serif); }
+/* Headings — keep the '#' marker muted, style the text like the viewer */
+.wn-h1, .wn-h1-text { font-size: var(--wn-font-size-h1, 1.6rem); font-weight: 700; color: var(--wn-color-heading-h1, #23211d); font-family: var(--wn-font-family, serif); line-height: 1.25; }
+.wn-h2, .wn-h2-text { font-size: var(--wn-font-size-h2, 1.3rem); font-weight: 700; color: var(--wn-color-heading-h2, #23211d); font-family: var(--wn-font-family, serif); line-height: 1.25; }
+.wn-h3, .wn-h3-text { font-size: var(--wn-font-size-h3, 1.1rem); font-weight: 700; color: var(--wn-color-heading-h3, #23211d); font-family: var(--wn-font-family, serif); line-height: 1.25; }
 
 /* Inline */
-.wn-bold { font-weight: var(--wn-font-weight-bold, 600); color: var(--wn-color-bold, #d4d4ea); }
-.wn-italic { font-style: italic; color: var(--wn-color-italic, #7878a0); }
-.wn-inline-code { color: var(--wn-color-code, #9b8fe8); }
-.wn-code-text { background: var(--wn-color-code-bg, #17171e); padding: 1px 5px; border-radius: var(--wn-radius-code, 3px); font-size: var(--wn-font-size-small, 12px); }
+.wn-bold { font-weight: var(--wn-font-weight-bold, 700); color: var(--wn-color-bold, #23211d); }
+.wn-italic { font-style: italic; color: var(--wn-color-italic, #23211d); }
+.wn-inline-code { color: var(--wn-color-code, #23211d); }
+.wn-code-text { background: var(--wn-color-code-bg, #f0ede6); padding: .1em .3em; border-radius: var(--wn-radius-code, 4px); font-family: var(--wn-font-mono, monospace); font-size: .9em; }
 
-/* Blockquote */
+/* Blockquote — mirrors the viewer */
 .wn-blockquote {
   display: block;
-  color: var(--wn-color-blockquote, #4a4a66);
-  border-left: 2px solid var(--wn-color-border, #2a2a42);
-  padding-left: var(--wn-block-padding-left, 10px);
+  color: var(--wn-color-blockquote, #6f6a61);
+  border-left: 3px solid var(--wn-color-border, #e3ded4);
+  padding-left: var(--wn-block-padding-left, 1em);
 }
 
 /* List items */
-.wn-list-item {
-  display: flex;
-}
-.wn-list-item-indent {
-  color: transparent;
-  white-space: pre;
-  user-select: none;
-  flex-shrink: 0;
-}
-.wn-list-item-marker {
-  color: var(--wn-color-punct, #2e2e44);
-  user-select: none;
-  flex-shrink: 0;
-}
-.wn-list-item-content {
-  color: var(--wn-color-fg, #c9c9d0);
-  min-width: 0;
-}
+.wn-list-item { display: flex; }
+.wn-list-item-indent { color: transparent; white-space: pre; user-select: none; flex-shrink: 0; }
+.wn-list-item-marker { color: var(--wn-color-fg-muted, #6f6a61); user-select: none; flex-shrink: 0; }
+.wn-list-item-content { color: var(--wn-color-fg, #23211d); min-width: 0; }
 
 /* HR */
 .wn-hr {
   display: block;
-  border-top: 0.5px solid var(--wn-color-hr, #1e1e2c);
+  border-top: 1px solid var(--wn-color-hr, #e3ded4);
   color: transparent;
   font-size: 2px;
-  margin: 4px 0;
+  margin: 1em 0;
 }
 
-/* Wiki link */
+/* Wiki link — mirrors the viewer (dotted underline, no pill) */
 .wn-wiki-link {
-  color: var(--wn-color-wiki-link, #9b8fe8);
-  background: var(--wn-color-wiki-link-bg, #16142a);
-  border: 0.5px solid var(--wn-color-wiki-link-border, #332d6a);
-  padding: 0 5px;
-  border-radius: var(--wn-radius-wiki-link, 4px);
+  color: var(--wn-color-wiki-link, #1a5fb4);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
   cursor: pointer;
-  font-size: var(--wn-font-size-small, 12px);
-  transition: var(--wn-transition-bg, background 0.12s);
+  transition: var(--wn-transition-color, color 0.15s);
 }
-.wn-wiki-link:hover { background: var(--wn-color-wiki-link-bg-hover, #221e42); color: var(--wn-color-wiki-link-hover, #bbb3f8); }
+.wn-wiki-link:hover { color: var(--wn-color-accent-hover, #3f79c4); }
 
 /* Strikethrough */
-.wn-strikethrough {
-  text-decoration: line-through;
-}
+.wn-strikethrough { text-decoration: line-through; }
 
 /* External link */
 .wn-link {
-  color: var(--wn-color-link, #9b8fe8);
+  color: var(--wn-color-link, #1a5fb4);
   text-decoration: underline;
   text-underline-offset: 2px;
   cursor: pointer;
 }
-.wn-link:hover { color: var(--wn-color-accent-hover, #bbb3f8); }
+.wn-link:hover { color: var(--wn-color-accent-hover, #3f79c4); }
 
 /* Remote cursor overlay */
 .wn-overlay {
@@ -272,11 +303,7 @@ const DEFAULT_CSS =
   pointer-events: none;
   z-index: 10;
 }
-.wn-remote-cursor {
-  position: absolute;
-  pointer-events: none;
-  white-space: nowrap;
-}
+.wn-remote-cursor { position: absolute; pointer-events: none; white-space: nowrap; }
 .wn-remote-cursor-caret {
   width: 2px;
   height: 1.2em;
@@ -316,71 +343,45 @@ const DEFAULT_CSS =
   align-items: flex-start;
   gap: 8px;
   padding: 8px 12px;
-  border: 0.5px solid var(--wn-toast-border, #332d6a);
-  border-radius: var(--wn-toast-radius, 4px);
-  font-family: var(--wn-font-mono, monospace);
-  font-size: var(--wn-font-size-small, 12px);
-  color: var(--wn-toast-color, #c9c9d0);
-  background: var(--wn-toast-bg, #17171e);
+  border: 1px solid var(--wn-toast-border, #e3ded4);
+  border-radius: var(--wn-toast-radius, 6px);
+  font: var(--wn-font-size-small, 14px)/1.4 system-ui, sans-serif;
+  color: var(--wn-toast-color, #23211d);
+  background: var(--wn-toast-bg, #fbfaf7);
   min-width: 260px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--wn-toast-shadow, 0 4px 12px rgba(0,0,0,0.12));
   animation: wn-toast-enter 0.2s ease-out;
 }
-.wn-toast--success { background: var(--wn-toast-bg-success, #14241a); }
-.wn-toast--warning { background: var(--wn-toast-bg-warning, #24201a); }
-.wn-toast--error   { background: var(--wn-toast-bg-error, #24141a); }
-.wn-toast--exiting {
-  animation: wn-toast-exit 0.15s ease-in forwards;
-  pointer-events: none;
-}
+.wn-toast--success { background: var(--wn-toast-bg-success, #eef6ee); }
+.wn-toast--warning { background: var(--wn-toast-bg-warning, #f7f2e4); }
+.wn-toast--error   { background: var(--wn-toast-bg-error, #f7e9e9); }
+.wn-toast--exiting { animation: wn-toast-exit 0.15s ease-in forwards; pointer-events: none; }
 
-.wn-toast__icon {
-  flex-shrink: 0;
-  width: 14px;
-  height: 14px;
-  line-height: 14px;
-  font-size: var(--wn-font-size-small, 12px);
-}
-.wn-toast__message {
-  flex: 1;
-  word-break: break-word;
-  line-height: 1.4;
-}
-.wn-toast__actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  flex-shrink: 0;
-}
+.wn-toast__icon { flex-shrink: 0; width: 14px; height: 14px; line-height: 14px; font-size: var(--wn-font-size-small, 14px); }
+.wn-toast__message { flex: 1; word-break: break-word; line-height: 1.4; }
+.wn-toast__actions { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
 .wn-toast__action-btn {
   padding: 2px 8px;
-  background: var(--wn-color-wiki-link-bg, #16142a);
-  color: var(--wn-color-wiki-link, #9b8fe8);
-  border: 0.5px solid var(--wn-color-wiki-link-border, #332d6a);
-  border-radius: var(--wn-radius-wiki-link, 4px);
+  background: transparent;
+  color: var(--wn-color-accent, #1a5fb4);
+  border: 1px solid var(--wn-color-accent, #1a5fb4);
+  border-radius: 6px;
   cursor: pointer;
-  font-family: var(--wn-font-mono, monospace);
-  font-size: var(--wn-font-size-small, 12px);
+  font: var(--wn-font-size-small, 14px)/1.4 system-ui, sans-serif;
   white-space: nowrap;
 }
-.wn-toast__action-btn:hover {
-  background: var(--wn-color-wiki-link-bg-hover, #221e42);
-  color: var(--wn-color-wiki-link-hover, #bbb3f8);
-}
+.wn-toast__action-btn:hover { background: var(--wn-color-accent, #1a5fb4); color: var(--wn-color-bg, #fbfaf7); }
 .wn-toast__close-btn {
   padding: 1px 4px;
   background: none;
-  color: var(--wn-color-fg-muted, #4a4a5e);
+  color: var(--wn-color-fg-muted, #6f6a61);
   border: none;
   cursor: pointer;
-  font-family: var(--wn-font-mono, monospace);
+  font-family: system-ui, sans-serif;
   font-size: 15px;
   line-height: 1;
 }
-.wn-toast__close-btn:hover {
-  color: var(--wn-color-fg, #c9c9d0);
-}
+.wn-toast__close-btn:hover { color: var(--wn-color-fg, #23211d); }
 
 @keyframes wn-toast-enter {
   from { opacity: 0; transform: translateY(-8px); }
@@ -391,21 +392,22 @@ const DEFAULT_CSS =
   to   { opacity: 0; transform: scale(0.95); }
 }
 
-/* Mobile chrome: roomier touch targets, scrollable breadcrumbs,
-   stacked side panels, compact editor padding, safe-area aware toasts */
-@media (max-width: 768px) {
-  .wn-topbar { padding: 6px 8px; }
-  .wn-breadcrumb { overflow-x: auto; scrollbar-width: none; }
+/* Mobile — mirrors the viewer breakpoint */
+@media (max-width: 640px) {
+  .wn-header { flex-wrap: wrap; row-gap: .4rem; padding: .5rem .9rem; }
+  .wn-breadcrumb { flex: 1 1 100%; order: 2; overflow-x: auto; scrollbar-width: none; }
   .wn-breadcrumb::-webkit-scrollbar { display: none; }
   .wn-crumb { padding: 8px 8px; }
-  .wn-toolbar { flex-wrap: wrap; row-gap: 4px; }
-  .wn-editor-wrap { padding: 12px 10px; }
+  .wn-actions { margin-left: auto; }
+  .wn-actions a { padding: .45em .35em; }
+  .wn-toolbar { flex-wrap: wrap; row-gap: 4px; padding: .4rem .9rem; }
+  .wn-editor-wrap { padding: 1.2rem .9rem 4rem; }
   .wn-body { flex-direction: column; }
   .wn-left-sidepanel:not(:empty),
   .wn-right-sidepanel:not(:empty) {
     width: 100%; max-height: 38%;
     border-left: none; border-right: none;
-    border-top: 0.5px solid var(--wn-color-border, #1f1f23);
+    border-top: 1px solid var(--wn-color-border, #e3ded4);
   }
   .wn-toast-container { max-width: calc(100vw - 16px); }
   .wn-toast { min-width: 0; max-width: 100%; }
@@ -427,17 +429,12 @@ function el(tag: string, cls: string): HTMLElement {
  * Users can override any rule by targeting the same class with higher specificity.
  *
  * @param theme - Optional CSS string that replaces the default stylesheet entirely.
- *                When omitted, the token-driven DEFAULT_CSS is injected.
  */
 function injectStyles(theme?: string): void {
   const STYLE_ID = 'worldnotes-styles'
   const existing = document.getElementById(STYLE_ID)
   if (existing) {
-    // If a theme is provided, update the existing style element
-    // to support potential future dynamic theme switching
-    if (theme !== undefined) {
-      existing.textContent = theme
-    }
+    if (theme !== undefined) existing.textContent = theme
     return
   }
 
@@ -451,31 +448,17 @@ function injectStyles(theme?: string): void {
 
 /**
  * Public handle for the editor DOM elements returned by {@link createEditorDOM}.
- *
- * @property container      - The root wn-root element (the original container)
- * @property topbar         - Top bar wrapper containing breadcrumbs
- * @property breadcrumb      - Breadcrumb navigation element
- * @property toolbar        - Toolbar slot container between topbar and editor area
- * @property editorWrap     - Wrapper around editor and placeholder
- * @property editorDiv      - The contentEditable editor div
- * @property placeholder    - Initial placeholder text element
- * @property overlay        - Remote cursor overlay layer (absolute positioned)
- * @property header         - Header slot above topbar
- * @property body           - Flex-row wrapper containing leftSidepanel + editorWrap + rightSidepanel
- * @property footer         - Footer slot below body
- * @property leftSidepanel  - Left sidebar slot (hidden via :not(:empty) CSS)
- * @property rightSidepanel - Right sidebar slot (hidden via :not(:empty) CSS)
  */
 export interface EditorDOM {
   container: HTMLElement
-  topbar: HTMLElement
+  header: HTMLElement
   breadcrumb: HTMLElement
+  actions: HTMLElement
   toolbar: HTMLElement
   editorWrap: HTMLElement
   editorDiv: HTMLDivElement
   placeholder: HTMLElement
   overlay: HTMLElement
-  header: HTMLElement
   body: HTMLElement
   footer: HTMLElement
   leftSidepanel: HTMLElement
@@ -483,18 +466,8 @@ export interface EditorDOM {
 }
 
 /**
- * Build the complete editor DOM inside `container`, inject default CSS
- * into the document head, and return typed references to each element.
- *
- * This is a pure DOM-construction factory — it has no dependency on
- * editor state, storage, or rendering.  Callers receive the element
- * references they need to wire up event handlers, the render loop, and
- * keyboard navigation.
- *
- * @param container - The host element that will receive the editor DOM
- * @param theme     - Optional CSS string that replaces the default stylesheet.
- *                    When omitted, the token-driven DEFAULT_CSS is injected.
- * @returns Typed references to every major editor element
+ * Build the complete editor DOM inside `container`, inject default CSS into the
+ * document head, and return typed references to each element.
  */
 export function createEditorDOM(container: HTMLElement, theme?: string): EditorDOM {
   injectStyles(theme)
@@ -503,12 +476,13 @@ export function createEditorDOM(container: HTMLElement, theme?: string): EditorD
   container.className = 'wn-root'
 
   const header = el('div', 'wn-header')
-  const topbar = el('div', 'wn-topbar')
   const breadcrumb = el('div', 'wn-breadcrumb')
+  const actions = el('div', 'wn-actions')
   const toolbar = el('div', 'wn-toolbar')
   const body = el('div', 'wn-body')
   const leftSidepanel = el('div', 'wn-left-sidepanel')
   const editorWrap = el('div', 'wn-editor-wrap')
+  const editorCol = el('div', 'wn-editor-col')
   const editorDiv = el('div', 'wn-editor') as HTMLDivElement
   const placeholder = el('div', 'wn-placeholder')
   const overlay = el('div', 'wn-overlay')
@@ -519,18 +493,36 @@ export function createEditorDOM(container: HTMLElement, theme?: string): EditorD
   editorDiv.contentEditable = 'true'
   editorDiv.spellcheck = false
 
-  topbar.appendChild(breadcrumb)
-  editorWrap.appendChild(placeholder)
-  editorWrap.appendChild(editorDiv)
-  editorWrap.appendChild(overlay)
+  header.appendChild(breadcrumb)
+  header.appendChild(actions)
+
+  editorCol.appendChild(placeholder)
+  editorCol.appendChild(editorDiv)
+  editorCol.appendChild(overlay)
+  editorWrap.appendChild(editorCol)
+
   body.appendChild(leftSidepanel)
   body.appendChild(editorWrap)
   body.appendChild(rightSidepanel)
+
   container.appendChild(header)
-  container.appendChild(topbar)
   container.appendChild(toolbar)
   container.appendChild(body)
   container.appendChild(footer)
 
-  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder, overlay, header, body, footer, leftSidepanel, rightSidepanel }
+  return {
+    container,
+    header,
+    breadcrumb,
+    actions,
+    toolbar,
+    editorWrap,
+    editorDiv,
+    placeholder,
+    overlay,
+    body,
+    footer,
+    leftSidepanel,
+    rightSidepanel,
+  }
 }

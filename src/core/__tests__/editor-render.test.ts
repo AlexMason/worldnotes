@@ -13,12 +13,11 @@ import { createEditorRender } from '../editor-render'
 function createTestDOM(): EditorDOM {
   const container = document.createElement('div')
 
-  const topbar = document.createElement('div')
-  topbar.className = 'wn-topbar'
+  const actions = document.createElement('div')
 
   const breadcrumb = document.createElement('div')
   breadcrumb.className = 'wn-breadcrumb'
-  topbar.appendChild(breadcrumb)
+  actions.appendChild(breadcrumb)
 
   const editorWrap = document.createElement('div')
   editorWrap.className = 'wn-editor-wrap'
@@ -35,11 +34,11 @@ function createTestDOM(): EditorDOM {
   editorDiv.contentEditable = 'true'
   editorWrap.appendChild(editorDiv)
 
-  container.appendChild(topbar)
+  container.appendChild(actions)
   container.appendChild(toolbar)
   container.appendChild(editorWrap)
 
-  return { container, topbar, breadcrumb, toolbar, editorWrap, editorDiv, placeholder, overlay: document.createElement('div'), header: document.createElement('div'), body: document.createElement('div'), footer: document.createElement('div'), leftSidepanel: document.createElement('div'), rightSidepanel: document.createElement('div') }
+  return { container, actions, breadcrumb, toolbar, editorWrap, editorDiv, placeholder, overlay: document.createElement('div'), header: document.createElement('div'), body: document.createElement('div'), footer: document.createElement('div'), leftSidepanel: document.createElement('div'), rightSidepanel: document.createElement('div') }
 }
 
 /**
