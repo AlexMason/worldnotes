@@ -94,12 +94,14 @@ export async function registerPageHtmlRoutes(
   ): Promise<FastifyReply> {
     if (req.user) {
       const settings = getSettings()
+      const page = await pages.get(slug)
       const html = editorShellHtml(slug, {
         assetPrefix,
         autosaveMs,
         searchEnabled: settings.searchEnabled,
         userName: req.user.name ?? req.user.sub,
         authDisabled: config.authDisabled,
+        page: page ? { content: page.content, version: page.version } : null,
       })
       return reply
         .header('content-type', 'text/html; charset=utf-8')

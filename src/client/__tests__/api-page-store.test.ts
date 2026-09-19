@@ -99,6 +99,26 @@ describe('createApiPageStore', () => {
     expect(onSaved).toHaveBeenCalledWith('new', 'body')
   })
 
+  it('seeded versions send the right If-Match on the first save', async () => {
+    const onSaved = vi.fn()
+    const fn = stubFetch({
+      status: 200,
+      body: { slug: 'a/b', title: 'B', content: 'x', version: 6 }, // PUT response
+    })
+    // Seed keys fold through normalize, just like load/save keys.
+    const store = createApiPageStore(
+      { onConflict: vi.fn(), onSaved },
+      [{ slug: 'A/B', version: 5 }],
+    )
+
+    await store.save('a/b', 'x')
+
+    const put = recordedCalls(fn)[0]!
+    expect(put.init?.method).toBe('PUT')
+    expect((put.init?.headers as Record<string, string>)['if-match']).toBe('"5"')
+    expect(store.versionOf('a/b')).toBe(6)
+  })
+
   it('401 on save notifies auth loss', async () => {
     const onAuthLost = vi.fn()
     stubFetch(

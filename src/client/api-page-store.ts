@@ -38,8 +38,17 @@ function normalize(page: string): string {
   return validateSlug(folded).ok ? folded : page
 }
 
-export function createApiPageStore(events: ApiPageStoreEvents): ApiPageStore {
+export interface PageVersionSeed {
+  slug: string
+  version: number
+}
+
+export function createApiPageStore(
+  events: ApiPageStoreEvents,
+  seed: PageVersionSeed[] = [],
+): ApiPageStore {
   const versions = new Map<string, number>()
+  for (const { slug, version } of seed) versions.set(normalize(slug), version)
 
   async function put(page: string, content: string): Promise<Response> {
     const version = versions.get(page)

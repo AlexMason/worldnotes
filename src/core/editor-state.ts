@@ -45,6 +45,14 @@ export function createEditorState(
 ): EditorStateAPI {
   const configuredInitialPage = options.initialPage ?? 'home'
 
+  // Seed the initial buffer from the SSR-embedded page (Task 1) so the first
+  // paint is synchronous. The loaded state is the undo baseline; clearHistory
+  // after seeding ensures undo never goes back to the pre-load empty buffer.
+  if (options.initialContent !== undefined) {
+    pageBuffers.setPageText(configuredInitialPage, options.initialContent)
+    pageBuffers.clearHistory(configuredInitialPage)
+  }
+
   // ── Mutable state ──────────────────────────────────────────────────────────
 
   let trail: string[] = [configuredInitialPage]

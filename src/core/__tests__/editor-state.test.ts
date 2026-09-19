@@ -164,4 +164,17 @@ describe('createEditorState', () => {
 
     expect(state.getTrail()).toEqual(['home'])
   })
+
+  it('seeds the buffer from options.initialContent with a clean undo baseline', () => {
+    setupLocation('')
+    const buffers = createPageBuffers()
+    createEditorState({ initialPage: 'blog/post', initialContent: '# Hi' }, buffers)
+
+    // SSR-embedded content is present without any store fetch…
+    expect(buffers.hasPage('blog/post')).toBe(true)
+    expect(buffers.getPageText('blog/post')).toBe('# Hi')
+    // …and is the undo baseline: the first edit undoes back to it, not to ''.
+    buffers.setPageText('blog/post', '# Hi!')
+    expect(buffers.undo('blog/post')).toBe('# Hi')
+  })
 })
