@@ -53,6 +53,7 @@ export {
 } from './plugins/inline'
 export { strikethroughPlugin } from './plugins/strikethrough'
 export { linkPlugin } from './plugins/link'
+export { imagePlugin } from './plugins/image'
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 export { createNotificationSystem } from './notifications'

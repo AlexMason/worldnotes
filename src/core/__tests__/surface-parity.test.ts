@@ -30,6 +30,8 @@ const FIXTURE = [
   '  - indented item with [[Some/Page]]',
   '---',
   'link [Example](https://example.com) and [us](mailto:a@b.c)',
+  'image ![Diagram](https://x.test/a.png) inline',
+  'unsafe ![a](data:text/html,x) stays literal',
   'wiki [[projects/acme|Client Portal]] and [[plain-page]]',
   'unsafe [nope](javascript:alert(1)) stays literal',
   '  leading spaces preserved',

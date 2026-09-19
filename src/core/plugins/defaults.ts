@@ -3,6 +3,7 @@ import { wikiLinkPlugin } from './wikiLink'
 import { headingsPlugin } from './headings'
 import { boldPlugin, italicPlugin, inlineCodePlugin, blockquotePlugin, hrPlugin } from './inline'
 import { linkPlugin } from './link'
+import { imagePlugin } from './image'
 import { strikethroughPlugin } from './strikethrough'
 import { listItemPlugin } from './listItem'
 
@@ -18,7 +19,10 @@ export const defaultPlugins: ContentPlugin[] = [
   blockquotePlugin, // line-level
   listItemPlugin, // line-level
   wikiLinkPlugin, // inline — [[...]] before [...] to avoid partial match (Pitfall 1)
-  linkPlugin, // inline — [text](url) after [[...]]
+  imagePlugin, // inline — ![alt](src) before [text](url): the `!` match binds
+  // at scan index 0, so the link pattern never claims the inner text (see
+  // defaults ordering note in docs/architecture.md)
+  linkPlugin, // inline — [text](url) after [[...]] and ![...](...)
   boldPlugin, // inline — ** before * to avoid partial match
   italicPlugin, // inline
   strikethroughPlugin, // inline — ~~text~~ (no conflict with * patterns)

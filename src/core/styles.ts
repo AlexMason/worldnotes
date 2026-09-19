@@ -160,4 +160,14 @@ export const EDITOR_CONTENT_CSS = `
   cursor: pointer;
 }
 .wn-link:hover { color: var(--wn-color-accent-hover, #3f79c4); }
+
+/* Image — editor shows the punct-fidelity source (dimmed markers) plus the
+   rendered preview; the reader hides the source through the .wn-article-
+   scoped rules below (sanctioned display divergence — same tree). */
+.wn-image-img { max-width: 100%; height: auto; display: inline-block; vertical-align: middle; }
+.wn-image-alt { color: var(--wn-color-fg-muted, #6f6a61); }
+.wn-image-src { color: var(--wn-color-punct, #a39b8d); }
+.wn-article .wn-image > .wn-punct,
+.wn-article .wn-image-alt,
+.wn-article .wn-image-src { display: none; }
 `

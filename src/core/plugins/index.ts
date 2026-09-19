@@ -2,6 +2,7 @@ export { wikiLinkPlugin } from './wikiLink'
 export { headingsPlugin } from './headings'
 export { boldPlugin, italicPlugin, inlineCodePlugin, blockquotePlugin, hrPlugin } from './inline'
 export { linkPlugin } from './link'
+export { imagePlugin } from './image'
 export { strikethroughPlugin } from './strikethrough'
 export { listItemPlugin } from './listItem'
 

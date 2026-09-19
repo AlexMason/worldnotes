@@ -107,11 +107,33 @@ describe('grammar degradation (accepted: editor subset is the whole grammar)', (
     expect(html).not.toContain('<h4')
   })
 
-  it('images degrade to text + link anchor (never <img>)', () => {
+  it('images render styled (restored grammar)', () => {
     const html = render.render('![alt](https://x.test/a.png)')
+    expect(html).toContain('<img class="wn-image-img" src="https://x.test/a.png" alt="alt"')
+    expect(html).toContain('referrerpolicy="no-referrer"')
+    expect(html).toContain('loading="lazy"')
+    // punct-fidelity: the source characters are present as text nodes…
+    expect(html).toContain('<span class="wn-punct">![</span>')
+  })
+
+  it('unsafe image srcs stay escaped literal source (never <img>)', () => {
+    const html = render.render('![a](data:text/html,<script>alert(1)</script>)')
     expect(html).not.toContain('<img')
-    expect(html).toContain('!') // stray bang visible
-    expect(html).toContain('href="https://x.test/a.png"')
+    expect(html).not.toContain('<script>')
+    expect(html).toContain('&lt;script&gt;')
+    // backslash origin-escape (WHATWG treats \ as / for img src)
+    const evil = render.render('![a](\\evil.com\\x.png)')
+    expect(evil).not.toContain('<img')
+    // attribute-breakout attempt inside src — escaped, cannot open a new attr
+    const breakout = render.render('![a](x"onerror="alert(1))')
+    expect(breakout).not.toMatch(/<img[^>]*"\s*onerror=/)
+  })
+
+  it('linked images stay degraded (known limitation, documented)', () => {
+    // [![alt](img.png)](url) — the link token wins the scan; no <img>.
+    const html = render.render('[![alt](https://x.test/a.png)](https://x.test)')
+    expect(html).not.toContain('<img')
+    expect(html).toContain('wn-link')
   })
 })
 
