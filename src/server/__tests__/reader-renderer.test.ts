@@ -85,7 +85,6 @@ describe('grammar degradation (accepted: editor subset is the whole grammar)', (
   const literals = [
     ['fenced code', '```js\nconst x = 1\n```', '```js'],
     ['table row', '| a | b |', '| a | b |'],
-    ['ordered list', '1. one', '1. one'],
     ['task checkbox', '- [ ] todo', '[ ] todo'],
     ['h4 heading', '#### deep', '#### deep'],
     ['bare url stays text', 'visit https://example.com now', 'visit https://example.com now'],
@@ -113,5 +112,23 @@ describe('grammar degradation (accepted: editor subset is the whole grammar)', (
     expect(html).not.toContain('<img')
     expect(html).toContain('!') // stray bang visible
     expect(html).toContain('href="https://x.test/a.png"')
+  })
+})
+
+describe('lists render styled (restored grammar)', () => {
+  it('unordered markers display as bullets; source preserved in data-raw', () => {
+    const html = render.render('- milk')
+    expect(html).toContain('class="wn-list-item" data-raw="- milk"')
+    expect(html).toContain('wn-list-item-marker" aria-hidden="true">• </span>')
+  })
+
+  it('ordered markers render as typed (no auto-renumbering, no <ol>)', () => {
+    const html = render.render('1. one\niv. four')
+    expect(html).toContain('data-raw="1. one"')
+    expect(html).toContain('>1. </span>')
+    expect(html).toContain('data-raw="iv. four"')
+    expect(html).toContain('>iv. </span>')
+    expect(html).not.toContain('<ol')
+    expect(html).not.toContain('<li')
   })
 })

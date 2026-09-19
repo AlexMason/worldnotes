@@ -80,8 +80,28 @@ describe('listItemPlugin tokenization', () => {
     expect('# heading'.match(pattern)).toBeNull()
   })
 
-  it('does not match marker without space', () => {
+  it('matches marker without space as null', () => {
     expect('-no-space'.match(pattern)).toBeNull()
+  })
+
+  it('matches ordered markers as typed (D1)', () => {
+    const expectGroups = (raw: string, marker: string, content: string) => {
+      const m = raw.match(pattern)
+      expect(m, raw).not.toBeNull()
+      expect(m![2], raw).toBe(marker)
+      expect(m![3], raw).toBe(content)
+    }
+    expectGroups('1. one', '1.', 'one')
+    expectGroups('42. the answer', '42.', 'the answer')
+    expectGroups('a. alpha', 'a.', 'alpha')
+    expectGroups('Z. zed', 'Z.', 'zed')
+    expectGroups('I. one', 'I.', 'one')
+    expectGroups('iv. four', 'iv.', 'four')
+  })
+
+  it('does not match markers without following space', () => {
+    expect('e.g. example'.match(pattern)).toBeNull()
+    expect('1.oops'.match(pattern)).toBeNull()
   })
 
   it('matches empty content after marker', () => {
@@ -105,7 +125,7 @@ describe('listItemPlugin rendering', () => {
     expect(el.children).toHaveLength(2)
 
     expect(el.children[0].className).toBe('wn-list-item-marker')
-    expect(el.children[0].textContent).toBe('- ')
+    expect(el.children[0].textContent).toBe('• ')
 
     expect(el.children[1].className).toBe('wn-list-item-content')
     expect(el.children[1].textContent).toBe('milk')
@@ -125,7 +145,7 @@ describe('listItemPlugin rendering', () => {
     expect(el.children[0].textContent).toBe('  ')
 
     expect(el.children[1].className).toBe('wn-list-item-marker')
-    expect(el.children[1].textContent).toBe('- ')
+    expect(el.children[1].textContent).toBe('• ')
 
     expect(el.children[2].className).toBe('wn-list-item-content')
     expect(el.children[2].textContent).toBe('nested')
@@ -136,14 +156,48 @@ describe('listItemPlugin rendering', () => {
     const el = renderPlugin(listItemPlugin, token, createContext())
 
     expect(el.classList.contains('wn-list-item')).toBe(true)
-    expect(el.children[0].textContent).toBe('* ')
+    expect(el.children[0].textContent).toBe('• ')
   })
 
   it('renders plus list item', () => {
     const token = createToken('list-item', '+ item', ['', '+', 'item'])
     const el = renderPlugin(listItemPlugin, token, createContext())
 
-    expect(el.children[0].textContent).toBe('+ ')
+    expect(el.children[0].textContent).toBe('• ')
+  })
+
+  it('renders ordered list items with the marker as typed (D1)', () => {
+    const cases: [string, string][] = [
+      ['1. one', '1.'],
+      ['12. twelve', '12.'],
+      ['a. alpha', 'a.'],
+      ['A. cap', 'A.'],
+      ['I. roman', 'I.'],
+      ['ii. lower roman', 'ii.'],
+    ]
+    for (const [raw, marker] of cases) {
+      const m = raw.match(listItemPlugin.tokens[0].pattern)!
+      const token = createToken('list-item', raw, [m[1] ?? '', m[2] ?? '', m[3] ?? ''])
+      const el = renderPlugin(listItemPlugin, token, createContext())
+      expect(el.dataset.raw, raw).toBe(raw)
+      expect(el.children[0].textContent, raw).toBe(marker + ' ')
+    }
+  })
+
+  it('static path mirrors the DOM marker display', () => {
+    const bullet = listItemPlugin.renderToHTML!(
+      createToken('list-item', '- milk', ['', '-', 'milk']),
+      { renderInline: (t: string) => t },
+    )
+    expect(bullet).toContain('class="wn-list-item-marker" aria-hidden="true">• </span>')
+    expect(bullet).toContain('data-raw="- milk"')
+
+    const ordered = listItemPlugin.renderToHTML!(
+      createToken('list-item', '3. three', ['', '3.', 'three']),
+      { renderInline: (t: string) => t },
+    )
+    expect(ordered).toContain('>3. </span>')
+    expect(ordered).toContain('data-raw="3. three"')
   })
 
   it('renders empty content', () => {
@@ -399,6 +453,62 @@ describe('listItemPlugin onKeydown', () => {
     const result = listItemPlugin.onKeydown!(event, context)
 
     expect(result).toBeFalsy()
+
+    document.body.removeChild(editorDiv)
+  })
+
+  it('Enter on an ordered item repeats the typed marker (D1 continuation)', () => {
+    const context = createContext()
+    context.setPageText('home', '1. milk\nplain')
+
+    const editorDiv = document.createElement('div')
+    document.body.appendChild(editorDiv)
+    editorDiv.innerHTML = '<div data-line="0">1. milk</div><div data-line="1">plain</div>'
+
+    // cursor after '1. mi'
+    const textNode = editorDiv.querySelector('[data-line="0"]')!.firstChild!
+    const range = document.createRange()
+    range.setStart(textNode, 5)
+    range.collapse(true)
+    const sel = window.getSelection()
+    sel!.removeAllRanges()
+    sel!.addRange(range)
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter' })
+    const result = listItemPlugin.onKeydown!(event, context)
+
+    expect(result).not.toBeFalsy()
+    const lines = context.getPageText('home').split('\n')
+    expect(lines[0]).toBe('1. mi')
+    expect(lines[1]).toBe('1. lk')
+    expect(lines[2]).toBe('plain')
+
+    document.body.removeChild(editorDiv)
+  })
+
+  it('empty ordered item exits the list on Enter', () => {
+    const context = createContext()
+    context.setPageText('home', 'a. \nplain')
+
+    const editorDiv = document.createElement('div')
+    document.body.appendChild(editorDiv)
+    editorDiv.innerHTML = '<div data-line="0">a. </div><div data-line="1">plain</div>'
+
+    const textNode = editorDiv.querySelector('[data-line="0"]')!.firstChild!
+    const range = document.createRange()
+    range.setStart(textNode, 3)
+    range.collapse(true)
+    const sel = window.getSelection()
+    sel!.removeAllRanges()
+    sel!.addRange(range)
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter' })
+    const result = listItemPlugin.onKeydown!(event, context)
+
+    expect(result).not.toBeFalsy()
+    const lines = context.getPageText('home').split('\n')
+    expect(lines[0]).toBe('')
+    expect(lines[1]).toBe('plain')
 
     document.body.removeChild(editorDiv)
   })

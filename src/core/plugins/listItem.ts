@@ -1,5 +1,11 @@
 import type { ContentPlugin, Token, EditorContext, StaticRenderContext } from '../types'
-import { parseListItem, indentLine, dedentLine } from '../editor-indentation'
+import {
+  parseListItem,
+  indentLine,
+  dedentLine,
+  LIST_ITEM_RE,
+  isBulletMarker,
+} from '../editor-indentation'
 import { getLineOffset } from '../caret-offset'
 
 import { escapeHTML, escapeAttr } from '../escape'
@@ -24,7 +30,9 @@ function renderListItem(token: Token, context: EditorContext): HTMLElement {
   const markerSpan = document.createElement('span')
   markerSpan.className = 'wn-list-item-marker'
   markerSpan.setAttribute('aria-hidden', 'true')
-  markerSpan.textContent = marker + ' '
+  // D2: bullet markers display •; ordered markers display as typed (D1).
+  // Source fidelity lives in the wrapper's data-raw, not in this glyph.
+  markerSpan.textContent = (isBulletMarker(marker) ? '•' : marker) + ' '
   wrapper.appendChild(markerSpan)
 
   const contentSpan = document.createElement('span')
@@ -45,7 +53,7 @@ export const listItemPlugin: ContentPlugin = {
   version: '1.0.0',
   kind: 'content',
 
-  tokens: [{ type: 'list-item', pattern: /^(\s*)([-*+])\s(.*)$/ }],
+  tokens: [{ type: 'list-item', pattern: LIST_ITEM_RE }],
 
   render(token: Token, context: EditorContext): HTMLElement {
     return renderListItem(token, context)
@@ -61,7 +69,10 @@ export const listItemPlugin: ContentPlugin = {
     if (indent) {
       html += `<span class="wn-list-item-indent" aria-hidden="true">${escapeHTML(indent)}</span>`
     }
-    html += `<span class="wn-list-item-marker" aria-hidden="true">${escapeHTML(marker)} </span>`
+    // Same display rule as the DOM path: • for bullets, typed marker for
+    // ordered items (single-renderer — one grammar, one display).
+    const displayMarker = isBulletMarker(marker) ? '•' : marker
+    html += `<span class="wn-list-item-marker" aria-hidden="true">${escapeHTML(displayMarker)} </span>`
     html += `<span class="wn-list-item-content">${inner}</span>`
     html += '</span>'
     return html

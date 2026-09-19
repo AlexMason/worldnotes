@@ -4,15 +4,24 @@
  * Extract the parts of a list-item line.
  * Returns null if the line doesn't match the list-item pattern.
  *
- * Pattern: ^(\s*)([-*+])\s(.*)$
+ * Pattern: ^(\s*)([-*+]|\d+\.|[a-z]\.|[A-Z]\.|[ivxlcdm]+\.|[IVXLCDM]+\.)\s(.*)$
+ * Markers are rendered AS TYPED (D1): bullets, numeric, alpha (both cases),
+ * and roman runs. The single shared LIST_ITEM_RE below is the ONE source of
+ * truth — the tokenizer pattern in plugins/listItem.ts imports it, so keydown
+ * continuation and tokenization can never drift apart.
  */
 export interface ListItemParts {
-  indent: string   // leading spaces ("" for level 0)
-  marker: string   // "-", "*", or "+"
-  content: string  // text after marker + space
+  indent: string // leading spaces ("" for level 0)
+  marker: string // "-", "*", "+", "1.", "a.", "A.", "II.", …
+  content: string // text after marker + space
 }
 
-const LIST_ITEM_RE = /^(\s*)([-*+])\s(.*)$/
+export const LIST_ITEM_RE = /^(\s*)([-*+]|\d+\.|[a-z]\.|[A-Z]\.|[ivxlcdm]+\.|[IVXLCDM]+\.)\s(.*)$/
+
+/** True for bullet markers (- * +) — displayed as • (D2). */
+export function isBulletMarker(marker: string): boolean {
+  return marker === '-' || marker === '*' || marker === '+'
+}
 
 export function parseListItem(line: string): ListItemParts | null {
   const m = line.match(LIST_ITEM_RE)
@@ -43,9 +52,9 @@ export function dedentLine(line: string): string | null {
  * the cursor and its positional metadata.
  */
 export interface LineOffset {
-  lineIndex: number   // 0-based line index
-  lineStart: number   // character offset where this line starts
-  lineText: string    // the full line text (without trailing newline)
+  lineIndex: number // 0-based line index
+  lineStart: number // character offset where this line starts
+  lineText: string // the full line text (without trailing newline)
 }
 
 export function getLineAtOffset(text: string, offset: number): LineOffset {
@@ -76,11 +85,7 @@ export function getLineAtOffset(text: string, offset: number): LineOffset {
 /**
  * Replace a single line in a multi-line text string.
  */
-export function replaceLine(
-  text: string,
-  lineIndex: number,
-  newLine: string,
-): string {
+export function replaceLine(text: string, lineIndex: number, newLine: string): string {
   const lines = text.split('\n')
   lines[lineIndex] = newLine
   return lines.join('\n')
@@ -89,10 +94,6 @@ export function replaceLine(
 /**
  * Insert text at a specific raw offset within a full document string.
  */
-export function insertAtOffset(
-  text: string,
-  offset: number,
-  insertion: string,
-): string {
+export function insertAtOffset(text: string, offset: number, insertion: string): string {
   return text.slice(0, offset) + insertion + text.slice(offset)
 }

@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   parseListItem,
+  isBulletMarker,
   indentLine,
   dedentLine,
   getLineAtOffset,
@@ -45,6 +46,21 @@ describe('parseListItem', () => {
 
   it('returns null for marker without space', () => {
     expect(parseListItem('-no-space')).toBeNull()
+  })
+
+  it('parses ordered markers as typed (D1)', () => {
+    expect(parseListItem('1. one')).toEqual({ indent: '', marker: '1.', content: 'one' })
+    expect(parseListItem('  a. alpha')).toEqual({ indent: '  ', marker: 'a.', content: 'alpha' })
+    expect(parseListItem('II. roman')).toEqual({ indent: '', marker: 'II.', content: 'roman' })
+    expect(parseListItem('e.g. example')).toBeNull() // no space after 'e.'
+  })
+
+  it('isBulletMarker discriminates bullets from ordered markers', () => {
+    expect(isBulletMarker('-')).toBe(true)
+    expect(isBulletMarker('*')).toBe(true)
+    expect(isBulletMarker('+')).toBe(true)
+    expect(isBulletMarker('1.')).toBe(false)
+    expect(isBulletMarker('a.')).toBe(false)
   })
 
   it('returns null for marker with only space and no content', () => {
