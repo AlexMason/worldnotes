@@ -14,7 +14,6 @@ export default defineConfig({
           name: 'dom',
           environment: 'happy-dom',
           include: [
-            'src/__tests__/**/*.test.ts',
             'src/core/__tests__/**/*.test.ts',
             'src/client/__tests__/**/*.test.ts',
           ],
@@ -38,11 +37,10 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       exclude: [
         'src/demo.ts',
-        'src/index.ts',
-        'src/types.ts',
-        'src/plugins/index.ts',
-        'src/storage/index.ts',
-        'src/plugins/defaults.ts',
+        'src/core/index.ts',
+        'src/core/types.ts',
+        'src/core/plugins/index.ts',
+        'src/core/plugins/defaults.ts',
         'src/server/index.ts',    // bootstrap only; server modules ARE covered
         'src/server/app.ts',      // composition root
       ],

@@ -11,7 +11,7 @@ export default defineConfig({
   ],
   build: {
     lib: {
-      entry: resolve(__dirname, 'src/index.ts'),
+      entry: resolve(__dirname, 'src/core/index.ts'),
       name: 'WorldNotes',
       fileName: 'worldnotes',
     },
