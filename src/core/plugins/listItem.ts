@@ -11,12 +11,7 @@ import {
 } from '../editor-indentation'
 import { getLineOffset } from '../caret-offset'
 
-function escapeHTML(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-}
+import { escapeHTML, escapeAttr } from '../escape'
 
 function renderListItem(
   token: Token,
@@ -74,7 +69,7 @@ export const listItemPlugin: ContentPlugin = {
     const contentText = token.groups[2] ?? ''
     const inner = context.renderInline(contentText)
 
-    let html = `<span class="wn-list-item" data-raw="${escapeHTML(token.raw)}">`
+    let html = `<span class="wn-list-item" data-raw="${escapeAttr(token.raw)}">`
     if (indent) {
       html += `<span class="wn-list-item-indent" aria-hidden="true">${escapeHTML(indent)}</span>`
     }

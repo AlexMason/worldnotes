@@ -1,7 +1,12 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect } from 'vitest'
-import { renderDocumentToHTML, renderInlineHTML, renderLineToHTML } from '../static-renderer'
+import {
+  renderDocumentToHTML,
+  renderInlineHTML,
+  renderLineToHTML,
+  renderDocumentHtml,
+} from '../static-renderer'
 import { tokenizeDocument } from '../tokenizer'
 import type { StaticRenderContext, ContentPlugin, Token } from '../types'
 import { defaultPlugins } from '../plugins/defaults'
@@ -10,6 +15,7 @@ import { wikiLinkPlugin } from '../plugins/wikiLink'
 import { boldPlugin, italicPlugin, inlineCodePlugin, blockquotePlugin, hrPlugin } from '../plugins/inline'
 import { linkPlugin } from '../plugins/link'
 import { strikethroughPlugin } from '../plugins/strikethrough'
+import { listItemPlugin } from '../plugins/listItem'
 
 const allContentPlugins = defaultPlugins.filter(
   (p): p is ContentPlugin => p.kind === 'content',
@@ -179,7 +185,7 @@ describe('renderDocumentToHTML: wiki links', () => {
       [wikiLinkPlugin].flatMap((p) => p.tokens),
     )
     const html = renderDocumentToHTML(tokens, [wikiLinkPlugin])
-    expect(html).toContain('class="wn-wiki-link"')
+    expect(html).toContain('<a class="wn-wiki-link" href="/projects/acme"')
     expect(html).toContain('data-page="projects/acme"')
     expect(html).toContain('>acme<')
   })
@@ -218,11 +224,11 @@ describe('renderDocumentToHTML: links', () => {
     expect(html).toContain('<a class="wn-link"')
     expect(html).toContain('href="https://example.com"')
     expect(html).toContain('target="_blank"')
-    expect(html).toContain('rel="noopener noreferrer"')
+    expect(html).toContain('rel="noopener noreferrer nofollow"')
     expect(html).toContain('>Example</a>')
   })
 
-  it('renders internal link as wiki-link span', () => {
+  it('renders foldable internal link as real anchor', () => {
     const text = 'see [page](projects/acme) now'
     const tokens = tokenizeDocument(
       text,
@@ -429,5 +435,66 @@ describe('renderInlineHTML: recursive renderInline context', () => {
     )
     expect(html).toContain('class="outer"')
     expect(html).toContain('class="wn-bold"')
+  })
+})
+
+// ─── Link classification table (single-renderer safety contract) ────────────
+
+describe('renderDocumentHtml: link classification', () => {
+  const render = (text: string) => renderDocumentHtml(text, [wikiLinkPlugin, linkPlugin])
+
+  it('mailto: gets an anchor without target or nofollow', () => {
+    const html = render('mail [us](mailto:a@b.c)')
+    expect(html).toContain('href="mailto:a@b.c"')
+    expect(html).not.toContain('target=')
+    expect(html).not.toContain('nofollow')
+  })
+
+  it.each([
+    'javascript:alert(1)',
+    'JaVaScRiPt:alert(1)',
+    'data:text/html,%3Cscript%3E',
+    'vbscript:x',
+    '//evil.test/x',
+  ])('unsafe external %s renders as escaped literal source, no anchor', (url) => {
+    const html = render(`go [click](${url})`)
+    expect(html).not.toContain('<a ')
+    expect(html).not.toContain('href=')
+    expect(html).toContain('click](') // literal markdown source is shown
+  })
+
+  it('same-document fragments and queries stay plain relative anchors', () => {
+    const frag = render('jump [here](#section)')
+    expect(frag).toContain('href="#section"')
+    expect(frag).not.toContain('target=')
+    expect(frag).not.toContain('nofollow')
+    expect(render('q [here](?x=1)')).toContain('href="?x=1"')
+  })
+
+  it('unfoldable internal targets render as escaped literal source', () => {
+    expect(render('[[中文]]')).not.toContain('<a ')
+    expect(render('[[中文]]')).toContain('[[中文]]')
+    expect(render('[x](api/docs)')).toContain('[x](api/docs)') // reserved first segment
+  })
+
+  it('attribute values are quote-escaped (no attribute breakout)', () => {
+    // the attribute context must be fully escaped; text positions may contain quotes
+    const html = renderDocumentHtml('- x" onclick="alert(1)', [listItemPlugin])
+    expect(html).toContain('data-raw="- x&quot; onclick=&quot;alert(1)"')
+    expect(html).not.toMatch(/data-raw="[^"]*"[ a-z]/)
+    expect(render('[t](https://x.test/a"onmouseover="b)')).not.toMatch(/"onmouseover=/)
+  })
+})
+
+describe('renderDocumentHtml: whitespace parity with the editor DOM', () => {
+  it('preserves leading and repeated intra-line spaces', () => {
+    const html = renderDocumentHtml('  two leading spaces\na    b', [])
+    expect(html).toContain('>  two leading spaces<')
+    expect(html).toContain('>a    b<')
+  })
+
+  it('empty lines become <br> placeholders', () => {
+    const html = renderDocumentHtml('one\n\nthree', [])
+    expect(html).toContain('<div data-line="1"><br></div>')
   })
 })
