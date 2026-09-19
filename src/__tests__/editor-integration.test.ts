@@ -15,7 +15,7 @@ function sleep(ms: number): Promise<void> {
 async function mountEditor(seed: Record<string, string>) {
   const container = document.createElement('div')
   const store = createMemoryPageStore(seed)
-  const saves: Array<{ page: string; content: string }> = []
+  const saves: { page: string; content: string }[] = []
 
   const instance = await createEditor(container, {
     pageStore: store,
