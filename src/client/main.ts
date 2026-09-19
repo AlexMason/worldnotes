@@ -1,16 +1,19 @@
 // ─── WorldNotes edit client ──────────────────────────────────────────────────
-// Bootstrap for /edit/{slug}: mounts the inline editor over the pages API
+// Bootstrap for /{slug}: mounts the inline editor over the pages API
 // with debounced autosave, conflict UX, and real-path navigation.
 
 import { createEditor } from '../core/editor'
 import type { EditorInstance } from '../core/types'
 import { createApiPageStore } from './api-page-store'
-import { editUrlPath, slugFromEditPath, pageUrlPath } from '../shared/url-helpers'
-import { slugify, validateSlug } from '../shared/slug'
+import { slugFromPath, pageUrlPath } from '../shared/url-helpers'
+import { slugify, validateSlug, slugDisplayName } from '../shared/slug'
 
 interface ShellConfig {
   slug: string
   autosaveMs: number
+  searchEnabled: boolean
+  userName: string | null
+  authDisabled: boolean
 }
 
 function readShellConfig(): ShellConfig {
@@ -22,7 +25,13 @@ function readShellConfig(): ShellConfig {
       /* fall through */
     }
   }
-  return { slug: slugFromEditPath(window.location.pathname), autosaveMs: 1500 }
+  return {
+    slug: slugFromPath(window.location.pathname),
+    autosaveMs: 1500,
+    searchEnabled: true,
+    userName: null,
+    authDisabled: false,
+  }
 }
 
 async function main(): Promise<void> {
@@ -36,7 +45,7 @@ async function main(): Promise<void> {
   const store = createApiPageStore({
     onSaved(page) {
       instance?.notify({ id: 'wn-save', message: 'Saved', type: 'success', duration: 1500 })
-      document.title = `Edit — ${page}`
+      document.title = slugDisplayName(page)
     },
     onAuthLost() {
       const target = encodeURIComponent(window.location.pathname)
@@ -45,7 +54,12 @@ async function main(): Promise<void> {
         message: 'Session expired.',
         type: 'warning',
         duration: 0,
-        action: { label: 'Log in', onClick: () => { window.location.href = `/oidc/login?returnTo=${target}` } },
+        action: {
+          label: 'Log in',
+          onClick: () => {
+            window.location.href = `/oidc/login?returnTo=${target}`
+          },
+        },
       })
     },
     onConflict(page, server) {
@@ -69,7 +83,12 @@ async function main(): Promise<void> {
           label: 'Load theirs',
           onClick: () => {
             editor.setContent(server.content)
-            editor.notify({ id: 'wn-conflict-done', message: 'Loaded the server version.', type: 'info', duration: 2000 })
+            editor.notify({
+              id: 'wn-conflict-done',
+              message: 'Loaded the server version.',
+              type: 'info',
+              duration: 2000,
+            })
           },
         },
       })
@@ -85,30 +104,47 @@ async function main(): Promise<void> {
       const slug = slugify(page) || page
       if (slug !== currentSlug) {
         currentSlug = slug
-        window.history.pushState(null, '', editUrlPath(slug))
+        window.history.pushState(null, '', pageUrlPath(slug))
+        document.title = slugDisplayName(slug)
       }
     },
   })
 
   instance = await editor.mount()
 
-  // Read-view link in the editor header
-  const header = container.querySelector('.wn-header')
-  if (header) {
-    const back = document.createElement('a')
-    back.className = 'wn-view-link'
-    back.href = pageUrlPath(cfg.slug)
-    back.textContent = '← Reading view'
-    header.appendChild(back)
-    const home = document.createElement('a')
-    home.href = '/'
-    home.textContent = 'All pages'
-    header.appendChild(home)
+  // Header actions — mirror the viewer chrome (Search / All pages / Admin / sign-out)
+  const actions = container.querySelector('.wn-actions')
+  if (actions) {
+    if (cfg.searchEnabled) {
+      const search = document.createElement('a')
+      search.href = '/search'
+      search.textContent = 'Search'
+      actions.appendChild(search)
+    }
+    const all = document.createElement('a')
+    all.href = '/all'
+    all.textContent = 'All pages'
+    actions.appendChild(all)
+    const admin = document.createElement('a')
+    admin.href = '/admin'
+    admin.textContent = 'Admin settings'
+    actions.appendChild(admin)
+    if (cfg.authDisabled) {
+      const name = document.createElement('span')
+      name.title = 'dev mode'
+      name.textContent = cfg.userName ?? 'dev'
+      actions.appendChild(name)
+    } else {
+      const signOut = document.createElement('a')
+      signOut.href = '/oidc/logout'
+      signOut.textContent = `Sign out (${cfg.userName ?? ''})`
+      actions.appendChild(signOut)
+    }
   }
 
   // Back/forward within the SPA
   window.addEventListener('popstate', () => {
-    const slug = slugFromEditPath(window.location.pathname)
+    const slug = slugFromPath(window.location.pathname)
     if (slug !== currentSlug && instance) {
       currentSlug = slug
       instance.navigate(slug)

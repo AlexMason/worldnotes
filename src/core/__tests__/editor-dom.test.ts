@@ -71,17 +71,15 @@ describe('DEFAULT_TOKENS (--wn-* CSS custom properties)', () => {
 
     expect(text).toContain('--wn-padding-editor-y')
     expect(text).toContain('--wn-padding-editor-x')
-    expect(text).toContain('--wn-padding-topbar-y')
-    expect(text).toContain('--wn-padding-topbar-x')
+    expect(text).toContain('--wn-block-padding-left')
+    expect(text).toContain('--wn-gap-breadcrumb')
   })
 
   it('injects CSS that defines radius tokens', () => {
     createEditorDOM(container)
     const text = getStyleText()
 
-    expect(text).toContain('--wn-radius-crumb')
     expect(text).toContain('--wn-radius-code')
-    expect(text).toContain('--wn-radius-wiki-link')
   })
 
   it('injects CSS that defines misc tokens (caret, bold weight)', () => {
@@ -165,7 +163,6 @@ describe('DEFAULT_CSS (var(--wn-*) references)', () => {
     const text = getStyleText()
 
     expect(text).toContain('var(--wn-color-wiki-link')
-    expect(text).toContain('var(--wn-color-wiki-link-bg')
   })
 
   it('uses var(--wn-caret-color) on .wn-editor', () => {
@@ -180,7 +177,6 @@ describe('DEFAULT_CSS (var(--wn-*) references)', () => {
     const text = getStyleText()
 
     expect(text).toContain('var(--wn-transition-color')
-    expect(text).toContain('var(--wn-transition-bg')
   })
 
   it('preserves all wn-* class selectors unchanged', () => {
@@ -189,7 +185,8 @@ describe('DEFAULT_CSS (var(--wn-*) references)', () => {
 
     // All existing class selectors must remain
     expect(text).toContain('.wn-root')
-    expect(text).toContain('.wn-topbar')
+    expect(text).toContain('.wn-header')
+    expect(text).toContain('.wn-actions')
     expect(text).toContain('.wn-breadcrumb')
     expect(text).toContain('.wn-crumb')
     expect(text).toContain('.wn-crumb--active')
@@ -300,19 +297,17 @@ describe('wn-toolbar slot', () => {
     expect(dom.toolbar.className).toBe('wn-toolbar')
   })
 
-  it('toolbar div is positioned between topbar and body in DOM order', () => {
+  it('toolbar div is positioned between header and body in DOM order', () => {
     const dom = createEditorDOM(container)
 
     const children = Array.from(container.children)
-    expect(children).toHaveLength(5) // header, topbar, toolbar, body, footer
+    expect(children).toHaveLength(4) // header, toolbar, body, footer
 
-    const topbarIndex = children.indexOf(dom.topbar)
     const toolbarIndex = children.indexOf(dom.toolbar)
     const bodyIndex = children.indexOf(dom.body)
 
-    expect(topbarIndex).toBe(1)
-    expect(toolbarIndex).toBe(2)
-    expect(bodyIndex).toBe(3)
+    expect(toolbarIndex).toBe(1)
+    expect(bodyIndex).toBe(2)
   })
 
   it('toolbar div has zero height when empty', () => {
@@ -368,17 +363,25 @@ describe('new UI slots (header, body, sidepanels, footer)', () => {
     expect(dom.rightSidepanel.className).toBe('wn-right-sidepanel')
   })
 
-  it('.wn-root children are ordered: header, topbar, toolbar, body, footer', () => {
+  it('.wn-root children are ordered: header, toolbar, body, footer', () => {
     const dom = createEditorDOM(container)
 
     const children = Array.from(container.children)
-    expect(children).toHaveLength(5)
+    expect(children).toHaveLength(4)
 
     expect(children[0]).toBe(dom.header)
-    expect(children[1]).toBe(dom.topbar)
-    expect(children[2]).toBe(dom.toolbar)
-    expect(children[3]).toBe(dom.body)
-    expect(children[4]).toBe(dom.footer)
+    expect(children[1]).toBe(dom.toolbar)
+    expect(children[2]).toBe(dom.body)
+    expect(children[3]).toBe(dom.footer)
+  })
+
+  it('.wn-header contains breadcrumb and actions', () => {
+    const dom = createEditorDOM(container)
+
+    const headerChildren = Array.from(dom.header.children)
+    expect(headerChildren).toHaveLength(2)
+    expect(headerChildren[0]).toBe(dom.breadcrumb)
+    expect(headerChildren[1]).toBe(dom.actions)
   })
 
   it('.wn-body contains left-sidepanel, editor-wrap, right-sidepanel in order', () => {
@@ -442,8 +445,8 @@ describe('editor responsive CSS', () => {
     document.body.appendChild(container)
     createEditorDOM(container, undefined)
     const css = injectedCss()
-    expect(css).toContain('@media (max-width: 768px)')
-    expect(css).toContain('.wn-editor-wrap { padding: 12px 10px; }')
+    expect(css).toContain('@media (max-width: 640px)')
+    expect(css).toContain('.wn-editor-wrap { padding: 1.2rem .9rem 4rem; }')
     expect(css).toContain('.wn-toast-container { max-width: calc(100vw - 16px); }')
   })
 })

@@ -36,8 +36,8 @@ same-origin `Origin` (CSRF guard) and are rate-unlimited but size-capped.
 
 Slugs: lowercase, hyphen-separated segments joined by `/`
 (`blog/post-name`), max 255 chars, reserved first segments
-(`api, oidc, edit, search, assets, static, healthz`) rejected at the API
-*and* by a DB `CHECK`. Titles keep case; slugs don't.
+(`api, oidc, edit, search, assets, static, healthz, all, admin`) rejected at the
+API *and* by a DB `CHECK`. Titles keep case; slugs don't.
 
 ### Conflict semantics (autosave)
 
@@ -51,15 +51,32 @@ PUT /api/pages/blog/post      If-Match: "7"
 
 `updated_by` records the writer's OIDC `sub` (informational).
 
+## Settings
+
+Instance-wide settings (any authenticated user), persisted in a `settings`
+key/value table and editable from `GET /admin`.
+
+| Verb | Path | Auth | Notes |
+|---|---|---|---|
+| `PUT /api/settings` | editor | body `{searchEnabled?: boolean, homeSlug?: string\|null}`; `homeSlug` blank/`null` clears it; invalid slugs 400; returns the normalized settings |
+
+- `searchEnabled` (default `true`) — hides the search form/links everywhere;
+  `/search` and `/search/{terms}` remain functional.
+- `homeSlug` (default unset) — the page served at `/` (falling back to the
+  index when unset or when the page is missing).
+
 ## HTML routes
 
-- `GET /{slug}` — server-rendered reading view (`ETag`, `Cache-Control:
-  public, max-age=60, stale-while-revalidate=300`, 304 revalidation).
-  Unknown-but-valid slugs → 404 document with a create overlay.
-- `GET /` — page index + search box.
+- `GET /{slug}` — **authenticated**: the editor SPA shell (`no-store`);
+  **anonymous**: server-rendered reading view (`ETag`, `Cache-Control:
+  public, max-age=60, stale-while-revalidate=300`, `Vary: Cookie`, 304
+  revalidation). Unknown-but-valid slugs → 404 document with a create overlay.
+- `GET /` — the configured home page, else the page index; `GET /all` — the
+  page index (+ search box).
 - `GET /search/{terms}` — results (no query strings anywhere on public routes).
-- `GET /edit/{slug}` — editor SPA shell (authenticated only; anonymous are
-  redirected to the reading view).
+- `GET /admin` — admin settings form (authenticated only).
+- `GET /edit` / `GET /edit/{slug}` — 302 redirects to `/` / `/{slug}`
+  (legacy paths).
 - `GET /assets/*` — client bundle; `GET /healthz` — liveness.
 
 ## Viewer markdown

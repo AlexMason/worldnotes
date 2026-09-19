@@ -4,9 +4,14 @@
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify'
 import type { ServerConfig } from './config'
 import type { PagesRepository } from './db/repository'
+import type { SettingsRepository } from './db/settings-repository'
+import { createMemorySettingsRepository } from './db/settings-memory'
+import { createSettingsService } from './settings'
 import { registerSessions } from './auth/session'
 import { registerAuthRoutes } from './auth/routes'
 import { registerPageApiRoutes } from './routes/pages-api'
+import { registerSettingsApiRoutes } from './routes/settings-api'
+import { registerAdminRoutes } from './routes/admin'
 import { registerPageHtmlRoutes } from './routes/pages-html'
 import { registerEditRoutes } from './routes/edit'
 import { createRenderCache, INDEX_CACHE_KEY } from './cache'
@@ -19,6 +24,8 @@ import { existsSync } from 'node:fs'
 export interface AppDeps {
   config: ServerConfig
   pages: PagesRepository
+  /** Instance settings store; defaults to an in-memory store in tests. */
+  settings?: SettingsRepository
   /** Pre-built OIDC relying party (constructed async in the bootstrap; *
    *  tests inject a mock-backed one). Null when auth is disabled. */
   relyingParty?: OidcRelyingParty | null
@@ -57,6 +64,12 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     relyingParty: deps.relyingParty ?? null,
   })
 
+  const settingsRepo = deps.settings ?? createMemorySettingsRepository()
+  const settingsService = await createSettingsService(settingsRepo)
+
+  await registerSettingsApiRoutes(app, { settings: settingsService })
+  await registerAdminRoutes(app, { config: deps.config, settings: settingsService })
+
   await registerPageApiRoutes(app, {
     pages: deps.pages,
     onWrite: invalidate,
@@ -74,10 +87,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     })
   }
 
-  await registerEditRoutes(app, {
-    assetPrefix: assetsMounted ? '/assets' : '',
-    autosaveMs: deps.config.env.AUTOSAVE_DEBOUNCE_MS,
-  })
+  await registerEditRoutes(app)
 
   // SSR catch-all registers LAST (after static/api/auth/edit).
   await registerPageHtmlRoutes(app, {
@@ -86,6 +96,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     cache,
     render: createViewerRenderer(),
     layout: renderLayout,
+    assetPrefix: assetsMounted ? '/assets' : '',
+    autosaveMs: deps.config.env.AUTOSAVE_DEBOUNCE_MS,
+    getSettings: () => settingsService.get(),
   })
 
   app.get('/healthz', async () => ({ ok: true }))

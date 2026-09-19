@@ -107,9 +107,9 @@ describe('EditorBuilder mount lifecycle', () => {
 
     // Container gets .wn-root class synchronously
     expect(container.className).toBe('wn-root')
-    // Editor wraps and topbar are created synchronously
+    // Editor wrap and header are created synchronously
     expect(container.querySelector('.wn-editor-wrap')).toBeTruthy()
-    expect(container.querySelector('.wn-topbar')).toBeTruthy()
+    expect(container.querySelector('.wn-header')).toBeTruthy()
 
     // Cleanup
     editor.destroy()

@@ -49,6 +49,15 @@ ul.wn-page-list { list-style: none; padding: 0; } ul.wn-page-list li { padding: 
 .wn-search-form { display: flex; gap: .4rem; } .wn-search-form input { font: inherit;
   padding: .25em .6em; border: 1px solid var(--wn-border); border-radius: 6px;
   background: var(--wn-bg); color: var(--wn-fg); }
+.wn-admin-form { display: flex; flex-direction: column; gap: .9rem; max-width: 32rem; }
+.wn-admin-form label { display: flex; flex-direction: column; gap: .3rem; font: 14px/1.4 system-ui, sans-serif; }
+.wn-admin-form label.checkbox { flex-direction: row; align-items: center; gap: .5rem; }
+.wn-admin-form input[type='text'] { font: inherit; padding: .35em .6em;
+  border: 1px solid var(--wn-border); border-radius: 6px; background: var(--wn-bg); color: var(--wn-fg); }
+.wn-admin-form button { align-self: flex-start; font: inherit; padding: .4em 1.1em;
+  border-radius: 6px; border: 1px solid var(--wn-accent); background: transparent;
+  color: var(--wn-accent); cursor: pointer; }
+.wn-admin-msg { color: var(--wn-accent); font: 14px/1.4 system-ui, sans-serif; }
 .wn-view-actions { display: flex; gap: .8rem; align-items: center; }
 .wn-view-actions a { color: var(--wn-muted); text-decoration: none; }
 
@@ -77,10 +86,12 @@ export interface LayoutOptions {
   status?: number
   user?: SessionUser | null
   authDisabled?: boolean
+  /** Show search affordances; defaults to true. */
+  searchEnabled?: boolean
   /** Slug offered by the create overlay on 404. */
   createForSlug?: string
-  /** Show an "Edit" affordance for the current page (authenticated). */
-  editSlug?: string
+  /** Extra inline scripts appended after the built-in ones. */
+  scripts?: string
 }
 
 const CREATE_SCRIPT = `
@@ -100,7 +111,7 @@ const CREATE_SCRIPT = `
       document.getElementById('wn-create-hint').hidden = false;
       return;
     }
-    if (res.ok || res.status === 409) { window.location = '/edit/' + slug; return; }
+    if (res.ok || res.status === 409) { window.location = '/' + slug; return; }
     btn.disabled = false;
     btn.textContent = 'Create failed — try logging in';
   });
@@ -130,11 +141,13 @@ export function renderLayout(opts: LayoutOptions): string {
     )
     .join('<span aria-hidden="true"> / </span>')
 
-  const actions: string[] = [`<a href="/search">Search</a>`]
-  if (opts.editSlug) {
-    actions.push(`<a href="/edit/${escapeHtml(opts.editSlug)}">Edit</a>`)
+  const actions: string[] = []
+  if (opts.searchEnabled !== false) {
+    actions.push('<a href="/search">Search</a>')
   }
+  actions.push('<a href="/all">All pages</a>')
   if (opts.user) {
+    actions.push('<a href="/admin">Admin settings</a>')
     actions.push(
       opts.authDisabled
         ? `<span title="dev mode">${escapeHtml(opts.user.name ?? opts.user.sub)}</span>`
@@ -146,7 +159,8 @@ export function renderLayout(opts: LayoutOptions): string {
 
   const scripts =
     (opts.createForSlug ? `<script>${CREATE_SCRIPT}</script>` : '') +
-    `<script>${SEARCH_SCRIPT}</script>`
+    (opts.searchEnabled !== false ? `<script>${SEARCH_SCRIPT}</script>` : '') +
+    (opts.scripts ? `<script>${opts.scripts}</script>` : '')
 
   return `<!doctype html>
 <html lang="en">
@@ -169,7 +183,8 @@ ${scripts}
 }
 
 /** Shared search-form body used by /search landing + index. */
-export function searchFormHtml(): string {
+export function searchFormHtml(enabled = true): string {
+  if (!enabled) return ''
   return (
     `<form id="wn-search-form" class="wn-search-form" action="/search" method="get">` +
     `<input type="search" name="terms" placeholder="Search pages…" aria-label="Search pages">` +
