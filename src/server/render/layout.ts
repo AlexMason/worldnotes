@@ -51,6 +51,23 @@ ul.wn-page-list { list-style: none; padding: 0; } ul.wn-page-list li { padding: 
   background: var(--wn-bg); color: var(--wn-fg); }
 .wn-view-actions { display: flex; gap: .8rem; align-items: center; }
 .wn-view-actions a { color: var(--wn-muted); text-decoration: none; }
+
+@media (max-width: 640px) {
+  header.wn-view-bar { flex-wrap: wrap; row-gap: .4rem; padding: .5rem .9rem; }
+  nav.wn-crumbs { flex: 1 1 100%; order: 2; overflow-x: auto; }
+  .wn-view-actions { margin-left: auto; }
+  .wn-view-actions a { padding: .45em .35em; }
+  main { padding: 1.2rem .9rem 4rem; }
+  .wn-article { overflow-wrap: break-word; }
+  .wn-article h1 { font-size: 1.55rem; }
+  .wn-article table { display: block; overflow-x: auto; }
+  .wn-article pre code { padding: .7em .8em; }
+  ul.wn-page-list a { display: inline-block; padding: .35em 0; }
+  .wn-search-form { flex-wrap: wrap; }
+  .wn-search-form input { flex: 1 1 100%; }
+  .wn-search-form input, .wn-search-form button, .wn-create button {
+    min-height: 44px; /* comfortable touch targets */ }
+}
 `.trim()
 
 export interface LayoutOptions {

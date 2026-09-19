@@ -51,6 +51,8 @@ describe('/edit shell', () => {
     expect(res.headers['content-type']).toContain('text/html')
     expect(res.headers['cache-control']).toBe('no-store')
     expect(res.body).toContain('id="wn-app"')
+    expect(res.body).toContain('100dvh')
+    expect(res.body).toContain('viewport-fit=cover')
     const cfg = JSON.parse(JSON.parse(/<script id="wn-config" type="application\/json">(.+?)<\/script>/.exec(res.body)![1]!) as string)
     expect(cfg).toEqual({ slug: 'blog/post', autosaveMs: 1234 })
     expect(res.body).toContain('client.js')

@@ -49,6 +49,9 @@ describe('SSR pages', () => {
     // anonymous: no edit affordance, has login link
     expect(res.body).not.toContain('/edit/blog/hello')
     expect(res.body).toContain('/oidc/login')
+    // responsive mobile chrome (M1)
+    expect(res.body).toContain('@media (max-width: 640px)')
+    expect(res.body).toContain('min-height: 44px')
   })
 
   it('shows Edit + sign-out chrome for authenticated editors', async () => {

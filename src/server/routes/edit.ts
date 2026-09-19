@@ -18,9 +18,13 @@ export function editShellHtml(slug: string, assetPrefix: string, autosaveMs: num
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Edit — ${escapeHtml(slug)}</title>
 <link rel="icon" href="data:,">
+<style>
+  html, body { height: 100%; margin: 0; }
+  #wn-app { height: 100%; height: 100dvh; }
+</style>
 </head>
 <body>
 <div id="wn-app"></div>

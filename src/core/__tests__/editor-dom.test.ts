@@ -428,3 +428,22 @@ describe('new UI slots (header, body, sidepanels, footer)', () => {
     expect(text).toContain('.wn-right-sidepanel:not(:empty)')
   })
 })
+
+// ─── Responsive (M1) ─────────────────────────────────────────────────────────
+
+describe('editor responsive CSS', () => {
+  function injectedCss(): string {
+    const style = document.getElementById('worldnotes-styles')
+    return style ? style.textContent ?? '' : ''
+  }
+
+  it('includes the mobile chrome media query', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    createEditorDOM(container, undefined)
+    const css = injectedCss()
+    expect(css).toContain('@media (max-width: 768px)')
+    expect(css).toContain('.wn-editor-wrap { padding: 12px 10px; }')
+    expect(css).toContain('.wn-toast-container { max-width: calc(100vw - 16px); }')
+  })
+})

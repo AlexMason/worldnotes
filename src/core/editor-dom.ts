@@ -390,6 +390,26 @@ const DEFAULT_CSS =
   from { opacity: 1; transform: scale(1); }
   to   { opacity: 0; transform: scale(0.95); }
 }
+
+/* Mobile chrome: roomier touch targets, scrollable breadcrumbs,
+   stacked side panels, compact editor padding, safe-area aware toasts */
+@media (max-width: 768px) {
+  .wn-topbar { padding: 6px 8px; }
+  .wn-breadcrumb { overflow-x: auto; scrollbar-width: none; }
+  .wn-breadcrumb::-webkit-scrollbar { display: none; }
+  .wn-crumb { padding: 8px 8px; }
+  .wn-toolbar { flex-wrap: wrap; row-gap: 4px; }
+  .wn-editor-wrap { padding: 12px 10px; }
+  .wn-body { flex-direction: column; }
+  .wn-left-sidepanel:not(:empty),
+  .wn-right-sidepanel:not(:empty) {
+    width: 100%; max-height: 38%;
+    border-left: none; border-right: none;
+    border-top: 0.5px solid var(--wn-color-border, #1f1f23);
+  }
+  .wn-toast-container { max-width: calc(100vw - 16px); }
+  .wn-toast { min-width: 0; max-width: 100%; }
+}
 `
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
