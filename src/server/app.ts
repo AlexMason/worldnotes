@@ -6,6 +6,7 @@ import type { ServerConfig } from './config'
 import type { PagesRepository } from './db/repository'
 import { registerSessions } from './auth/session'
 import { registerAuthRoutes } from './auth/routes'
+import { registerPageApiRoutes } from './routes/pages-api'
 import type { OidcRelyingParty } from './auth/oidc'
 
 export interface AppDeps {
@@ -14,6 +15,8 @@ export interface AppDeps {
   /** Pre-built OIDC relying party (constructed async in the bootstrap;
    *  tests inject a mock-backed one). Null when auth is disabled. */
   relyingParty?: OidcRelyingParty | null
+  /** Notified after any successful write (SSR cache invalidation). */
+  onPageWrite?: (slug: string) => void
 }
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
@@ -31,6 +34,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await registerAuthRoutes(app, {
     config: deps.config,
     relyingParty: deps.relyingParty ?? null,
+  })
+
+  await registerPageApiRoutes(app, {
+    pages: deps.pages,
+    onWrite: deps.onPageWrite,
   })
 
   app.get('/healthz', async () => ({ ok: true }))
