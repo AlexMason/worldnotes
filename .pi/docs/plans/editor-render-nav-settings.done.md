@@ -2,6 +2,19 @@
 
 **Branch:** `feature/editor-render-nav-settings`
 **Date:** 2026-09-19
+**Status:** Done — merged to `main` 2026-09-19 (`4e7f087`). Tasks 1–3
+shipped as planned. **Task 4 was implemented and then reverted**
+(`8ca4089`): rendering non-caret blocks as `contenteditable=false`
+reader-HTML islands inside the editable root broke native multi-line
+drag selection (selections cannot cross or start in the islands) and
+arrow-key caret placement (block-boundary interception lost the caret
+column and mis-detected visual edges). The user-facing symptoms were
+confirmed unacceptable; reader-parity-while-editing requires a
+different architecture (e.g. Typora-style caret-entry transforms or an
+explicit source/preview toggle) if it is ever revisited. Kept from
+Task 4: the env-agnostic shared renderer (`src/shared/viewer-renderer.ts`)
+and general caret-offset robustness fixes (unrecognized selections are
+ignored rather than snapping the caret to line 0 — `600df6c`).
 
 ## Goal
 
@@ -137,6 +150,11 @@ of viewer chrome):
 4. Update `settings.test.ts`, `admin-routes.test.ts`, `pages-html.test.ts`.
 
 ## Task 4 — Reader-parity editor rendering (block-level source mode)
+
+> ⚠️ **REVERTED** — see Status above. Design kept for reference; do not
+> re-implement with `contenteditable=false` islands inside the editable
+> root. The plan's own risk note ("high-blast-radius change") understated
+> how deeply it fights native text editing.
 
 ### Design (specified to close the review gaps)
 
