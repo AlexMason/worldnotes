@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { loadConfig } from './config'
 import { buildApp } from './app'
+import { createRelyingParty, type OidcRelyingParty } from './auth/oidc'
 import { createPool } from './db/pool'
 import { runMigrations } from './db/migrate'
 import { createPgPagesRepository } from './db/pages-pg'
@@ -19,7 +20,12 @@ async function main(): Promise<void> {
   const applied = await runMigrations(pool, migrationsDir)
   if (applied.length) console.warn(`applied migrations: ${applied.join(', ')}`)
 
-  const app = await buildApp({ config, pages: createPgPagesRepository(pool) })
+  let relyingParty: OidcRelyingParty | null = null
+  if (!config.authDisabled && config.oidc) {
+    relyingParty = await createRelyingParty(config)
+  }
+
+  const app = await buildApp({ config, pages: createPgPagesRepository(pool), relyingParty })
 
   app.log.info(
     `WorldNotes server on http://${config.env.HOST}:${config.env.PORT} (auth ${config.authDisabled ? 'DISABLED' : 'OIDC'})`,
