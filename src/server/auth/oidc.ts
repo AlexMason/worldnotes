@@ -67,7 +67,9 @@ export async function createRelyingParty(
       redirect_uris: [oidcCfg.redirectUrl],
       response_types: ['code'],
       grant_types: ['authorization_code'],
-    },
+      // JWT timestamp validation tolerance (host/container clock skew)
+      [oidc.clockTolerance]: config.env.OIDC_CLOCK_TOLERANCE_SECONDS,
+    } as never,
     oidc.ClientSecretBasic(oidcCfg.clientSecret),
     options,
   )

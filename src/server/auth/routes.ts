@@ -5,10 +5,26 @@ import type { ServerConfig } from '../config'
 import { PENDING_COOKIE, seal, open, sessionCookieOptions } from './session'
 import type { OidcRelyingParty, PendingAuth } from './oidc'
 import { sanitizeReturnTo } from './oidc'
+import { escapeHtml } from '../render/layout'
 
 export interface AuthRouteDeps {
   config: ServerConfig
   relyingParty: OidcRelyingParty | null
+}
+
+/**
+ * openid-client surfaces provider errors as structured fields
+ * (OPError.error / .error_description) under a generic message; compose the
+ * most specific description available for operator diagnostics.
+ */
+export function formatAuthError(e: unknown): string {
+  const errLike = e as {
+    message?: string
+    error?: string
+    error_description?: string
+  }
+  const parts = [errLike?.error, errLike?.message, errLike?.error_description].filter(Boolean)
+  return parts.length ? parts.join(' — ') : String(e)
 }
 
 export async function registerAuthRoutes(
@@ -17,6 +33,11 @@ export async function registerAuthRoutes(
 ): Promise<void> {
   const { config } = deps
   const pendingMaxAge = 600
+  // Scope the pending cookie to the callback's actual path so sub-path
+  // deployments (https://host/worldnotes/oidc/callback) work too.
+  const pendingPath = config.oidc
+    ? new URL(config.oidc.redirectUrl).pathname
+    : '/oidc/callback'
 
   app.get('/oidc/login', async (req, reply) => {
     if (config.authDisabled || !deps.relyingParty) return reply.redirect('/', 302)
@@ -29,7 +50,7 @@ export async function registerAuthRoutes(
       seal(pending, config.sessionSecrets),
       {
         ...sessionCookieOptions(pendingMaxAge, config.isProduction),
-        path: '/oidc/callback', // scoped: only travels to the callback
+        path: pendingPath, // scoped: only travels to the callback
       },
     )
     return reply.redirect(url, 302)
@@ -40,7 +61,7 @@ export async function registerAuthRoutes(
 
     const raw = req.cookies?.[PENDING_COOKIE]
     const pending = raw ? open<PendingAuth>(raw, config.sessionSecrets) : null
-    reply.clearCookie(PENDING_COOKIE, { path: '/oidc/callback' })
+    reply.clearCookie(PENDING_COOKIE, { path: pendingPath })
     if (!pending) {
       return reply.code(400).send({ error: 'missing or expired login state' })
     }
@@ -56,8 +77,23 @@ export async function registerAuthRoutes(
     try {
       user = await deps.relyingParty.completeLogin({ callbackUrl, pending })
     } catch (e) {
-      req.log.warn({ err: e }, 'OIDC callback rejected')
-      return reply.code(401).send({ error: 'authentication failed' })
+      const detail = formatAuthError(e)
+      req.log.error({ err: e }, 'OIDC callback rejected')
+      // Browser navigations land here mid-login — answer with a readable page
+      // carrying the verification detail (the log keeps the full error).
+      return reply
+        .code(401)
+        .header('content-type', 'text/html; charset=utf-8')
+        .send(
+          `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
+            `<title>Authentication failed</title></head>` +
+            `<body style="font:16px/1.6 system-ui,sans-serif;margin:2rem">` +
+            `<h1>Authentication failed</h1>` +
+            `<p>Sign-in could not be completed: <code>${escapeHtml(detail)}</code></p>` +
+            `<p><a href="/oidc/login">Try again</a> &middot; <a href="/">Home</a></p>` +
+            `<p style="color:#666">The server log contains the full error.</p>` +
+            `</body></html>`,
+        )
     }
 
     reply.setSession(user)

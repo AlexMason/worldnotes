@@ -7,6 +7,10 @@ const EnvSchema = z.object({
   NODE_ENV: z
     .enum(['development', 'production', 'test'])
     .default('development'),
+  /** Server log level; 'silent' disables (tests rely on the buildApp default). */
+  LOG_LEVEL: z
+    .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
+    .default('info'),
   PORT: z.coerce.number().int().positive().default(3000),
   HOST: z.string().default('0.0.0.0'),
   DATABASE_URL: z.string().min(1).default('postgres://localhost:5432/worldnotes'),
@@ -20,6 +24,8 @@ const EnvSchema = z.object({
   /** Comma-separated list; first entry encrypts new cookies, all entries decrypt (rotation). */
   SESSION_SECRETS: z.string().min(32).optional(),
   SESSION_MAX_AGE_SECONDS: z.coerce.number().int().positive().default(28_800),
+  /** Seconds of skew tolerated when validating id_token exp/nbf/iat claims. */
+  OIDC_CLOCK_TOLERANCE_SECONDS: z.coerce.number().int().min(0).max(120).default(30),
   /** DEV ONLY: bypass OIDC with a fake editor user. Refused in production. */
   AUTH_DISABLED: z
     .string()

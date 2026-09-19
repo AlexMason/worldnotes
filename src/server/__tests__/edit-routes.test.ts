@@ -56,6 +56,12 @@ describe('/edit shell', () => {
     expect(res.body).toContain('client.js')
   })
 
+  it('anonymous + malformed slug redirects to the site root', async () => {
+    const res = await app.inject({ method: 'GET', url: '/edit/Bad%20Slug' })
+    expect(res.statusCode).toBe(302)
+    expect(res.headers.location).toBe('/')
+  })
+
   it('404s malformed edit paths for editors', async () => {
     const res = await app.inject({ method: 'GET', url: '/edit/Bad%20Slug', headers: { cookie: auth } })
     expect(res.statusCode).toBe(404)

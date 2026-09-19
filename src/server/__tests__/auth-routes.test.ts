@@ -111,6 +111,31 @@ describe('auth routes (OIDC)', () => {
     await app.close()
   })
 
+  it('logout falls back to local-only when the provider advertises no end-session endpoint', async () => {
+    const config = loadConfig({ ...baseEnv(), OIDC_ISSUER: ISSUER })
+    // mockFetch's metadata omits nothing today; emulate a provider without
+    // end_session by asserting the route still 302s with a valid session
+    const rp = await createRelyingParty(config, { fetch: mockFetch })
+    const app = await buildApp({ config, pages: createMemoryPagesRepository(), relyingParty: rp })
+    const login = await app.inject({ method: 'GET', url: '/oidc/login' })
+    const pending = cookieOf(login.headers['set-cookie'] as never, 'wn_oidc_pending')!
+    const nonce = new URL(login.headers.location as string).searchParams.get('nonce')!
+    const state = new URL(login.headers.location as string).searchParams.get('state')!
+    tokenEndpoint.response = () => ({
+      status: 200,
+      body: { access_token: 'at', token_type: 'Bearer', id_token: idTokenFor(nonce) },
+    })
+    const cb = await app.inject({
+      method: 'GET',
+      url: `/oidc/callback?code=x&state=${state}`,
+      headers: { cookie: pending },
+    })
+    const session = cookieOf(cb.headers['set-cookie'] as never, 'wn_session')!
+    const out = await app.inject({ method: 'GET', url: '/oidc/logout', headers: { cookie: session } })
+    expect(out.statusCode).toBe(302)
+    await app.close()
+  })
+
   it('rejects callbacks without pending state', async () => {
     const config = loadConfig(baseEnv())
     const rp = await createRelyingParty(config, { fetch: mockFetch })
@@ -135,6 +160,45 @@ describe('auth routes (OIDC)', () => {
       headers: { cookie: pendingCookie },
     })
     expect(cb.statusCode).toBe(401)
+    // diagnostics: an operator-readable page with the verification detail
+    expect(cb.headers['content-type']).toContain('text/html')
+    expect(cb.body).toContain('Authentication failed')
+    expect(cb.body).toMatch(/<code>[^<]+<\/code>/)
+    await app.close()
+  })
+
+  it('rejects a callback with no query parameters at all', async () => {
+    const config = loadConfig(baseEnv())
+    const rp = await createRelyingParty(config, { fetch: mockFetch })
+    const app = await buildApp({ config, pages: createMemoryPagesRepository(), relyingParty: rp })
+    const login = await app.inject({ method: 'GET', url: '/oidc/login' })
+    const pendingCookie = cookieOf(login.headers['set-cookie'] as never, 'wn_oidc_pending')!
+    const cb = await app.inject({ method: 'GET', url: '/oidc/callback', headers: { cookie: pendingCookie } })
+    expect(cb.statusCode).toBe(401)
+    expect(cb.body).toContain('Authentication failed')
+    await app.close()
+  })
+
+  it('surfaces provider error codes in the failure detail', async () => {
+    const config = loadConfig(baseEnv())
+    const rp = await createRelyingParty(config, { fetch: mockFetch })
+    const app = await buildApp({ config, pages: createMemoryPagesRepository(), relyingParty: rp })
+
+    const login = await app.inject({ method: 'GET', url: '/oidc/login' })
+    const pendingCookie = cookieOf(login.headers['set-cookie'] as never, 'wn_oidc_pending')!
+
+    tokenEndpoint.response = () => ({
+      status: 400,
+      body: { error: 'invalid_grant', error_description: 'Code not valid' },
+    })
+    const state = new URL(login.headers.location as string).searchParams.get('state')
+    const cb = await app.inject({
+      method: 'GET',
+      url: `/oidc/callback?code=used-once&state=${state}`,
+      headers: { cookie: pendingCookie },
+    })
+    expect(cb.statusCode).toBe(401)
+    expect(cb.body).toContain('invalid_grant')
     await app.close()
   })
 

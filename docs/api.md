@@ -9,8 +9,10 @@ for custom tooling. There is no published npm package anymore.
 - `GET /oidc/login[?returnTo=/app/relative/path]` — 302 to the provider
   (authorization-code flow with `state`, PKCE S256, `nonce`).
 - `GET /oidc/callback` — provider redirect target; on success issues the
-  session cookie and 302s to the sanitized `returnTo` (or `/`). Failures →
-  400/401 JSON.
+  session cookie and 302s to the sanitized `returnTo` (or `/`). Missing
+  pending state → 400 JSON; verification failures → an HTML page (401)
+  naming the provider/verification error, with the full error logged at
+  error level.
 - `GET /oidc/logout` — clears the session cookie; 302 to the provider
   end-session URL when advertised, else `/`.
 - `GET /api/me` — `{ user: { sub, email?, name? } }` or 401.
@@ -71,6 +73,7 @@ to a valid slug stay literal), `- [ ]` / `- [x]` → disabled checkboxes.
 ## Environment variables
 
 See `.env.example`; every knob is parsed and validated in
-`src/server/config.ts`: `NODE_ENV PORT HOST DATABASE_URL OIDC_*
-SESSION_SECRETS SESSION_MAX_AGE_SECONDS CACHE_MAX_ENTRIES CACHE_TTL_SECONDS
-AUTOSAVE_DEBOUNCE_MS AUTH_DISABLED`.
+`src/server/config.ts`: `NODE_ENV LOG_LEVEL PORT HOST DATABASE_URL OIDC_ISSUER
+OIDC_CLIENT_ID OIDC_CLIENT_SECRET OIDC_REDIRECT_URL
+OIDC_CLOCK_TOLERANCE_SECONDS SESSION_SECRETS SESSION_MAX_AGE_SECONDS
+CACHE_MAX_ENTRIES CACHE_TTL_SECONDS AUTOSAVE_DEBOUNCE_MS AUTH_DISABLED`.

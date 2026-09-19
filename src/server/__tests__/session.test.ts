@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { seal, open, sameOriginOrMissing, requireAuth } from '../auth/session'
+import { formatAuthError } from '../auth/routes'
 
 interface Payload {
   exp: number
@@ -113,5 +114,26 @@ describe('requireAuth', () => {
     }
     await requireAuth({ user: { sub: 'x' } } as never, reply as never)
     expect(touched).toBe(false)
+  })
+})
+
+describe('formatAuthError', () => {
+  it('composes provider fields', () => {
+    expect(
+      formatAuthError({
+        error: 'invalid_grant',
+        message: 'server responded with an error',
+        error_description: 'Code not valid',
+      }),
+    ).toBe('invalid_grant — server responded with an error — Code not valid')
+  })
+
+  it('uses plain Error messages', () => {
+    expect(formatAuthError(new Error('state mismatch'))).toBe('state mismatch')
+  })
+
+  it('falls back to stringification', () => {
+    expect(formatAuthError('boom')).toBe('boom')
+    expect(formatAuthError({})).toBe('[object Object]')
   })
 })

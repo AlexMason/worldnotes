@@ -30,6 +30,8 @@ async function main(): Promise<void> {
     pages: createPgPagesRepository(pool),
     relyingParty,
     clientAssetsDir: resolve(here, '../../dist/client'),
+    logger:
+      config.env.LOG_LEVEL === 'silent' ? false : { level: config.env.LOG_LEVEL },
   })
 
   app.log.info(

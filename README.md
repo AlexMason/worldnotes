@@ -50,6 +50,8 @@ validated at boot (`src/server/config.ts`).
 | `OIDC_REDIRECT_URL` | `<your-host>/oidc/callback`, registered at the provider |
 | `SESSION_SECRETS` | Comma-separated AES keys (each ≥ 32 chars); first key seals, all keys open → rotation |
 | `SESSION_MAX_AGE_SECONDS` | Session lifetime (default 8 h) |
+| `OIDC_CLOCK_TOLERANCE_SECONDS` | Skew tolerated when validating id_token timestamps (default 30, max 120) |
+| `LOG_LEVEL` | Server request logging: `fatal..trace` or `silent` (default `info`) |
 | `CACHE_MAX_ENTRIES` / `CACHE_TTL_SECONDS` | Bounded SSR render cache |
 | `AUTOSAVE_DEBOUNCE_MS` | Editor idle time before a save PUT (default 1500) |
 | `AUTH_DISABLED=1` | **Development only** — fake editor user; refused when `NODE_ENV=production` |

@@ -1,7 +1,7 @@
 // ─── Fastify app factory ─────────────────────────────────────────────────────
 // Composition root for tests (app.inject) and production listen.
 
-import Fastify, { type FastifyInstance } from 'fastify'
+import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify'
 import type { ServerConfig } from './config'
 import type { PagesRepository } from './db/repository'
 import { registerSessions } from './auth/session'
@@ -26,10 +26,12 @@ export interface AppDeps {
   onPageWrite?: (slug: string) => void
   /** Directory holding the built client bundle (dist/client); absent in tests. */
   clientAssetsDir?: string | null
+  /** Fastify logger; omitted = silent (tests). Bootstrap passes real config. */
+  logger?: FastifyServerOptions['logger']
 }
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
-  const app = Fastify({ logger: false })
+  const app = Fastify({ logger: deps.logger ?? false })
 
   app.decorate('worldnotes', deps)
 
