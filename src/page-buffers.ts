@@ -77,7 +77,9 @@ export function createPageBuffers(
     undo(page) {
       const current = contents.get(page)
       if (current === undefined) return null
-      const prev = historyFor(page).undo(current)
+      const history = historyFor(page)
+      if (!history.canUndo()) return null
+      const prev = history.undo(current)
       if (prev === null || prev === current) return null
       contents.set(page, prev)
       return prev
@@ -86,7 +88,9 @@ export function createPageBuffers(
     redo(page) {
       const current = contents.get(page)
       if (current === undefined) return null
-      const next = historyFor(page).redo(current)
+      const history = historyFor(page)
+      if (!history.canRedo()) return null
+      const next = history.redo(current)
       if (next === null || next === current) return null
       contents.set(page, next)
       return next

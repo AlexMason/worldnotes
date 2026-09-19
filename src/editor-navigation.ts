@@ -75,6 +75,9 @@ export function createEditorNavigation(
       if (stored !== null) {
         if (buffers.getPageText(page) === '') {
           buffers.setPageText(page, stored)
+          // Loaded state is the undo baseline — undo should never go
+          // back to the empty pre-load buffer.
+          buffers.clearHistory(page)
         }
       } else {
         state.setPendingRequestedPage(page)
@@ -114,7 +117,16 @@ export function createEditorNavigation(
     state.setNavigating(true)
 
     const buffers = state.getPageBuffers()
-    const pageExisted = buffers.hasPage(page)
+    let pageExisted = buffers.hasPage(page)
+    if (!pageExisted) {
+      // Initial mounts land here directly (no prior navigateToPage) — hydrate
+      // from the store so the first-painted page matches persisted content.
+      const stored = await pageStore.load(page)
+      if (stored !== null) {
+        buffers.setPageText(page, stored)
+        pageExisted = true
+      }
+    }
     let content = buffers.getPageText(page)
 
     if (!content && !pageExisted) {
@@ -124,6 +136,7 @@ export function createEditorNavigation(
         content = `# ${page}\n\n`
       }
       buffers.setPageText(page, content)
+      buffers.clearHistory(page) // seeded content is the undo baseline
     }
 
     // Force full re-render for page load
