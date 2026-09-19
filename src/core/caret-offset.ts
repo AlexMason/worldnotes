@@ -71,6 +71,16 @@ export function getLineOffset(el: HTMLElement): number {
   }
 
   if (!lineEl || !(lineEl instanceof HTMLElement)) {
+    // Selection anchored on the editor root itself (e.g. a click in the
+    // padding between lines, or select-all placement): map to the raw offset
+    // at the boundary just before the child at that DOM offset.
+    if (container === el) {
+      const kids = Array.from(el.children) as HTMLElement[]
+      const upto = Math.min(range.startOffset, kids.length)
+      let boundary = 0
+      for (let i = 0; i < upto; i++) boundary += rawLineLength(kids[i]!) + 1
+      return boundary
+    }
     // Cursor is in a \n text node between containers.
     let prev = container.previousSibling
     while (
@@ -95,6 +105,17 @@ export function getLineOffset(el: HTMLElement): number {
 
   function walkLineNodes(node: Node): void {
     if (found) return
+
+    // Caret anchored on an ELEMENT (e.g. range.setStart(lineEl, 0) from
+    // page-load or empty-line placement): offset counts child NODES, so the
+    // raw position is the summed raw length of the first `startOffset` kids.
+    if (node === container && node instanceof HTMLElement) {
+      const kids = Array.from(node.childNodes)
+      const upto = Math.min(range.startOffset, kids.length)
+      for (let i = 0; i < upto; i++) lineOffset += rawSubtreeLength(kids[i]!)
+      found = true
+      return
+    }
 
     if (node.nodeType === Node.TEXT_NODE) {
       const length = (node as Text).length
@@ -173,12 +194,25 @@ export function setLineOffset(el: HTMLElement, targetOffset: number): void {
         range.collapse(true)
         sel.removeAllRanges()
         sel.addRange(range)
-      } else {
-        // Empty line (has <br> placeholder, no text nodes)
+      } else if (lineLen === 0) {
+        // Empty line (has <br> placeholder, no text nodes): caret at start.
         const sel = window.getSelection()
         if (sel) {
           const range = document.createRange()
           range.setStart(lineEl, 0)
+          range.collapse(true)
+          sel.removeAllRanges()
+          sel.addRange(range)
+        }
+      } else {
+        // Offset lands at the line's exact end (no text node covers it —
+        // e.g. a line ending in a data-raw span, or an empty line with just
+        // a <br>): anchor past all children, which getLineOffset maps back
+        // to the line's full raw length.
+        const sel = window.getSelection()
+        if (sel) {
+          const range = document.createRange()
+          range.setStart(lineEl, lineEl.childNodes.length)
           range.collapse(true)
           sel.removeAllRanges()
           sel.addRange(range)
