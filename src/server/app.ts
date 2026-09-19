@@ -7,6 +7,10 @@ import type { PagesRepository } from './db/repository'
 import { registerSessions } from './auth/session'
 import { registerAuthRoutes } from './auth/routes'
 import { registerPageApiRoutes } from './routes/pages-api'
+import { registerPageHtmlRoutes } from './routes/pages-html'
+import { createRenderCache, INDEX_CACHE_KEY } from './cache'
+import { createViewerRenderer } from './render/markdown'
+import { renderLayout } from './render/layout'
 import type { OidcRelyingParty } from './auth/oidc'
 
 export interface AppDeps {
@@ -24,6 +28,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   app.decorate('worldnotes', deps)
 
+  const cache = createRenderCache({
+    maxEntries: deps.config.env.CACHE_MAX_ENTRIES,
+    ttlMs: deps.config.env.CACHE_TTL_SECONDS * 1000,
+  })
+  const invalidate = (slug: string): void => {
+    cache.invalidate(`p:${slug}`)
+    cache.invalidate(INDEX_CACHE_KEY)
+    deps.onPageWrite?.(slug)
+  }
+
   await registerSessions(app, {
     secrets: deps.config.sessionSecrets,
     maxAgeSeconds: deps.config.env.SESSION_MAX_AGE_SECONDS,
@@ -38,7 +52,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   await registerPageApiRoutes(app, {
     pages: deps.pages,
-    onWrite: deps.onPageWrite,
+    onWrite: invalidate,
+  })
+
+  // SSR catch-all registers LAST (after static/api/auth in step 9).
+  await registerPageHtmlRoutes(app, {
+    config: deps.config,
+    pages: deps.pages,
+    cache,
+    render: createViewerRenderer(),
+    layout: renderLayout,
   })
 
   app.get('/healthz', async () => ({ ok: true }))

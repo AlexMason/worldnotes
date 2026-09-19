@@ -33,7 +33,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/markdown-it": "^14.2.0",
     "@types/node": "^26.6.2",
     "@types/pg": "^8.23.1",
     "@vitest/coverage-v8": "^4.1.7",
