@@ -2,23 +2,25 @@
 
 WorldNotes is a single Fastify application: a Postgres-backed pages store, an
 OIDC auth layer, a server-rendered read path for anonymous visitors, and a
-client-side inline markdown editor for authenticated editors.
+client-side inline markdown editor that **replaces** the read view for
+authenticated editors (the editor lives at `/{slug}` too).
 
 ```
 Browser (anonymous)                  Browser (authenticated)
-   │ GET /{slug}  (SSR, ETag)          │ GET /edit/{slug} → client bundle
+   │ GET /{slug}  (SSR, ETag)          │ GET /{slug} → client editor bundle
    ▼                                   │ PUT /api/pages/{slug} (If-Match)
 ┌──────────────────────────── Fastify ────────────────────────────┐
 │ markdown-it viewer ── bounded LRU + ETag                        │
-│ / → index · /search/{terms} · /{slug} catch-all (registered    │
-│   LAST) · 404 create overlay                                    │
+│ / → home|index · /all · /search/{terms} · /{slug} catch-all    │
+│   (editor for auth, registered LAST) · 404 create overlay      │
 │ OIDC RP (state+PKCE+nonce) ── AES-GCM cookie sessions           │
 │ /api/pages CRUD ── requireAuth + same-origin ── PagesRepository │
+│ /api/settings ── SettingsRepository ── key/value table          │
 │ @fastify/static /assets/* (dist/client)                         │
 └──────────────────────────────────────────────────────────────────┘
                               │ pg pool + advisory-locked migrations
                               ▼
-                        PostgreSQL `pages`
+                     PostgreSQL `pages`, `settings`
 ```
 
 ## Source layout
@@ -26,7 +28,7 @@ Browser (anonymous)                  Browser (authenticated)
 | Directory | Runs in | Purpose |
 |---|---|---|
 | `src/core/` | browser | The inline editor: tokenizer, edit-preview renderer, editor DOM/state/render/navigation/lifecycle, plugin registry + content plugins, `PageBuffers` (content model), `PageStore` contract |
-| `src/client/` | browser | `/edit` bootstrap: `main.ts` mounts the editor over `api-page-store.ts` (fetch + versions + conflicts) |
+| `src/client/` | browser | Editor bootstrap: `main.ts` mounts the editor over `api-page-store.ts` (fetch + versions + conflicts) and builds the header actions (Search / All pages / Admin / sign-out) |
 | `src/server/` | node | Fastify app: config, auth (OIDC/sessions), DB (pool/migrations/repositories), render (markdown-it viewer, layout, title extraction), routes, LRU cache |
 | `src/shared/` | both | Env-agnostic code: `slug.ts` policy, `url-policy.ts`, `url-helpers.ts`, `dto.ts` |
 
@@ -61,13 +63,15 @@ Public, no query strings anywhere:
 
 | Route | Handler | Auth |
 |---|---|---|
-| `GET /` | index (page list + search form island) | anon ok |
-| `GET /search/{terms}` | ILIKE results | anon ok |
-| `GET /edit` | → `/edit/home` | — |
-| `GET /edit/{slug}` | SPA shell (+ embedded `{slug, autosaveMs}` JSON); anonymous → redirect to `/{slug}` | editors |
-| `GET /{slug}` (catch-all, last) | SSR article + chrome; miss → 404 create overlay | anon ok |
+| `GET /` | configured home page, else the index listing | anon ok |
+| `GET /all` | index (page list + search form island) | anon ok |
+| `GET /search`, `GET /search/{terms}` | search form + ILIKE results | anon ok |
+| `GET /admin` | settings form (search toggle, home page) | editors |
+| `GET /edit`, `GET /edit/{slug}` | legacy 302s → `/`, `/{slug}` | — |
+| `GET /{slug}` (catch-all, last) | editor shell (auth) / SSR article (anon); miss → 404 create overlay | mixed |
 | `GET /api/pages`, `GET /api/pages/{slug}` | JSON reads + ETags | anon ok |
 | `POST/PUT/DELETE /api/pages[/{slug}]` | writes; `requireSameOrigin` + `requireAuth` | editors |
+| `PUT /api/settings` | instance settings write; `requireSameOrigin` + `requireAuth` | editors |
 | `GET /oidc/login|callback|logout`, `GET /api/me` | auth | mixed |
 | `GET /assets/*` | built client bundle | anon ok |
 | `GET /healthz` | liveness | anon ok |
@@ -75,7 +79,8 @@ Public, no query strings anywhere:
 Slugs are lowercase `[a-z0-9-]` segments (`blog/post-name`), validated by a
 shared `validateSlug()` **and** a DB `CHECK` constraint. Nesting is cosmetic:
 no parent must exist; breadcrumbs derive from segments. First segments
-`api, oidc, edit, search, assets, static, healthz, favicon.ico` are reserved.
+`api, oidc, edit, search, assets, static, healthz, favicon.ico, all, admin`
+are reserved.
 
 ## Auth
 
@@ -91,9 +96,12 @@ boot in production.
 ## Caching
 
 `src/server/cache.ts`: bounded LRU (max entries + TTL). Page entries store
-renderer output (auth-independent); layout chrome is composed per request, so
-ETags track article bytes and anonymous/authenticated revalidation never
-diverges. Writes (any route path) invalidate `p:{slug}` and the index.
+renderer output (auth-independent); layout chrome is composed per request and
+responses carry `Vary: Cookie` (the editor/reader split now lives on the same
+URLs), so ETags track article bytes and anonymous/authenticated revalidation
+never diverges. Writes (any page route) invalidate `p:{slug}` and the index.
+Settings are read per-request (cached in the `SettingsService`); they do not
+invalidate the SSR caches because the cached entries are settings-independent.
 Responses carry `ETag` + `Cache-Control: public, max-age=60,
 stale-while-revalidate=300`; `If-None-Match` → 304. Single-process scope.
 
@@ -103,10 +111,12 @@ stale-while-revalidate=300`; `If-None-Match` → 304. Single-process scope.
 `pg_try_advisory_lock` (concurrent boots safe), tracked in
 `schema_migrations`. `001_init.sql` creates `pages(slug UNIQUE CHECK, title,
 content, version, created_at, updated_at, updated_by)` + index on
-`updated_at DESC` and seeds the `home` page. `PagesRepository` has two
-implementations: `pages-pg` (production) and `pages-memory` (tests); route
-tests run against memory, CI also runs the pg suite against a service
-container (`WN_TEST_PG_URL`).
+`updated_at DESC` and seeds the `home` page (fixed in `002` to store real
+newlines); `003_settings.sql` adds a `settings(key PK, value, updated_at,
+updated_by)` key/value table for instance settings. `PagesRepository` and
+`SettingsRepository` each have two implementations (`-pg` production, `-memory`
+tests); route tests run against memory, CI also runs the pg suite against a
+service container (`WN_TEST_PG_URL`).
 
 ## Test projects
 

@@ -10,6 +10,7 @@ import { dirname, resolve } from 'node:path'
 import { createPool } from '../db/pool'
 import { runMigrations } from '../db/migrate'
 import { createPgPagesRepository } from '../db/pages-pg'
+import { createPgSettingsRepository } from '../db/settings-pg'
 
 const url = process.env.WN_TEST_PG_URL
 const here = dirname(fileURLToPath(import.meta.url))
@@ -41,6 +42,23 @@ describe.skipIf(!url)('PagesRepository on Postgres', () => {
     expect(home).not.toBeNull()
     expect(home!.version).toBeGreaterThanOrEqual(1)
     expect(home!.title.length).toBeGreaterThan(0)
+  })
+
+  it('seeds the home page with real newlines (no literal \\n)', async () => {
+    const home = await repo.get('home')
+    expect(home).not.toBeNull()
+    expect(home!.content).toContain('\n')
+    expect(home!.content).not.toContain('\\n')
+  })
+
+  it('settings round-trip through the Postgres repository', async () => {
+    const settings = createPgSettingsRepository(pool)
+    await settings.set('search_enabled', 'false', 'sub-1')
+    await settings.set('home_slug', 'welcome')
+    const all = await settings.getAll()
+    expect(all).toMatchObject({ search_enabled: 'false', home_slug: 'welcome' })
+    await settings.set('search_enabled', 'true')
+    expect((await settings.getAll()).search_enabled).toBe('true')
   })
 
   it('put / get / version bump round-trip', async () => {

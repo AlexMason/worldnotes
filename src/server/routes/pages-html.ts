@@ -1,7 +1,8 @@
-// ─── SSR read path: /, /search[/terms], /{slug} ─────────────────────────────
+// ─── SSR read path: /, /all, /search[/terms], /{slug} ────────────────────────
 // Anonymous visitors receive semantic HTML from the viewer renderer, served
-// from a bounded cache with ETag revalidation. Registered LAST so the
-// catch-all slug route only sees unmatched paths.
+// from a bounded cache with ETag revalidation. Authenticated visitors receive
+// the client editor shell at /{slug} instead. Registered LAST so the catch-all
+// slug route only sees unmatched paths.
 
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import type { ServerConfig } from '../config'
@@ -11,6 +12,8 @@ import { validateSlug, slugDisplayName } from '../../shared/slug'
 import { INDEX_CACHE_KEY, type RenderCache } from '../cache'
 import { escapeHtml, searchFormHtml } from '../render/layout'
 import type { LayoutOptions } from '../render/layout'
+import { editorShellHtml } from '../render/editor-shell'
+import type { AppSettings } from '../settings'
 
 export interface PageHtmlDeps {
   config: ServerConfig
@@ -18,6 +21,10 @@ export interface PageHtmlDeps {
   cache: RenderCache
   render: { render(src: string): string }
   layout: (opts: LayoutOptions) => string
+  /** Absolute prefix the client bundle is served under, e.g. '/assets'. */
+  assetPrefix: string
+  autosaveMs: number
+  getSettings: () => AppSettings
 }
 
 interface PageCacheValue {
@@ -31,7 +38,6 @@ interface CacheEntry {
 }
 
 function hashEtag(html: string): string {
-  // Cheap content hash (djb2) — identical bytes ⇒ identical ETag.
   let h = 5381
   for (let i = 0; i < html.length; i++) h = ((h << 5) + h + html.charCodeAt(i)) | 0
   return `"${(h >>> 0).toString(36)}"`
@@ -45,7 +51,7 @@ export async function registerPageHtmlRoutes(
   app: FastifyInstance,
   deps: PageHtmlDeps,
 ): Promise<void> {
-  const { config, pages, cache, render, layout } = deps
+  const { config, pages, cache, render, layout, assetPrefix, autosaveMs, getSettings } = deps
   const MAX_AGE = 'public, max-age=60, stale-while-revalidate=300'
 
   function respond(reply: FastifyReply, entry: CacheEntry, status = 200): FastifyReply {
@@ -57,6 +63,7 @@ export async function registerPageHtmlRoutes(
       .header('content-type', 'text/html; charset=utf-8')
       .header('etag', entry.etag)
       .header('cache-control', MAX_AGE)
+      .header('vary', 'Cookie')
       .send(entry.html)
   }
 
@@ -73,111 +80,33 @@ export async function registerPageHtmlRoutes(
     return crumbs
   }
 
-  function chrome(user: SessionUser | null) {
-    return { user, authDisabled: config.authDisabled }
+  function chrome(user: SessionUser | null, settings: AppSettings) {
+    return { user, authDisabled: config.authDisabled, searchEnabled: settings.searchEnabled }
   }
 
-  // ── Index ────────────────────────────────────────────────────────────────
+  // ── Article render: editor shell for auth, viewer for anonymous ──────────
 
-  app.get('/', async (req, reply) => {
-    // Index chrome varies per auth state → cache the list body, compose per request.
-    const cached = cache.get<string>(INDEX_CACHE_KEY)
-    let listHtml = cached?.value
-    if (!listHtml) {
-      const items = await pages.list({ limit: 500 })
-      listHtml = items
-        .map(
-          (p) =>
-            `<li><a href="${escapeHtml(pageUrl(p.slug))}">${escapeHtml(p.title)}</a></li>`,
-        )
-        .join('\n')
-      cache.set(INDEX_CACHE_KEY, {
-        value: listHtml,
-        etag: hashEtag(listHtml),
-        storedAt: Date.now(),
+  async function renderArticle(
+    reply: FastifyReply,
+    req: { user: SessionUser | null },
+    slug: string,
+    home = false,
+  ): Promise<FastifyReply> {
+    if (req.user) {
+      const settings = getSettings()
+      const html = editorShellHtml(slug, {
+        assetPrefix,
+        autosaveMs,
+        searchEnabled: settings.searchEnabled,
+        userName: req.user.name ?? req.user.sub,
+        authDisabled: config.authDisabled,
       })
+      return reply
+        .header('content-type', 'text/html; charset=utf-8')
+        .header('cache-control', 'no-store')
+        .send(html)
     }
-    const html = layout({
-      title: 'WorldNotes',
-      body: `<h1>All pages</h1>${searchFormHtml()}<ul class="wn-page-list">${
-        listHtml || '<li><em>No pages yet.</em></li>'
-      }</ul>`,
-      ...chrome(req.user),
-    })
-    return reply
-      .header('content-type', 'text/html; charset=utf-8')
-      .header('cache-control', 'public, max-age=30, stale-while-revalidate=60')
-      .send(html)
-  })
 
-  // ── Search ───────────────────────────────────────────────────────────────
-
-  async function searchResults(terms: string) {
-    const items = terms ? await pages.list({ query: terms, limit: 100 }) : []
-    const list = items
-      .map(
-        (p) => `<li><a href="${escapeHtml(pageUrl(p.slug))}">${escapeHtml(p.title)}</a></li>`,
-      )
-      .join('\n')
-    return `<h1>Search</h1>${searchFormHtml()}${
-      terms
-        ? `<p>${items.length} match${items.length === 1 ? '' : 'es'} for <em>${escapeHtml(terms)}</em></p><ul class="wn-page-list">${
-            list || '<li><em>Nothing found.</em></li>'
-          }</ul>`
-        : ''
-    }`
-  }
-
-  app.get('/search', async (req, reply) => {
-    const html = layout({
-      title: 'Search',
-      body: await searchResults(''),
-      trail: [{ href: '/', label: 'Home' }, { href: '/search', label: 'Search' }],
-      ...chrome(req.user),
-    })
-    return reply
-      .header('content-type', 'text/html; charset=utf-8')
-      .header('cache-control', 'no-cache')
-      .send(html)
-  })
-
-  app.get('/search/*', async (req, reply) => {
-    const params = (req.params as { '*': string })['*']
-    const raw = decodeURIComponent(params).trim()
-    const terms = raw
-    const html = layout({
-      title: `Search: ${terms}`,
-      body: await searchResults(terms),
-      trail: [{ href: '/', label: 'Home' }, { href: '/search', label: 'Search' }],
-      ...chrome(req.user),
-    })
-    return reply
-      .header('content-type', 'text/html; charset=utf-8')
-      .header('cache-control', 'no-cache')
-      .send(html)
-  })
-
-  // ── Catch-all page route (registered last) ───────────────────────────────
-
-  app.get('/*', async (req, reply) => {
-    const raw = (req.params as { '*': string })['*']
-    if (raw.startsWith('api/') || raw.startsWith('oidc/') || raw.startsWith('assets/')) {
-      return reply.code(404).send({ error: 'not found' })
-    }
-    const validated = validateSlug(raw)
-    if (!validated.ok) {
-      const html = layout({
-        title: 'Not found',
-        body: `<div class="wn-status"><h1>Page not found</h1><p>That address is not a valid page path.</p></div>`,
-        ...chrome(req.user),
-      })
-      return respond(reply, { html, etag: hashEtag(html) }, 404)
-    }
-    const slug = validated.slug
-
-    // The cache stores the renderer output (auth-independent); the layout
-    // chrome is composed per request, and ETags track the article bytes so
-    // viewer identity never perturbs revalidation.
     const cached = cache.get<PageCacheValue>(`p:${slug}`)
     let title: string
     let articleHtml: string
@@ -188,7 +117,6 @@ export async function registerPageHtmlRoutes(
     } else {
       const page = await pages.get(slug)
       if (!page) {
-        // 404 with create overlay (transient: never cached)
         const html = layout({
           title: 'Page not found',
           body:
@@ -197,12 +125,12 @@ export async function registerPageHtmlRoutes(
             `<div class="wn-create" data-slug="${escapeHtml(slug)}">` +
             `<button id="wn-create-btn" type="button">Create this page</button>` +
             `<span id="wn-create-hint" hidden><a href="/oidc/login?returnTo=${encodeURIComponent(
-              `/edit/${slug}`,
+              pageUrl(slug),
             )}">Log in to create</a></span>` +
             `</div></div>`,
           createForSlug: slug,
-          trail: trailFor(slug),
-          ...chrome(req.user),
+          trail: home ? [{ href: '/', label: 'Home' }] : trailFor(slug),
+          ...chrome(req.user, getSettings()),
         })
         return respond(reply, { html, etag: hashEtag(html) }, 404)
       }
@@ -218,10 +146,130 @@ export async function registerPageHtmlRoutes(
     const html = layout({
       title,
       body: articleHtml,
-      trail: trailFor(slug),
-      editSlug: req.user ? slug : undefined,
-      ...chrome(req.user),
+      trail: home ? [{ href: '/', label: 'Home' }] : trailFor(slug),
+      ...chrome(req.user, getSettings()),
     })
     return respond(reply, { html, etag: hashEtag(articleHtml) })
+  }
+
+  // ── Index (served at /all, and at / when no home page is configured) ─────
+
+  async function renderIndex(
+    reply: FastifyReply,
+    req: { user: SessionUser | null },
+  ): Promise<FastifyReply> {
+    const settings = getSettings()
+    const cached = cache.get<string>(INDEX_CACHE_KEY)
+    let listHtml = cached?.value
+    if (!listHtml) {
+      const items = await pages.list({ limit: 500 })
+      listHtml = items
+        .map((p) => `<li><a href="${escapeHtml(pageUrl(p.slug))}">${escapeHtml(p.title)}</a></li>`)
+        .join('\n')
+      cache.set(INDEX_CACHE_KEY, {
+        value: listHtml,
+        etag: hashEtag(listHtml),
+        storedAt: Date.now(),
+      })
+    }
+    const html = layout({
+      title: 'WorldNotes',
+      body: `<h1>All pages</h1>${searchFormHtml(settings.searchEnabled)}<ul class="wn-page-list">${
+        listHtml || '<li><em>No pages yet.</em></li>'
+      }</ul>`,
+      ...chrome(req.user, settings),
+    })
+    return reply
+      .header('content-type', 'text/html; charset=utf-8')
+      .header('cache-control', 'public, max-age=30, stale-while-revalidate=60')
+      .header('vary', 'Cookie')
+      .send(html)
+  }
+
+  app.get('/', async (req, reply) => {
+    const homeSlug = getSettings().homeSlug
+    if (homeSlug) {
+      if (req.user) return renderArticle(reply, req, homeSlug, true)
+      // Only serve the home page when it exists; otherwise fall back to the index.
+      const page = await pages.get(homeSlug)
+      if (page) return renderArticle(reply, req, homeSlug, true)
+    }
+    return renderIndex(reply, req)
+  })
+
+  app.get('/all', async (req, reply) => {
+    return renderIndex(reply, req)
+  })
+
+  // ── Search ───────────────────────────────────────────────────────────────
+
+  async function searchResults(terms: string, searchEnabled: boolean) {
+    const items = terms ? await pages.list({ query: terms, limit: 100 }) : []
+    const list = items
+      .map((p) => `<li><a href="${escapeHtml(pageUrl(p.slug))}">${escapeHtml(p.title)}</a></li>`)
+      .join('\n')
+    return `<h1>Search</h1>${searchFormHtml(searchEnabled)}${
+      terms
+        ? `<p>${items.length} match${items.length === 1 ? '' : 'es'} for <em>${escapeHtml(terms)}</em></p><ul class="wn-page-list">${
+            list || '<li><em>Nothing found.</em></li>'
+          }</ul>`
+        : ''
+    }`
+  }
+
+  app.get('/search', async (req, reply) => {
+    const settings = getSettings()
+    const html = layout({
+      title: 'Search',
+      body: await searchResults('', settings.searchEnabled),
+      trail: [
+        { href: '/', label: 'Home' },
+        { href: '/search', label: 'Search' },
+      ],
+      ...chrome(req.user, settings),
+    })
+    return reply
+      .header('content-type', 'text/html; charset=utf-8')
+      .header('cache-control', 'no-cache')
+      .header('vary', 'Cookie')
+      .send(html)
+  })
+
+  app.get('/search/*', async (req, reply) => {
+    const settings = getSettings()
+    const terms = decodeURIComponent((req.params as { '*': string })['*']).trim()
+    const html = layout({
+      title: `Search: ${terms}`,
+      body: await searchResults(terms, settings.searchEnabled),
+      trail: [
+        { href: '/', label: 'Home' },
+        { href: '/search', label: 'Search' },
+      ],
+      ...chrome(req.user, settings),
+    })
+    return reply
+      .header('content-type', 'text/html; charset=utf-8')
+      .header('cache-control', 'no-cache')
+      .header('vary', 'Cookie')
+      .send(html)
+  })
+
+  // ── Catch-all page route (registered last) ───────────────────────────────
+
+  app.get('/*', async (req, reply) => {
+    const raw = (req.params as { '*': string })['*']
+    if (raw.startsWith('api/') || raw.startsWith('oidc/') || raw.startsWith('assets/')) {
+      return reply.code(404).send({ error: 'not found' })
+    }
+    const validated = validateSlug(raw)
+    if (!validated.ok) {
+      const html = layout({
+        title: 'Not found',
+        body: `<div class="wn-status"><h1>Page not found</h1><p>That address is not a valid page path.</p></div>`,
+        ...chrome(req.user, getSettings()),
+      })
+      return respond(reply, { html, etag: hashEtag(html) }, 404)
+    }
+    return renderArticle(reply, req, validated.slug)
   })
 }

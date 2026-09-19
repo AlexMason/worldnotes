@@ -42,6 +42,8 @@ describe('validateSlug', () => {
   it('rejects reserved first segments', () => {
     expect(validateSlug('api/pages').ok).toBe(false)
     expect(validateSlug('edit/home').ok).toBe(false)
+    expect(validateSlug('all').ok).toBe(false)
+    expect(validateSlug('admin').ok).toBe(false)
     expect(validateSlug('blog/api-post').ok).toBe(true) // only first segment matters
   })
 })

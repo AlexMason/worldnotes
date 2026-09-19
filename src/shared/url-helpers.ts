@@ -5,17 +5,11 @@ export function pageUrlPath(slug: string): string {
   return `/${slug.split('/').map(encodeURIComponent).join('/')}`
 }
 
-/** Turn a validated slug into the edit-shell path. */
-export function editUrlPath(slug: string): string {
-  return `/edit/${slug.split('/').map(encodeURIComponent).join('/')}`
-}
-
-/** Extract the slug from an /edit/... location pathname. */
-export function slugFromEditPath(pathname: string): string {
-  const rest = pathname.startsWith('/edit/')
-    ? pathname.slice('/edit/'.length)
-    : pathname === '/edit'
-      ? 'home'
-      : ''
-  return decodeURIComponent(rest.replace(/\/+$/, '') || 'home')
+/**
+ * Extract a page slug from a `/{slug}` location pathname.
+ * `/` maps to `home`; trailing slashes are ignored.
+ */
+export function slugFromPath(pathname: string): string {
+  const rest = pathname.replace(/^\/+/, '').replace(/\/+$/, '')
+  return decodeURIComponent(rest) || 'home'
 }

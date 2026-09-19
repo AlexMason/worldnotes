@@ -9,6 +9,7 @@ import { createRelyingParty, type OidcRelyingParty } from './auth/oidc'
 import { createPool } from './db/pool'
 import { runMigrations } from './db/migrate'
 import { createPgPagesRepository } from './db/pages-pg'
+import { createPgSettingsRepository } from './db/settings-pg'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -28,10 +29,10 @@ async function main(): Promise<void> {
   const app = await buildApp({
     config,
     pages: createPgPagesRepository(pool),
+    settings: createPgSettingsRepository(pool),
     relyingParty,
     clientAssetsDir: resolve(here, '../../dist/client'),
-    logger:
-      config.env.LOG_LEVEL === 'silent' ? false : { level: config.env.LOG_LEVEL },
+    logger: config.env.LOG_LEVEL === 'silent' ? false : { level: config.env.LOG_LEVEL },
   })
 
   app.log.info(

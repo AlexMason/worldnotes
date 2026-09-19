@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { loadConfig, type ServerConfig } from '../config'
 import { buildApp } from '../app'
 import { createMemoryPagesRepository } from '../db/pages-memory'
+import { createMemorySettingsRepository } from '../db/settings-memory'
 import { seal } from '../auth/session'
 
 const baseEnv = {
@@ -54,11 +55,12 @@ describe('SSR pages', () => {
     expect(res.body).toContain('min-height: 44px')
   })
 
-  it('shows Edit + sign-out chrome for authenticated editors', async () => {
+  it('serves the editor shell (not the reader) to authenticated users', async () => {
     await repo.put('page', { title: 'P', content: 'x' })
     const res = await app.inject({ method: 'GET', url: '/page', headers: { cookie: auth } })
-    expect(res.body).toContain('/edit/page')
-    expect(res.body).toContain('Sign out')
+    expect(res.statusCode).toBe(200)
+    expect(res.headers['cache-control']).toBe('no-store')
+    expect(res.body).toContain('id="wn-app"')
   })
 
   it('serves cache headers + ETag and answers 304 on revalidation', async () => {
@@ -104,7 +106,7 @@ describe('SSR pages', () => {
     expect(res.body).toContain('Page not found')
     expect(res.body).toContain('wn-create-btn')
     expect(res.body).toContain('data-slug="nope/missing"')
-    expect(res.body).toContain('/oidc/login?returnTo=%2Fedit%2Fnope%2Fmissing')
+    expect(res.body).toContain('/oidc/login?returnTo=%2Fnope%2Fmissing')
   })
 
   it('404s invalid slug shapes without the create overlay', async () => {
@@ -151,5 +153,81 @@ describe('SSR pages', () => {
     expect(res.body).not.toContain('<script>evil')
     expect(res.body).toContain('&lt;script&gt;')
     expect(res.body).not.toContain('href="javascript:')
+  })
+})
+
+describe('home page + search toggle', () => {
+  let config: ServerConfig
+  let repo: ReturnType<typeof createMemoryPagesRepository>
+  let app: Awaited<ReturnType<typeof buildApp>>
+  let auth: string
+
+  async function make(settingsSeed: Record<string, string> = {}) {
+    config = loadConfig(baseEnv)
+    repo = createMemoryPagesRepository()
+    app = await buildApp({
+      config,
+      pages: repo,
+      settings: createMemorySettingsRepository(settingsSeed),
+      relyingParty: null,
+    })
+    auth = editorCookie(config)
+  }
+
+  it('serves the index at both / and /all when no home page is set', async () => {
+    await make()
+    await repo.put('alpha', { title: 'Alpha', content: '' })
+    for (const url of ['/', '/all']) {
+      const res = await app.inject({ method: 'GET', url })
+      expect(res.statusCode).toBe(200)
+      expect(res.body).toContain('All pages')
+      expect(res.body).toContain('/alpha')
+    }
+  })
+
+  it('serves the configured home page at / (reader for anonymous)', async () => {
+    await make({ home_slug: 'welcome' })
+    await repo.put('welcome', { title: 'Welcome', content: '# Welcome\n\nhi' })
+    const res = await app.inject({ method: 'GET', url: '/' })
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toContain('<h1>Welcome</h1>')
+    // /all still shows the index
+    const all = await app.inject({ method: 'GET', url: '/all' })
+    expect(all.body).toContain('All pages')
+  })
+
+  it('falls back to the index when the configured home page is missing', async () => {
+    await make({ home_slug: 'gone' })
+    const res = await app.inject({ method: 'GET', url: '/' })
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toContain('All pages')
+  })
+
+  it('serves the editor shell at / when a home page is set and the user is authenticated', async () => {
+    await make({ home_slug: 'welcome' })
+    const res = await app.inject({ method: 'GET', url: '/', headers: { cookie: auth } })
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toContain('id="wn-app"')
+  })
+
+  it('hides search UI when disabled but leaves /search functional', async () => {
+    await make({ search_enabled: 'false' })
+    await repo.put('one', { title: 'Pineapple', content: '' })
+
+    const index = await app.inject({ method: 'GET', url: '/all' })
+    expect(index.body).not.toContain('id="wn-search-form"')
+    expect(index.body).not.toContain('href="/search"')
+
+    const search = await app.inject({ method: 'GET', url: '/search/pineapple' })
+    expect(search.statusCode).toBe(200)
+    expect(search.body).toContain('/one')
+    expect(search.body).not.toContain('id="wn-search-form"')
+  })
+
+  it('adds Vary: Cookie to reader responses', async () => {
+    await make()
+    await repo.put('page', { title: 'P', content: 'x' })
+    const res = await app.inject({ method: 'GET', url: '/page' })
+    expect(res.headers.vary).toContain('Cookie')
   })
 })

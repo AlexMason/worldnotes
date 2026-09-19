@@ -14,6 +14,8 @@ export const RESERVED_FIRST_SEGMENTS: readonly string[] = [
   'static',
   'healthz',
   'favicon.ico',
+  'all',
+  'admin',
 ]
 
 const SEGMENT_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
