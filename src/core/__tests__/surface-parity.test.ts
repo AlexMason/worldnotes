@@ -54,7 +54,7 @@ function snapshot(node: Node, root: boolean): NodeSpec {
     return { tag: `#comment:${node.textContent ?? ''}`, attrs: [], children: [] }
   }
   const el = node as Element
-  const attrs = [...el.attributes]
+  const attrs = Array.from(el.attributes)
     .map((a) => [a.name, a.value] as [string, string])
     .sort((x, y) => x[0].localeCompare(y[0]))
   const children: (NodeSpec | string)[] = []
