@@ -1,6 +1,6 @@
-# Plan: WorldNotes — Client Library → Authenticated Server (CMS pivot) — rev 2
+# Plan: WorldNotes — Client Library → Authenticated Server (CMS pivot) — rev 3
 
-**Date:** 2026-09-19 (UTC) — rev 2 after dual adversarial review + user decisions
+**Date:** 2026-09-19 (UTC) — rev 3 after dual review + user decisions (rev 3: nested-slug routing)
 **Branch:** `feature/server-pivot`
 **Status:** Revised (pending user approval)
 
@@ -20,11 +20,12 @@ inline Markdown editor with **debounced autosave**. Multiplayer/Yjs is removed e
 | Save model | Debounced autosave (default 1.5 s idle, env-configurable); save = live. **Optimistic concurrency (If-Match/409) is REQUIRED in v1** — promoted from stretch goal after review flagged silent-edit-clobbering as a launch correctness bug. |
 | Viewer experience | **markdown-it (+ custom `[[wikilink]]` rule, `html:false`) rendered HTML**, cached: bounded LRU + ETag/`Cache-Control`. Decided rev 2: the existing plugin `renderToHTML` outputs an *edit-preview* (literal `**`/`#` markers, `data-page` spans with no `href`) — it is **not** reused for the read path. |
 | Auth | Generic OIDC via `openid-client` v6: discovery, **state + PKCE + nonce**, `iss`/`aud` validation. Any authenticated user may edit. Identity = `sub` claim. |
-| Search | v1: simple `ILIKE` on path/title/content via `GET /api/pages?q=`; index page gets a search box. |
+| Search | v1: simple `ILIKE` on slug/title/content; public route `GET /search/{terms}` (no `?q=` anywhere), search box on index navigates there. |
 | Deployment | Dockerfile + docker-compose (app + Postgres) in scope. |
 | Packaging | Fold into one app; drop npm exports/`dist/` (un-commit `dist/`, gitignore it). |
 | Framework | Node + Fastify, TypeScript, `tsx` dev. Single-process assumption documented (in-memory caches); horizontal scaling out of scope. |
-| Wiki features | Server-side nav: `[[a/b|Title]]` → `/p/a/b`; missing → 404 with create overlay. **Page paths preserve case** (no lowercasing — matches current `getWorld()` keying); normalization = trim, collapse duplicate slashes, strip leading/trailing `/`, reject `..`/control chars/> 255 chars. |
+| Wiki features | **Nested slugs ARE the URLs**: every page has a globally-unique slug (`blog/post-name`) served directly at `GET /{slug}` — no `/p/` prefix, no query strings on public routes. `[[Blog Post]]` → `/blog-post` via a shared `slugify()`. Missing slug → 404 with **create** overlay prefilled with that slug. Slugs are lowercase `[a-z0-9-]` segments (DB CHECK-enforced); titles keep case and are separate. Reserved first segments: `api oidc edit search assets static healthz`. |
+| Hierarchy | Slug nesting is cosmetic: `/blog/post` does not require a `/blog` parent page to exist; no tree table, breadcrumb from slug segments. |
 | Editor UI | Keep inline editor as authenticated edit surface. |
 | 403 page | **Dropped** — after removing storage-adapter `PermissionError` there is no producer; unauthenticated writes get `401` JSON. |
 
@@ -32,7 +33,7 @@ inline Markdown editor with **debounced autosave**. Multiplayer/Yjs is removed e
 
 ```
 Browser (anonymous)                 Browser (authenticated)
-   │ GET /p/**  (SSR, ETag)            │ GET /edit/** (SPA shell) + /api/**
+   │ GET /{slug}  (SSR, ETag)         │ GET /edit/{slug} (SPA shell) + /api/**
    ▼                                   ▼
 ┌────────────────────────────── Fastify ──────────────────────────────┐
 │ read render: markdown-it + wikilink rule → bounded LRU + ETag       │
@@ -66,7 +67,7 @@ src/
       pages-api.ts pages-html.ts status.ts
     cache.ts        # bounded LRU (max entries + TTL), version-invalidated;
                     #   index page cached under '__index__' key, evicted on write
-  shared/     # dto.ts (PageDto, MeDto), url-policy.ts (scheme allowlist,
+  shared/     # dto.ts (PageDto, MeDto), slugify.ts, url-policy.ts (scheme allowlist,
               #   same-origin redirect validation)
 migrations/001_init.sql
 Dockerfile docker-compose.yml .env.example
@@ -77,8 +78,10 @@ Dockerfile docker-compose.yml .env.example
 ```sql
 CREATE TABLE pages (
   id          BIGSERIAL PRIMARY KEY,
-  path        TEXT NOT NULL UNIQUE,          -- case-preserving, normalized (see Decisions)
-  title       TEXT NOT NULL,                 -- derived: first # heading via TOKENIZER, else last segment
+  slug        TEXT NOT NULL UNIQUE        -- nested, e.g. 'blog/post-name'
+                CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*(/[a-z0-9]+(-[a-z0-9]+)*)*$'),
+  title       TEXT NOT NULL,              -- display title, case kept; derived from first
+                                          --   '# heading' via TOKENIZER, else create-form name
   content     TEXT NOT NULL DEFAULT '',
   version     BIGINT NOT NULL DEFAULT 1,     -- bumped per save → ETag/If-Match basis
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -91,7 +94,7 @@ No revisions. **Conflict semantics:** `PUT` requires `If-Match: "<version>"`;
 mismatch → `409` + current `{version}`; client shows conflict toast: *Reload theirs*
 (discards local buffer) or *Overwrite* (PUT with fresh version). Full-content PUT only.
 
-**Render cache:** LRU keyed by path: `{html, version, etag}`; `maxEntries` (default 200)
+**Render cache:** LRU keyed by slug: `{html, version, etag}`; `maxEntries` (default 200)
 + TTL (default 55 s, < `Cache-Control max-age=60`); writes bump version and evict the
 page + `__index__`. Responses: `ETag`, `Cache-Control: public, max-age=60,
 stale-while-revalidate=300`. Anonymous hot reads never touch Postgres.
@@ -106,16 +109,25 @@ on non-GET `/api/**`. `AUTH_DISABLED=1` dev fake-user, refused when `NODE_ENV=pr
 
 **Security (viewer XSS):** markdown-it `html:false` escapes raw HTML; wikilink and
 `linkPlugin`/autolink hrefs pass through shared `url-policy.ts` allowlist
-(`http: https: mailto:` + same-origin `/p/` + relative); `javascript:`/`data:` → rendered
+(`http: https: mailto:` + same-origin absolute paths + relative); `javascript:`/`data:` → rendered
 as text. Applied to read-path AND the editor's link-render plugins; tested.
 
-**Routing:**
-- `GET /p/**` SSR page · `GET /` index (page list + `?q=` search, cached)
-- `GET /edit/**` SPA shell (unauthenticated → read-only + login CTA)
-- `GET /api/pages[?q=]`, `GET/PUT/POST/DELETE /api/pages?path=` (writes auth-only, 401 JSON)
-- `GET /oidc/login|callback|logout` (+ `/oidc/backchannel?` out of scope), `GET /api/me`
+**Routing (rev 3 — nested slugs, zero public query strings):**
+- `GET /{slug}` → SSR page (catch-all Fastify wildcard route registered **last**, after
+  static/api/oidc/edit/search) · `GET /` → index (page list, cached under `__index__`)
+- `GET /search/{terms}` → ILIKE results page (URL-decoded, re-escaped for display)
+- `GET /edit/{slug}` → SPA shell (unauthenticated → read-only + login CTA)
+- `GET/PUT/DELETE /api/pages/{slug}` · `GET /api/pages` (list) · `GET /api/search/{terms}`
+  — writes auth-only (401 JSON), `If-Match`/409 on PUT
+- `GET /oidc/login|callback|logout`, `GET /api/me`
 - post-callback redirect target validated same-origin (open-redirect guard)
-- missing `/p/**` → 404 page with **create** overlay → `/edit/**`
+- missing `/{slug}` → 404 page with **create** overlay → `/edit/{slug}` after auth
+- **Slug creation rule:** `src/shared/slugify.ts` — NFKD transliterate, lowercase,
+  non-alphanumerics → `-`, collapse repeats, trim `-`; source = create-form title or
+  wiki-link text (`[[Blog/Post One]]` → `/blog/post-one`). Collision at POST → auto `-2`
+  suffix; slug field editable in the create overlay. Empty slug after folding (emoji/CJK
+  titles) → slug must be typed manually (validated). Repository API: `get(slug)`,
+  `list()`, `search(terms)`, `put(slug, {title, content, ifMatch})`, `delete(slug)`.
 
 ## De-Yjs design (the real work — verified against source)
 
@@ -139,8 +151,10 @@ at `editor-lifecycle.ts:151-160,296-301`, `editor-render.ts:54,117,142`,
    it breaks local editing; both reviewers flagged my rev-1 claim as an error).
    Delete only its *awareness/remote-cursor* consumers.
 4. **`editor-navigation.ts` rewrite:** `storage.get()`/`PermissionError` flow → async
-   `GET /api/pages?path=` (404 → create overlay; no more 403). Status-page materialization
-   via `PageBuffers`.
+   `GET /api/pages/{slug}` (404 → create overlay; no more 403). Status-page materialization
+   via `PageBuffers`. The legacy `?path=` query-trail URL scheme (`encodePathSearch`/
+   `decodePathSearch` in `navigation.ts`) is replaced by real `/{slug}` paths + breadcrumb
+   derived from slug segments.
 5. **`types.ts` plugin contract change (deliberate, breaking):** drop `EditorContext.getDoc`,
    `StorageAdapter`, `PermissionError`, `syncProvider` option, awareness typings. AGENTS.md's
    "preserve plugin contract" rule and `docs/api.md` updated accordingly (library is gone).
@@ -208,15 +222,16 @@ Gate after every step: `typecheck (both configs) → lint → test` green, then 
    migration runner, `pages-pg`/`pages-memory`; pg smoke test against CI postgres service.
 6. **OIDC auth + session + URL policy** (mocked issuer; cookie encrypt/rotate; 401 guard;
    `AUTH_DISABLED`; origin-check CSRF; open-redirect guard).
-7. **Pages API + search:** CRUD, normalization/validation, version bumping, `If-Match`/409,
-   `?q=` ILIKE, title-from-tokenizer extraction; route tests via `app.inject` + memory repo.
+7. **Pages API + search:** CRUD by slug, slug validation (regex + reserved first segments),
+   version bumping, `If-Match`/409, ILIKE search endpoint, slugify + collision suffixes,
+   title-from-tokenizer extraction; route tests via `app.inject` + memory repo.
 8. **Read path:** `render/markdown.ts` (md-it + wikilink + checkbox + URL policy), LRU cache
-   + ETag, `/p/**`, `/` index+search, 404 create overlay, status page wiring; SSR snapshot
-   tests; XSS scheme tests.
-9. **Client wiring:** `/edit/**` shell + `main.ts`: load via API, mount editor over
+   + ETag, catch-all `/{slug}` SSR route (registered last), `/` index, `/search/{terms}`,
+   404 create overlay (prefilled slug), status page wiring; SSR snapshot tests; XSS scheme tests.
+9. **Client wiring:** `/edit/{slug}` shell + `main.ts`: load via API, mount editor over
    `PageBuffers`, debounced `PUT` with If-Match, conflict toast, save indicator, wiki
-   links → `/p/**` on server routes, login/logout chrome, read-only anonymous mode;
-   delete demo.
+   links → real `/{slug}` paths (catch-all route + slugify shared with server), login/logout
+   chrome, read-only anonymous mode; delete demo + `?path=` URL sync helpers.
 10. **Docs, Docker, polish:** README/docs/api/architecture/theming rewrite, AGENTS.md
     command table + repo notes (dist), `.planning` reconcile, Dockerfile/compose/`.env.example`,
     full `typecheck lint test:coverage build` + manual `AUTH_DISABLED=1` smoke vs local pg.
@@ -239,9 +254,19 @@ Gate after every step: `typecheck (both configs) → lint → test` green, then 
 - ⚠️ **Single process** assumption for caches; documented in README (multi-instance needs
   Redis/PG-notify — future work).
 - ❓ Autosave default 1.5 s (env `AUTOSAVE_DEBOUNCE_MS`) — shout if you want different.
-- ❓ Seed `Home` page on first migration (short welcome markdown) — assumed yes.
+- ❓ Seed `Home` page on first migration (slug `home`? user-facing alias `/Home` — see
+  rev-3 note: slug is `home`, title `Home`) — assumed yes.
+- ⚠️ **Slugify lossy for non-Latin titles** (CJK/emoji → empty). Mitigation: manual slug
+  entry in create overlay is mandatory when fold yields empty; wiki-link resolution uses
+  the same fold, so `[[中文]]` links simply never match until created with an explicit slug.
 
 ## Review feedback adjudication (rev 1 → rev 2)
+
+**rev 3 (user routing directive):** dropped `?path=`/`?q=` query-string routing and the
+`/p/` prefix entirely — pages live at their nested slug (`/blog/post-name`), search at
+`/search/{terms}`, edit at `/edit/{slug}`; API takes the slug as a path segment. Slug
+charset/validation, slugify + collision rules, reserved segments, catch-all-last ordering,
+and non-Latin slugify risk added.
 
 **Fixed as directed:** keep/rename `awareness-cursor` (B1 both); undo is active re-plumb
 (B2); read path = markdown-it, not plugin edit-renderers (B3, user-approved); PageBuffers
