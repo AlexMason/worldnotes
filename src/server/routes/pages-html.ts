@@ -69,7 +69,8 @@ export async function registerPageHtmlRoutes(
 
   function trailFor(slug: string) {
     const crumbs = [{ href: '/', label: 'Home' }]
-    if (slug === 'home') return crumbs
+    const homeSlug = getSettings().homeSlug ?? 'home'
+    if (slug === homeSlug) return crumbs
     const parts = slug.split('/')
     for (let i = 0; i < parts.length; i++) {
       crumbs.push({
@@ -81,7 +82,12 @@ export async function registerPageHtmlRoutes(
   }
 
   function chrome(user: SessionUser | null, settings: AppSettings) {
-    return { user, authDisabled: config.authDisabled, searchEnabled: settings.searchEnabled }
+    return {
+      user,
+      authDisabled: config.authDisabled,
+      searchEnabled: settings.searchEnabled,
+      allPagesEnabled: settings.allPagesEnabled,
+    }
   }
 
   // ── Article render: editor shell for auth, viewer for anonymous ──────────
@@ -94,12 +100,16 @@ export async function registerPageHtmlRoutes(
   ): Promise<FastifyReply> {
     if (req.user) {
       const settings = getSettings()
+      const page = await pages.get(slug)
       const html = editorShellHtml(slug, {
         assetPrefix,
         autosaveMs,
         searchEnabled: settings.searchEnabled,
+        homeSlug: settings.homeSlug,
+        allPagesEnabled: settings.allPagesEnabled,
         userName: req.user.name ?? req.user.sub,
         authDisabled: config.authDisabled,
+        page: page ? { content: page.content, version: page.version } : null,
       })
       return reply
         .header('content-type', 'text/html; charset=utf-8')
@@ -187,17 +197,36 @@ export async function registerPageHtmlRoutes(
   }
 
   app.get('/', async (req, reply) => {
-    const homeSlug = getSettings().homeSlug
+    const settings = getSettings()
+    const homeSlug = settings.homeSlug
     if (homeSlug) {
       if (req.user) return renderArticle(reply, req, homeSlug, true)
       // Only serve the home page when it exists; otherwise fall back to the index.
       const page = await pages.get(homeSlug)
       if (page) return renderArticle(reply, req, homeSlug, true)
     }
+    if (!settings.allPagesEnabled) {
+      const html = layout({
+        title: 'Not found',
+        body: `<div class="wn-status"><h1>Page not found</h1><p>There is no landing page here yet.</p></div>`,
+        ...chrome(req.user, settings),
+      })
+      return respond(reply, { html, etag: hashEtag(html) }, 404)
+    }
     return renderIndex(reply, req)
   })
 
   app.get('/all', async (req, reply) => {
+    const settings = getSettings()
+    if (!settings.allPagesEnabled) {
+      const html = layout({
+        title: 'Not found',
+        body: `<div class="wn-status"><h1>Page not found</h1><p>The all-pages listing is disabled.</p></div>`,
+        trail: [{ href: '/', label: 'Home' }],
+        ...chrome(req.user, settings),
+      })
+      return respond(reply, { html, etag: hashEtag(html) }, 404)
+    }
     return renderIndex(reply, req)
   })
 

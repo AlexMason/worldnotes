@@ -88,6 +88,8 @@ export interface LayoutOptions {
   authDisabled?: boolean
   /** Show search affordances; defaults to true. */
   searchEnabled?: boolean
+  /** Show the "All pages" affordance; defaults to true. */
+  allPagesEnabled?: boolean
   /** Slug offered by the create overlay on 404. */
   createForSlug?: string
   /** Extra inline scripts appended after the built-in ones. */
@@ -145,7 +147,9 @@ export function renderLayout(opts: LayoutOptions): string {
   if (opts.searchEnabled !== false) {
     actions.push('<a href="/search">Search</a>')
   }
-  actions.push('<a href="/all">All pages</a>')
+  if (opts.allPagesEnabled !== false) {
+    actions.push('<a href="/all">All pages</a>')
+  }
   if (opts.user) {
     actions.push('<a href="/admin">Admin settings</a>')
     actions.push(

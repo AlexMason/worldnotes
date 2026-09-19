@@ -130,7 +130,7 @@ export function createEditorNavigation(
     let content = buffers.getPageText(page)
 
     if (!content && !pageExisted) {
-      if (page === 'home') {
+      if (page === (options.homeSlug ?? 'home')) {
         content = DEFAULT_HOME
       } else {
         content = `# ${page}\n\n`

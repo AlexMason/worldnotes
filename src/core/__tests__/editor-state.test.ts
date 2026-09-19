@@ -63,7 +63,7 @@ describe('createEditorState', () => {
   it('pushTrail appends segments', () => {
     const state = createEditorState({ initialPage: 'a' })
     state.pushTrail('b')
-    expect(state.getTrail()).toEqual(['a', 'b'])
+    expect(state.getTrail()).toEqual(['home', 'a', 'b'])
   })
 
   it('setTrail replaces the trail', () => {
@@ -147,15 +147,23 @@ describe('createEditorState', () => {
     setupLocation('?path=foo/bar%2Fbaz')
     const state = createEditorState({ initialPage: 'blog/real-url' })
 
-    expect(state.getTrail()).toEqual(['blog/real-url'])
+    expect(state.getTrail()).toEqual(['home', 'blog', 'real-url'])
     expect(state.getCurrentPage()).toBe('blog/real-url')
   })
 
-  it('initial trail comes from options.initialPage', () => {
+  it('initial trail comes from options.initialPage, rooted at home', () => {
     setupLocation('')
     const state = createEditorState({ initialPage: 'custom-start' })
 
-    expect(state.getTrail()).toEqual(['custom-start'])
+    expect(state.getTrail()).toEqual(['home', 'custom-start'])
+  })
+
+  it('initial trail collapses to the root when initialPage is the home slug', () => {
+    setupLocation('')
+    const state = createEditorState({ initialPage: 'welcome', homeSlug: 'welcome' })
+
+    expect(state.getTrail()).toEqual(['welcome'])
+    expect(state.getCurrentPage()).toBe('welcome')
   })
 
   it('initial page defaults to home when options.initialPage is undefined', () => {
@@ -163,5 +171,18 @@ describe('createEditorState', () => {
     const state = createEditorState({})
 
     expect(state.getTrail()).toEqual(['home'])
+  })
+
+  it('seeds the buffer from options.initialContent with a clean undo baseline', () => {
+    setupLocation('')
+    const buffers = createPageBuffers()
+    createEditorState({ initialPage: 'blog/post', initialContent: '# Hi' }, buffers)
+
+    // SSR-embedded content is present without any store fetch…
+    expect(buffers.hasPage('blog/post')).toBe(true)
+    expect(buffers.getPageText('blog/post')).toBe('# Hi')
+    // …and is the undo baseline: the first edit undoes back to it, not to ''.
+    buffers.setPageText('blog/post', '# Hi!')
+    expect(buffers.undo('blog/post')).toBe('# Hi')
   })
 })

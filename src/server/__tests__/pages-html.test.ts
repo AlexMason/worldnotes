@@ -224,6 +224,43 @@ describe('home page + search toggle', () => {
     expect(search.body).not.toContain('id="wn-search-form"')
   })
 
+  it('404s /all and hides the All pages link when the listing is disabled', async () => {
+    await make({ all_pages_enabled: 'false', home_slug: 'welcome' })
+    await repo.put('welcome', { title: 'Welcome', content: '# hi' })
+    await repo.put('other', { title: 'Other', content: '' })
+
+    const all = await app.inject({ method: 'GET', url: '/all' })
+    expect(all.statusCode).toBe(404)
+    expect(all.body).toContain('all-pages listing is disabled')
+
+    // Landing at / still serves the home page (reader) without the link.
+    const home = await app.inject({ method: 'GET', url: '/' })
+    expect(home.statusCode).toBe(200)
+    expect(home.body).toContain('<h1>hi</h1>')
+    expect(home.body).not.toContain('href="/all"')
+
+    // …and a regular page hides it too.
+    const page = await app.inject({ method: 'GET', url: '/other' })
+    expect(page.body).not.toContain('href="/all"')
+  })
+
+  it('404s / when all pages is disabled and the home page is missing', async () => {
+    await make({ all_pages_enabled: 'false', home_slug: 'gone' })
+    const res = await app.inject({ method: 'GET', url: '/' })
+    expect(res.statusCode).toBe(404)
+  })
+
+  it('carries allPagesEnabled and homeSlug in the editor shell config', async () => {
+    await make({ all_pages_enabled: 'false', home_slug: 'welcome' })
+    const res = await app.inject({ method: 'GET', url: '/welcome', headers: { cookie: auth } })
+    const cfg = JSON.parse(
+      JSON.parse(
+        /<script id="wn-config" type="application\/json">(.+?)<\/script>/.exec(res.body)![1]!,
+      ) as string,
+    )
+    expect(cfg).toMatchObject({ allPagesEnabled: false, homeSlug: 'welcome' })
+  })
+
   it('adds Vary: Cookie to reader responses', async () => {
     await make()
     await repo.put('page', { title: 'P', content: 'x' })

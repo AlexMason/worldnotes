@@ -44,10 +44,24 @@ export function createEditorState(
   pageBuffers: PageBuffers = createPageBuffers({ historyDepth: options.historyDepth }),
 ): EditorStateAPI {
   const configuredInitialPage = options.initialPage ?? 'home'
+  // The trail is always rooted at the wiki's home page so breadcrumbs render
+  // "Home / blog / post" no matter where the editor was opened.
+  const homePage = options.homeSlug ?? 'home'
+
+  // Seed the initial buffer from the SSR-embedded page (Task 1) so the first
+  // paint is synchronous. The loaded state is the undo baseline; clearHistory
+  // after seeding ensures undo never goes back to the pre-load empty buffer.
+  if (options.initialContent !== undefined) {
+    pageBuffers.setPageText(configuredInitialPage, options.initialContent)
+    pageBuffers.clearHistory(configuredInitialPage)
+  }
 
   // ── Mutable state ──────────────────────────────────────────────────────────
 
-  let trail: string[] = [configuredInitialPage]
+  let trail: string[] =
+    configuredInitialPage === homePage
+      ? [homePage]
+      : [homePage, ...configuredInitialPage.split('/')]
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let isNavigating = false
   let pendingRequestedPage: string | null = null

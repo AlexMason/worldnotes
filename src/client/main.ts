@@ -12,8 +12,17 @@ interface ShellConfig {
   slug: string
   autosaveMs: number
   searchEnabled: boolean
+  allPagesEnabled: boolean
+  homeSlug: string | null
   userName: string | null
   authDisabled: boolean
+}
+
+interface PageEmbed {
+  slug: string
+  content: string | null
+  version: number | null
+  exists: boolean
 }
 
 function readShellConfig(): ShellConfig {
@@ -29,8 +38,25 @@ function readShellConfig(): ShellConfig {
     slug: slugFromPath(window.location.pathname),
     autosaveMs: 1500,
     searchEnabled: true,
+    allPagesEnabled: true,
+    homeSlug: null,
     userName: null,
     authDisabled: false,
+  }
+}
+
+/**
+ * The SSR-embedded page record (Task 1). `null` when the shell has no
+ * `wn-page` script (fresh page, older server, or parse failure) — the editor
+ * then falls back to fetching via the store as before.
+ */
+function readPageEmbed(): PageEmbed | null {
+  const el = document.getElementById('wn-page')
+  if (!el?.textContent) return null
+  try {
+    return JSON.parse(el.textContent) as PageEmbed
+  } catch {
+    return null
   }
 }
 
@@ -38,66 +64,76 @@ async function main(): Promise<void> {
   const container = document.getElementById('wn-app')
   if (!container) return
   const cfg = readShellConfig()
+  const embed = readPageEmbed()
+  const seeded = embed && embed.exists && embed.version !== null
 
   let instance: EditorInstance | null = null
   let currentSlug = cfg.slug
 
-  const store = createApiPageStore({
-    onSaved(page) {
-      instance?.notify({ id: 'wn-save', message: 'Saved', type: 'success', duration: 1500 })
-      document.title = slugDisplayName(page)
-    },
-    onAuthLost() {
-      const target = encodeURIComponent(window.location.pathname)
-      instance?.notify({
-        id: 'wn-auth',
-        message: 'Session expired.',
-        type: 'warning',
-        duration: 0,
-        action: {
-          label: 'Log in',
-          onClick: () => {
-            window.location.href = `/oidc/login?returnTo=${target}`
-          },
-        },
-      })
-    },
-    onConflict(page, server) {
-      const editor = instance
-      if (!editor) return
-      if (!server) {
-        editor.notify({
-          id: 'wn-conflict',
-          message: 'Page was deleted; your edits will recreate it on save.',
+  const store = createApiPageStore(
+    {
+      onSaved(page) {
+        instance?.notify({ id: 'wn-save', message: 'Saved', type: 'success', duration: 1500 })
+        document.title = slugDisplayName(page)
+      },
+      onAuthLost() {
+        const target = encodeURIComponent(window.location.pathname)
+        instance?.notify({
+          id: 'wn-auth',
+          message: 'Session expired.',
           type: 'warning',
           duration: 0,
-        })
-        return
-      }
-      editor.notify({
-        id: 'wn-conflict',
-        message: 'Someone else saved a newer version of this page.',
-        type: 'warning',
-        duration: 0,
-        action: {
-          label: 'Load theirs',
-          onClick: () => {
-            editor.setContent(server.content)
-            editor.notify({
-              id: 'wn-conflict-done',
-              message: 'Loaded the server version.',
-              type: 'info',
-              duration: 2000,
-            })
+          action: {
+            label: 'Log in',
+            onClick: () => {
+              window.location.href = `/oidc/login?returnTo=${target}`
+            },
           },
-        },
-      })
+        })
+      },
+      onConflict(page, server) {
+        const editor = instance
+        if (!editor) return
+        if (!server) {
+          editor.notify({
+            id: 'wn-conflict',
+            message: 'Page was deleted; your edits will recreate it on save.',
+            type: 'warning',
+            duration: 0,
+          })
+          return
+        }
+        editor.notify({
+          id: 'wn-conflict',
+          message: 'Someone else saved a newer version of this page.',
+          type: 'warning',
+          duration: 0,
+          action: {
+            label: 'Load theirs',
+            onClick: () => {
+              editor.setContent(server.content)
+              editor.notify({
+                id: 'wn-conflict-done',
+                message: 'Loaded the server version.',
+                type: 'info',
+                duration: 2000,
+              })
+            },
+          },
+        })
+      },
     },
-  })
+    // Seed the store version from the SSR embed so the first autosave sends
+    // the correct If-Match (avoids a needless 428 → refetch → retry).
+    seeded ? [{ slug: cfg.slug, version: embed.version! }] : [],
+  )
 
   const editor = createEditor(container, {
     pageStore: store,
     initialPage: cfg.slug,
+    // Seed the buffer from the embed so first paint is synchronous.
+    initialContent: seeded ? (embed.content ?? '') : undefined,
+    homeSlug: cfg.homeSlug,
     saveDebounceMs: cfg.autosaveMs,
     onTrailChange: (trail) => {
       const page = trail.length <= 1 ? (trail[0] ?? 'home') : trail.slice(1).join('/')
@@ -121,10 +157,12 @@ async function main(): Promise<void> {
       search.textContent = 'Search'
       actions.appendChild(search)
     }
-    const all = document.createElement('a')
-    all.href = '/all'
-    all.textContent = 'All pages'
-    actions.appendChild(all)
+    if (cfg.allPagesEnabled) {
+      const all = document.createElement('a')
+      all.href = '/all'
+      all.textContent = 'All pages'
+      actions.appendChild(all)
+    }
     const admin = document.createElement('a')
     admin.href = '/admin'
     admin.textContent = 'Admin settings'

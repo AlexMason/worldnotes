@@ -38,7 +38,21 @@ function createTestDOM(): EditorDOM {
   container.appendChild(toolbar)
   container.appendChild(editorWrap)
 
-  return { container, actions, breadcrumb, toolbar, editorWrap, editorDiv, placeholder, overlay: document.createElement('div'), header: document.createElement('div'), body: document.createElement('div'), footer: document.createElement('div'), leftSidepanel: document.createElement('div'), rightSidepanel: document.createElement('div') }
+  return {
+    container,
+    actions,
+    breadcrumb,
+    toolbar,
+    editorWrap,
+    editorDiv,
+    placeholder,
+    overlay: document.createElement('div'),
+    header: document.createElement('div'),
+    body: document.createElement('div'),
+    footer: document.createElement('div'),
+    leftSidepanel: document.createElement('div'),
+    rightSidepanel: document.createElement('div'),
+  }
 }
 
 /**
@@ -182,7 +196,6 @@ describe('createEditorRender: render()', () => {
     const args = contextSpy.mock.calls[0] as [(page: string) => void]
     expect(args[0]).toBe(navigateFn)
   })
-
 })
 
 // ─── createEditorRender: renderBreadcrumb() ─────────────────────────────────────
@@ -270,16 +283,17 @@ describe('createEditorRender: renderBreadcrumb()', () => {
     expect(onTrailChange).toHaveBeenCalledWith(['home', 'about'])
   })
 
-  // Test 11: breadcrumb text uses pageDisplayName
-  it('uses pageDisplayName for crumb text content', () => {
+  // Test 11: root crumb is labelled "Home", path crumbs are humanized slugs
+  it('labels the root crumb Home and humanizes path crumbs', () => {
     const render = createEditorRender(dom, plugins, state, {})
 
-    state.setTrail(['home', 'deep', 'nested', 'page'])
+    state.setTrail(['home', 'deep', 'nested-page'])
     render.renderBreadcrumb()
 
     const crumbs = dom.breadcrumb.querySelectorAll('.wn-crumb')
-    expect(crumbs[1].textContent).toBe('deep')
-    expect(crumbs[3].textContent).toBe('page')
+    expect(crumbs[0].textContent).toBe('Home')
+    expect(crumbs[1].textContent).toBe('Deep')
+    expect(crumbs[2].textContent).toBe('Nested Page')
   })
 })
 
@@ -375,5 +389,110 @@ describe('createEditorRender: 404 toast', () => {
     // Wait for exit animation to complete
     await new Promise((resolve) => setTimeout(resolve, 200))
     expect(document.body.querySelector('.wn-toast')).toBeNull()
+  })
+})
+
+// ─── Stray/unrecognized selections must never hijack the caret ──────────────
+
+describe('caret protection against unrecognized selections', () => {
+  let dom: EditorDOM
+  let plugins: ContentPlugin[]
+  let state: ReturnType<typeof createEditorState>
+
+  const MULTILINE = 'line one\nline two\nline three'
+
+  beforeEach(() => {
+    dom = createTestDOM()
+    plugins = [testPlugin()]
+    state = createEditorState({ initialPage: 'test' })
+    state.getPageBuffers().setPageText('test', MULTILINE)
+  })
+
+  function caretInLine1(): void {
+    const line1 = dom.editorDiv.querySelector('[data-line="1"]')!
+    const range = document.createRange()
+    range.setStart(line1.firstChild!, 3)
+    range.collapse(true)
+    const sel = window.getSelection()!
+    sel.removeAllRanges()
+    sel.addRange(range)
+  }
+
+  it('checkSelectChange ignores a selection anchored outside the editor', () => {
+    const render = createEditorRender(dom, plugins, state, {})
+    render.render(true)
+    caretInLine1()
+    render.checkSelectChange() // moves active line to 1, re-renders
+
+    // Tag the DOM so a rebuild is observable
+    const tagged = dom.editorDiv.querySelector('[data-line="1"]')!
+    tagged.setAttribute('data-marker', 'keep')
+
+    const outside = document.createElement('p')
+    outside.textContent = 'breadcrumb chrome'
+    document.body.appendChild(outside)
+    const range = document.createRange()
+    range.setStart(outside.firstChild!, 2)
+    range.collapse(true)
+    const sel = window.getSelection()!
+    sel.removeAllRanges()
+    sel.addRange(range)
+
+    render.checkSelectChange()
+
+    // No rebuild, and the caret was NOT yanked to line 0
+    expect(dom.editorDiv.querySelector('[data-marker="keep"]')).toBe(tagged)
+    expect(window.getSelection()!.getRangeAt(0).startContainer).toBe(outside.firstChild)
+    document.body.removeChild(outside)
+  })
+
+  it('checkSelectChange ignores transiently empty selections (rebuild race)', () => {
+    const render = createEditorRender(dom, plugins, state, {})
+    render.render(true)
+    caretInLine1()
+    render.checkSelectChange()
+
+    const tagged = dom.editorDiv.querySelector('[data-line="1"]')!
+    tagged.setAttribute('data-marker', 'keep')
+
+    window.getSelection()!.removeAllRanges()
+    render.checkSelectChange()
+
+    expect(dom.editorDiv.querySelector('[data-marker="keep"]')).toBe(tagged)
+  })
+
+  it('non-forced render() with lost selection keeps the caret on its line', () => {
+    const render = createEditorRender(dom, plugins, state, {})
+    render.render(true)
+    caretInLine1()
+    render.checkSelectChange() // activates line 1
+
+    // Selection wiped (e.g. detached nodes mid-rebuild) before a plain render
+    window.getSelection()!.removeAllRanges()
+    render.render()
+
+    const sel = window.getSelection()!
+    expect(sel.rangeCount).toBe(1)
+    const anchor = sel.getRangeAt(0).startContainer
+    let node: Node | null = anchor
+    while (node && !(node instanceof HTMLElement && node.dataset.line)) {
+      node = node.parentNode
+    }
+    expect(node!.textContent).toBe('line two')
+  })
+
+  it('forced render() (page load/switch) still starts at the top', () => {
+    const render = createEditorRender(dom, plugins, state, {})
+    render.render(true)
+    caretInLine1()
+    render.checkSelectChange()
+
+    window.getSelection()!.removeAllRanges()
+    render.render(true) // simulate page switch
+
+    const sel = window.getSelection()!
+    expect(sel.rangeCount).toBe(1)
+    const line0 = dom.editorDiv.querySelector('[data-line="0"]')!
+    expect(line0.contains(sel.getRangeAt(0).startContainer)).toBe(true)
   })
 })

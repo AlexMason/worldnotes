@@ -4,10 +4,10 @@ import type { ContentPlugin, EditorContext } from './types'
 import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
 import type { NotificationSystem } from './notifications'
-import { getLineOffset, setLineOffset } from './caret-offset'
+import { setLineOffset, tryGetLineOffset } from './caret-offset'
 import { renderLines } from './line-renderer'
 import { renderInlineContent } from './renderer'
-import { pageDisplayName } from './navigation'
+import { slugDisplayName } from '../shared/slug'
 
 export interface EditorRenderAPI {
   render(force?: boolean, cursorOffset?: number): void
@@ -32,6 +32,17 @@ function determineActiveLine(raw: string, offset: number): number {
   return line
 }
 
+/** Character offset where `line` starts within `raw`. */
+function lineStartOffset(raw: string, line: number): number {
+  let offset = 0
+  for (let i = 0; i < line; i++) {
+    const next = raw.indexOf('\n', offset)
+    if (next === -1) return raw.length
+    offset = next + 1
+  }
+  return Math.min(offset, raw.length)
+}
+
 export function createEditorRender(
   dom: EditorDOM,
   contentPlugins: ContentPlugin[],
@@ -46,11 +57,18 @@ export function createEditorRender(
   // ── Full render pipeline ──────────────────────────────────────────────────
 
   function render(_force = false, cursorOffset?: number): void {
-    const offset = cursorOffset ?? getLineOffset(editorDiv)
-
     const buffers = state.getPageBuffers()
     const page = state.getCurrentPage()
     const raw = buffers.getPageText(page)
+
+    // An unrecognizable selection (tryGetLineOffset → null: ranges lost to a
+    // DOM swap, selection anchored outside this editor) must NOT snap the
+    // caret to line 0 — keep it at the current active line. Only forced
+    // renders (page load/switch) or a never-placed caret start at the top.
+    const offset =
+      cursorOffset ??
+      tryGetLineOffset(editorDiv) ??
+      (_force || activeLine < 0 ? 0 : lineStartOffset(raw, activeLine))
 
     activeLine = determineActiveLine(raw, offset)
 
@@ -119,7 +137,11 @@ export function createEditorRender(
     const sel = window.getSelection()
     if (!sel || !sel.isCollapsed) return
 
-    const offset = getLineOffset(editorDiv)
+    // Ignore selections we can't map (outside the editor, or transiently
+    // empty during a rebuild) — acting on them would jump the caret to line 0.
+    const offset = tryGetLineOffset(editorDiv)
+    if (offset === null) return
+
     const buffers = state.getPageBuffers()
     const page = state.getCurrentPage()
     const raw = buffers.getPageText(page)
@@ -144,9 +166,10 @@ export function createEditorRender(
         breadcrumb.appendChild(sep)
       }
       const crumb = document.createElement('span')
-      crumb.className =
-        'wn-crumb' + (i === trail.length - 1 ? ' wn-crumb--active' : '')
-      crumb.textContent = pageDisplayName(page)
+      crumb.className = 'wn-crumb' + (i === trail.length - 1 ? ' wn-crumb--active' : '')
+      // Root crumb is always the wiki home (labelled "Home"); path segments
+      // are humanized slugs, matching the viewer's breadcrumb chrome.
+      crumb.textContent = i === 0 ? 'Home' : slugDisplayName(page)
       if (i < trail.length - 1) {
         crumb.addEventListener('click', () => {
           state.truncateTrail(i)

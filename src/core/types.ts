@@ -192,6 +192,20 @@ export type PluginManifest = ContentPlugin | UIPlugin
 export interface EditorOptions {
   pageStore?: PageStore
   initialPage?: string
+  /**
+   * Raw markdown for the initial page, already known to the client (SSR-embedded
+   * in the shell). Seeding the buffer with it lets the editor paint the loaded
+   * page synchronously instead of fetching it on mount. When omitted, the first
+   * load falls back to the PageStore (and to the seeded defaults for new pages).
+   */
+  initialContent?: string
+  /**
+   * The wiki's home page slug (server-configured), used as the breadcrumb
+   * trail root. Defaults to 'home'. Navigation to any other page builds the
+   * trail as [homeSlug, ...pathSegments] so the root crumb always points at
+   * the real home page.
+   */
+  homeSlug?: string | null
   saveDebounceMs?: number
   /**
    * Map of HTTP-style status codes to wiki page names.

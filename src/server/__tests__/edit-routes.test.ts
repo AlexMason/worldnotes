@@ -97,4 +97,41 @@ describe('editor at /{slug}', () => {
     expect(res.statusCode).toBe(404) // page doesn't exist yet
     expect(res.body).not.toContain('id="wn-app"')
   })
+
+  it('embeds page content + version in the shell for an existing page', async () => {
+    const pages = createMemoryPagesRepository()
+    await pages.put('blog/post', { title: 'Post', content: '# Hi\n\nbody', by: 'u1' })
+    const a = await buildApp({ config, pages, relyingParty: null })
+    const res = await a.inject({ method: 'GET', url: '/blog/post', headers: { cookie: auth } })
+    expect(res.statusCode).toBe(200)
+    const page = JSON.parse(
+      /<script id="wn-page" type="application\/json">(.+?)<\/script>/.exec(res.body)![1]!,
+    )
+    expect(page).toMatchObject({ slug: 'blog/post', content: '# Hi\n\nbody', version: 1, exists: true })
+  })
+
+  it('marks a missing page as non-existent in the embed', async () => {
+    const res = await app.inject({ method: 'GET', url: '/nope', headers: { cookie: auth } })
+    const page = JSON.parse(
+      /<script id="wn-page" type="application\/json">(.+?)<\/script>/.exec(res.body)![1]!,
+    )
+    expect(page).toMatchObject({ slug: 'nope', exists: false, content: null, version: null })
+  })
+
+  it('never emits a raw </script> breakout from page content into the shell (XSS guard)', async () => {
+    const evil = 'x </script><script>alert(1)</script>'
+    const pages = createMemoryPagesRepository()
+    await pages.put('evil', { title: 'Evil', content: evil, by: 'u1' })
+    const a = await buildApp({ config, pages, relyingParty: null })
+    const res = await a.inject({ method: 'GET', url: '/evil', headers: { cookie: auth } })
+    // Angle brackets in the payload are unicode-escaped, so no premature
+    // </script> close or executable <script> element appears in the HTML...
+    expect(res.body).not.toContain('<script>alert(1)')
+    expect(res.body).not.toContain('</script><script>')
+    // ...while the JSON embed still round-trips to the exact source content.
+    const page = JSON.parse(
+      /<script id="wn-page" type="application\/json">(.+?)<\/script>/.exec(res.body)![1]!,
+    )
+    expect(page.content).toBe(evil)
+  })
 })

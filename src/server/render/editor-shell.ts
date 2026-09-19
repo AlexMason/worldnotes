@@ -1,8 +1,9 @@
 // ─── Editor SPA shell ────────────────────────────────────────────────────────
 // HTML bootstrap for the client editor, now served directly at /{slug} for
 // authenticated users (the reader serves anonymous visitors). Embeds the page
-// slug, autosave debounce, and chrome hints (search toggle, identity) so the
-// client can build header actions without extra round-trips.
+// slug, autosave debounce, chrome hints (search/all-pages toggles, identity)
+// and the page's markdown + version so the client can build header actions and
+// paint the editor synchronously without extra round-trips.
 
 import { escapeHtml } from './layout'
 import { slugDisplayName } from '../../shared/slug'
@@ -12,8 +13,29 @@ export interface EditorShellOptions {
   assetPrefix: string
   autosaveMs: number
   searchEnabled: boolean
+  /** Configured home page slug (breadcrumb trail root); null = 'home'. */
+  homeSlug: string | null
+  /** Show the "All pages" nav affordance in the editor chrome. */
+  allPagesEnabled: boolean
   userName: string | null
   authDisabled: boolean
+  /**
+   * The page's persisted content + version, embedded so the editor can seed
+   * its buffer and `If-Match` without a fetch on first paint. Null for pages
+   * that do not exist yet (the create-on-save flow then handles them).
+   */
+  page: { content: string; version: number } | null
+}
+
+/**
+ * Serialize `value` for safe inlining inside a `<script type="application/json">`.
+ * Angle brackets are rewritten to their unicode-escape form so page/user
+ * content containing `</script>` can never break out of the element or inject
+ * markup (JSON.parse reverses the escape when the client reads it back).
+ */
+function embedJson(value: unknown, doubleEncode = false): string {
+  const json = doubleEncode ? JSON.stringify(JSON.stringify(value)) : JSON.stringify(value)
+  return json.replace(/</g, '\\u003c')
 }
 
 export function editorShellHtml(slug: string, opts: EditorShellOptions): string {
@@ -21,9 +43,14 @@ export function editorShellHtml(slug: string, opts: EditorShellOptions): string 
     slug,
     autosaveMs: opts.autosaveMs,
     searchEnabled: opts.searchEnabled,
+    allPagesEnabled: opts.allPagesEnabled,
+    homeSlug: opts.homeSlug,
     userName: opts.userName,
     authDisabled: opts.authDisabled,
   }
+  const page = opts.page
+    ? { slug, content: opts.page.content, version: opts.page.version, exists: true }
+    : { slug, content: null, version: null, exists: false }
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -38,7 +65,8 @@ export function editorShellHtml(slug: string, opts: EditorShellOptions): string 
 </head>
 <body>
 <div id="wn-app"></div>
-<script id="wn-config" type="application/json">${JSON.stringify(JSON.stringify(config))}</script>
+<script id="wn-config" type="application/json">${embedJson(config, true)}</script>
+<script id="wn-page" type="application/json">${embedJson(page)}</script>
 <script src="${escapeHtml(opts.assetPrefix)}/client.js" type="module"></script>
 </body>
 </html>`

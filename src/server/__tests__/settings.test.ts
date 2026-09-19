@@ -12,6 +12,12 @@ describe('parseSettings', () => {
     expect(parseSettings({ search_enabled: 'false' }).searchEnabled).toBe(false)
   })
 
+  it('parses all_pages_enabled true/false and defaults to true', () => {
+    expect(parseSettings({ all_pages_enabled: 'false' }).allPagesEnabled).toBe(false)
+    expect(parseSettings({ all_pages_enabled: 'true' }).allPagesEnabled).toBe(true)
+    expect(parseSettings({}).allPagesEnabled).toBe(true)
+  })
+
   it('degrades a corrupt search_enabled value to the default (true)', () => {
     expect(parseSettings({ search_enabled: 'banana' }).searchEnabled).toBe(true)
   })
@@ -33,10 +39,14 @@ describe('parseSettings', () => {
 
 describe('createSettingsService', () => {
   it('loads existing values and returns a defensive copy from get()', async () => {
-    const repo = createMemorySettingsRepository({ search_enabled: 'false', home_slug: 'welcome' })
+    const repo = createMemorySettingsRepository({
+      search_enabled: 'false',
+      home_slug: 'welcome',
+      all_pages_enabled: 'false',
+    })
     const svc = await createSettingsService(repo)
     const s = svc.get()
-    expect(s).toEqual({ searchEnabled: false, homeSlug: 'welcome' })
+    expect(s).toEqual({ searchEnabled: false, homeSlug: 'welcome', allPagesEnabled: false })
     s.searchEnabled = true
     expect(svc.get().searchEnabled).toBe(false)
   })
@@ -45,9 +55,32 @@ describe('createSettingsService', () => {
     const repo = createMemorySettingsRepository()
     const svc = await createSettingsService(repo)
     const next = await svc.update({ searchEnabled: false, homeSlug: 'blog/intro' })
-    expect(next).toEqual({ searchEnabled: false, homeSlug: 'blog/intro' })
+    expect(next).toEqual({ searchEnabled: false, homeSlug: 'blog/intro', allPagesEnabled: true })
     expect(svc.get()).toEqual(next)
-    expect(await repo.getAll()).toEqual({ search_enabled: 'false', home_slug: 'blog/intro' })
+    expect(await repo.getAll()).toEqual({
+      search_enabled: 'false',
+      home_slug: 'blog/intro',
+      all_pages_enabled: 'true',
+    })
+  })
+
+  it('rejects disabling the all-pages listing without a home page', async () => {
+    const repo = createMemorySettingsRepository()
+    const svc = await createSettingsService(repo)
+    await expect(svc.update({ allPagesEnabled: false })).rejects.toThrow(/home page is required/)
+    // With a home page configured, it succeeds…
+    await svc.update({ homeSlug: 'welcome' })
+    const next = await svc.update({ allPagesEnabled: false })
+    expect(next.allPagesEnabled).toBe(false)
+    // …and clearing the home page afterwards is rejected while disabled.
+    await expect(svc.update({ homeSlug: null })).rejects.toThrow(/home page is required/)
+  })
+
+  it('rejects a non-boolean allPagesEnabled', async () => {
+    const svc = await createSettingsService(createMemorySettingsRepository())
+    await expect(
+      svc.update({ allPagesEnabled: 'yes' as unknown as boolean }),
+    ).rejects.toThrow(/boolean/)
   })
 
   it('clears home_slug when set to null/empty', async () => {

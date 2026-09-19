@@ -33,14 +33,9 @@ export function rawLineLength(lineEl: HTMLElement): number {
 
 function getOffsetBeforeLine(el: HTMLElement, lineIndex: number): number {
   let offset = 0
-  const allLines = Array.from(
-    el.querySelectorAll('[data-line]'),
-  ) as HTMLElement[]
+  const allLines = Array.from(el.querySelectorAll('[data-line]')) as HTMLElement[]
   allLines.sort((a, b) => {
-    return (
-      parseInt(a.dataset.line ?? '0', 10) -
-      parseInt(b.dataset.line ?? '0', 10)
-    )
+    return parseInt(a.dataset.line ?? '0', 10) - parseInt(b.dataset.line ?? '0', 10)
   })
 
   for (const line of allLines) {
@@ -52,38 +47,51 @@ function getOffsetBeforeLine(el: HTMLElement, lineIndex: number): number {
 }
 
 export function getLineOffset(el: HTMLElement): number {
+  return tryGetLineOffset(el) ?? 0
+}
+
+/**
+ * The caret's raw-text offset, or null when the current selection cannot be
+ * recognized: no selection/ranges, selection anchored outside this editor,
+ * or an unmappable DOM position. Callers MUST treat null as "ignore this
+ * selection" — silently mapping it to offset 0 would yank the caret to line
+ * 0 on any stray selectionchange (e.g. selecting text in page chrome).
+ */
+export function tryGetLineOffset(el: HTMLElement): number | null {
   const sel = window.getSelection()
-  if (!sel || !sel.rangeCount) return 0
+  if (!sel || !sel.rangeCount) return null
 
   const range = sel.getRangeAt(0)
   const container = range.startContainer
+  if (container !== el && !el.contains(container)) return null
 
   // Walk up to find the [data-line] parent
   let lineEl = container as Node | null
-  while (
-    lineEl &&
-    !(
-      lineEl instanceof HTMLElement &&
-      lineEl.dataset.line !== undefined
-    )
-  ) {
+  while (lineEl && !(lineEl instanceof HTMLElement && lineEl.dataset.line !== undefined)) {
     lineEl = lineEl.parentNode
   }
 
   if (!lineEl || !(lineEl instanceof HTMLElement)) {
+    // Selection anchored on the editor root itself (e.g. a click in the
+    // padding between lines, or select-all placement): map to the raw offset
+    // at the boundary just before the child at that DOM offset.
+    if (container === el) {
+      const kids = Array.from(el.children) as HTMLElement[]
+      const upto = Math.min(range.startOffset, kids.length)
+      let boundary = 0
+      for (let i = 0; i < upto; i++) boundary += rawLineLength(kids[i]!) + 1
+      return boundary
+    }
     // Cursor is in a \n text node between containers.
     let prev = container.previousSibling
-    while (
-      prev &&
-      !(prev instanceof HTMLElement && prev.dataset.line !== undefined)
-    ) {
+    while (prev && !(prev instanceof HTMLElement && prev.dataset.line !== undefined)) {
       prev = prev.previousSibling
     }
     if (prev instanceof HTMLElement && prev.dataset.line !== undefined) {
       const idx = parseInt(prev.dataset.line ?? '0', 10)
       return getOffsetBeforeLine(el, idx) + rawLineLength(prev) + 1
     }
-    return 0
+    return null
   }
 
   const lineIndex = parseInt(lineEl.dataset.line ?? '0', 10)
@@ -95,6 +103,17 @@ export function getLineOffset(el: HTMLElement): number {
 
   function walkLineNodes(node: Node): void {
     if (found) return
+
+    // Caret anchored on an ELEMENT (e.g. range.setStart(lineEl, 0) from
+    // page-load or empty-line placement): offset counts child NODES, so the
+    // raw position is the summed raw length of the first `startOffset` kids.
+    if (node === container && node instanceof HTMLElement) {
+      const kids = Array.from(node.childNodes)
+      const upto = Math.min(range.startOffset, kids.length)
+      for (let i = 0; i < upto; i++) lineOffset += rawSubtreeLength(kids[i]!)
+      found = true
+      return
+    }
 
     if (node.nodeType === Node.TEXT_NODE) {
       const length = (node as Text).length
@@ -144,20 +163,15 @@ export function getLineOffset(el: HTMLElement): number {
 
   walkLineNodes(lineEl)
 
-  return offset + lineOffset
+  return found ? offset + lineOffset : null
 }
 
 export function setLineOffset(el: HTMLElement, targetOffset: number): void {
   let remaining = targetOffset
 
-  const allLines = Array.from(
-    el.querySelectorAll('[data-line]'),
-  ) as HTMLElement[]
+  const allLines = Array.from(el.querySelectorAll('[data-line]')) as HTMLElement[]
   allLines.sort((a, b) => {
-    return (
-      parseInt(a.dataset.line ?? '0', 10) -
-      parseInt(b.dataset.line ?? '0', 10)
-    )
+    return parseInt(a.dataset.line ?? '0', 10) - parseInt(b.dataset.line ?? '0', 10)
   })
 
   for (const lineEl of allLines) {
@@ -173,12 +187,25 @@ export function setLineOffset(el: HTMLElement, targetOffset: number): void {
         range.collapse(true)
         sel.removeAllRanges()
         sel.addRange(range)
-      } else {
-        // Empty line (has <br> placeholder, no text nodes)
+      } else if (lineLen === 0) {
+        // Empty line (has <br> placeholder, no text nodes): caret at start.
         const sel = window.getSelection()
         if (sel) {
           const range = document.createRange()
           range.setStart(lineEl, 0)
+          range.collapse(true)
+          sel.removeAllRanges()
+          sel.addRange(range)
+        }
+      } else {
+        // Offset lands at the line's exact end (no text node covers it —
+        // e.g. a line ending in a data-raw span, or an empty line with just
+        // a <br>): anchor past all children, which getLineOffset maps back
+        // to the line's full raw length.
+        const sel = window.getSelection()
+        if (sel) {
+          const range = document.createRange()
+          range.setStart(lineEl, lineEl.childNodes.length)
           range.collapse(true)
           sel.removeAllRanges()
           sel.addRange(range)
@@ -208,10 +235,7 @@ export function setLineOffset(el: HTMLElement, targetOffset: number): void {
   }
 }
 
-function findTextInNode(
-  el: HTMLElement,
-  offset: number,
-): { node: Text; offset: number } | null {
+function findTextInNode(el: HTMLElement, offset: number): { node: Text; offset: number } | null {
   let remaining = offset
 
   function walk(node: Node): { node: Text; offset: number } | null {
