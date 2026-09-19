@@ -501,30 +501,30 @@ describe('strikethroughPlugin', () => {
   })
 
   it('handles empty content between tildes', () => {
-      const token = createToken('strikethrough', '~~~~', [''])
-      const el = renderPlugin(strikethroughPlugin, token, createContext())
+    const token = createToken('strikethrough', '~~~~', [''])
+    const el = renderPlugin(strikethroughPlugin, token, createContext())
 
-      expect(el.className).toBe('wn-strikethrough')
-      expect(el.dataset.raw).toBe('~~~~')
-      expect(el.childNodes[1].textContent).toBe('')
-    })
-
-    it('falls back to empty string when token.groups is empty (render)', () => {
-      const token = createToken('strikethrough', '~~~~', [])
-      const el = renderPlugin(strikethroughPlugin, token, createContext())
-
-      expect(el.className).toBe('wn-strikethrough')
-      expect(el.childNodes[1].textContent).toBe('')
-    })
-
-    it('falls back to empty string when token.groups is empty (renderToHTML)', () => {
-      const token = createToken('strikethrough', '~~~~', [])
-      const html = strikethroughPlugin.renderToHTML!(token, { renderInline: (t: string) => t })
-
-      expect(html).toContain('class="wn-strikethrough"')
-      expect(html).not.toContain('undefined')
-    })
+    expect(el.className).toBe('wn-strikethrough')
+    expect(el.dataset.raw).toBe('~~~~')
+    expect(el.childNodes[1].textContent).toBe('')
   })
+
+  it('falls back to empty string when token.groups is empty (render)', () => {
+    const token = createToken('strikethrough', '~~~~', [])
+    const el = renderPlugin(strikethroughPlugin, token, createContext())
+
+    expect(el.className).toBe('wn-strikethrough')
+    expect(el.childNodes[1].textContent).toBe('')
+  })
+
+  it('falls back to empty string when token.groups is empty (renderToHTML)', () => {
+    const token = createToken('strikethrough', '~~~~', [])
+    const html = strikethroughPlugin.renderToHTML!(token, { renderInline: (t: string) => t })
+
+    expect(html).toContain('class="wn-strikethrough"')
+    expect(html).not.toContain('undefined')
+  })
+})
 
 // ─── Link Plugin ──────────────────────────────────────────────────────────────
 

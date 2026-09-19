@@ -1,22 +1,10 @@
-import type {
-  ContentPlugin,
-  Token,
-  EditorContext,
-  StaticRenderContext,
-} from '../types'
-import {
-  parseListItem,
-  indentLine,
-  dedentLine,
-} from '../editor-indentation'
+import type { ContentPlugin, Token, EditorContext, StaticRenderContext } from '../types'
+import { parseListItem, indentLine, dedentLine } from '../editor-indentation'
 import { getLineOffset } from '../caret-offset'
 
 import { escapeHTML, escapeAttr } from '../escape'
 
-function renderListItem(
-  token: Token,
-  context: EditorContext,
-): HTMLElement {
+function renderListItem(token: Token, context: EditorContext): HTMLElement {
   const indent = token.groups[0] ?? ''
   const marker = token.groups[1] ?? '-'
   const contentText = token.groups[2] ?? ''
@@ -79,10 +67,7 @@ export const listItemPlugin: ContentPlugin = {
     return html
   },
 
-  onKeydown(
-    event: KeyboardEvent,
-    context: EditorContext,
-  ): { cursorOffset: number } | false | void {
+  onKeydown(event: KeyboardEvent, context: EditorContext): { cursorOffset: number } | false | void {
     if (event.key === 'Tab' && !event.shiftKey) {
       return handleTab(context)
     }

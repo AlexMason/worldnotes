@@ -12,14 +12,18 @@ import type { StaticRenderContext, ContentPlugin, Token } from '../types'
 import { defaultPlugins } from '../plugins/defaults'
 import { headingsPlugin } from '../plugins/headings'
 import { wikiLinkPlugin } from '../plugins/wikiLink'
-import { boldPlugin, italicPlugin, inlineCodePlugin, blockquotePlugin, hrPlugin } from '../plugins/inline'
+import {
+  boldPlugin,
+  italicPlugin,
+  inlineCodePlugin,
+  blockquotePlugin,
+  hrPlugin,
+} from '../plugins/inline'
 import { linkPlugin } from '../plugins/link'
 import { strikethroughPlugin } from '../plugins/strikethrough'
 import { listItemPlugin } from '../plugins/listItem'
 
-const allContentPlugins = defaultPlugins.filter(
-  (p): p is ContentPlugin => p.kind === 'content',
-)
+const allContentPlugins = defaultPlugins.filter((p): p is ContentPlugin => p.kind === 'content')
 
 describe('renderDocumentToHTML', () => {
   it('renders plain text wrapped in div[data-line]', () => {
@@ -49,9 +53,7 @@ describe('renderDocumentToHTML', () => {
       allContentPlugins.flatMap((p) => p.tokens),
     )
     const html = renderDocumentToHTML(tokens, allContentPlugins)
-    expect(html).toBe(
-      '<div data-line="0">line1</div>\n<div data-line="1">line2</div>',
-    )
+    expect(html).toBe('<div data-line="0">line1</div>\n<div data-line="1">line2</div>')
   })
 })
 
@@ -274,9 +276,7 @@ describe('renderDocumentToHTML: horizontal rule', () => {
       [hrPlugin].flatMap((p) => p.tokens),
     )
     const html = renderDocumentToHTML(tokens, [hrPlugin])
-    expect(html).toBe(
-      '<div data-line="0"><span class="wn-hr">---</span></div>',
-    )
+    expect(html).toBe('<div data-line="0"><span class="wn-hr">---</span></div>')
   })
 })
 
@@ -429,10 +429,7 @@ describe('renderInlineHTML: recursive renderInline context', () => {
       },
     }
 
-    const html = renderInlineHTML(
-      '{**bold inside**}',
-      [recursivePlugin, boldPlugin],
-    )
+    const html = renderInlineHTML('{**bold inside**}', [recursivePlugin, boldPlugin])
     expect(html).toContain('class="outer"')
     expect(html).toContain('class="wn-bold"')
   })

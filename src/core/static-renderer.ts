@@ -56,10 +56,7 @@ export function renderLineToHTML(
  * token definitions. Used as the `renderInline` implementation within
  * StaticRenderContext for plugins that need nested rendering.
  */
-export function renderInlineHTML(
-  text: string,
-  contentPlugins: ContentPlugin[],
-): string {
+export function renderInlineHTML(text: string, contentPlugins: ContentPlugin[]): string {
   const inlineDefs = contentPlugins
     .flatMap((p) => p.tokens)
     .filter((d) => !d.pattern.source.startsWith('^'))
@@ -95,10 +92,7 @@ export function renderInlineHTML(
  * Line content is NOT trimmed — the editor's DOM preserves intra-line
  * whitespace (`white-space: pre-wrap`), and reader parity depends on it.
  */
-export function renderDocumentToHTML(
-  lines: Token[][],
-  contentPlugins: ContentPlugin[],
-): string {
+export function renderDocumentToHTML(lines: Token[][], contentPlugins: ContentPlugin[]): string {
   const pluginMap = buildPluginMap(contentPlugins)
   const ctx: StaticRenderContext = {
     renderInline: (text: string) => renderInlineHTML(text, contentPlugins),
@@ -122,10 +116,7 @@ export function renderDocumentToHTML(
  * `plugins` is explicit (not defaulted to `defaultPlugins`) to keep this
  * module free of an import cycle through `plugins/defaults`.
  */
-export function renderDocumentHtml(
-  markdown: string,
-  plugins: ContentPlugin[],
-): string {
+export function renderDocumentHtml(markdown: string, plugins: ContentPlugin[]): string {
   const defs = plugins.flatMap((p) => p.tokens)
   return renderDocumentToHTML(tokenizeDocument(markdown, defs), plugins)
 }

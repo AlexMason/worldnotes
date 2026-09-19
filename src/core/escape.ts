@@ -6,10 +6,7 @@
 
 /** Escape text for HTML character data (`&`, `<`, `>`). */
 export function escapeHTML(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 /** Escape text for a double-quoted HTML attribute value. */
