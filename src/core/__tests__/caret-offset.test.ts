@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect } from 'vitest'
-import { getLineOffset, setLineOffset } from '../caret-offset'
+import { getLineOffset, setLineOffset, tryGetLineOffset } from '../caret-offset'
 
 function setCaretAt(node: Node, offset: number): void {
   const range = document.createRange()
@@ -211,11 +211,7 @@ describe('data-raw elements (wiki links)', () => {
   it('getLineOffset counts raw length of data-raw elements', () => {
     const el = document.createElement('div')
     // "Hello [[world]] !"
-    buildRow(el, [
-      'Hello ',
-      { raw: '[[world]]', dom: 'world' },
-      ' !',
-    ])
+    buildRow(el, ['Hello ', { raw: '[[world]]', dom: 'world' }, ' !'])
     // Cursor at end of ' !' . Raw total: Hello (6) + [[world]] (9) + ! (2) = 17
     const lastText = el.querySelector('[data-line="0"]')!.lastChild as Text
     setCaretAt(lastText, lastText.length)
@@ -225,10 +221,7 @@ describe('data-raw elements (wiki links)', () => {
 
   it('getLineOffset adds raw length when cursor is after data-raw element', () => {
     const el = document.createElement('div')
-    buildRow(el, [
-      { raw: '[[hello]]', dom: 'hello' },
-      ' world',
-    ])
+    buildRow(el, [{ raw: '[[hello]]', dom: 'hello' }, ' world'])
     // Cursor at end of ' world'. Raw total: [[hello]] (9) + world (6) = 15
     const lastText = el.querySelector('[data-line="0"]')!.lastChild as Text
     setCaretAt(lastText, lastText.length)
@@ -238,11 +231,7 @@ describe('data-raw elements (wiki links)', () => {
 
   it('setLineOffset round-trips past data-raw elements', () => {
     const el = document.createElement('div')
-    buildRow(el, [
-      'before ',
-      { raw: '[[mid]]', dom: 'mid' },
-      ' after',
-    ])
+    buildRow(el, ['before ', { raw: '[[mid]]', dom: 'mid' }, ' after'])
     // Raw total: "before " (7) + "[[mid]]" (7) + " after" (6) = 20
     // Set cursor at raw offset 9 (inside "[[mid]]", close to start)
     setLineOffset(el, 17) // end of " after" (7 + 7 + 3 = 17 → wait let me recalculate)
@@ -254,10 +243,7 @@ describe('data-raw elements (wiki links)', () => {
 
   it('setLineOffset handles data-raw for cursor at end of line', () => {
     const el = document.createElement('div')
-    buildRow(el, [
-      'start ',
-      { raw: '[[end]]', dom: 'end' },
-    ])
+    buildRow(el, ['start ', { raw: '[[end]]', dom: 'end' }])
     // "start " = 6, "[[end]]" = 7, total = 13
     setLineOffset(el, 13)
     const after = getLineOffset(el)
@@ -266,9 +252,7 @@ describe('data-raw elements (wiki links)', () => {
 
   it('getLineOffset counts raw length when cursor is inside data-raw element', () => {
     const el = document.createElement('div')
-    buildRow(el, [
-      { raw: '[[hello]]', dom: 'hello' },
-    ])
+    buildRow(el, [{ raw: '[[hello]]', dom: 'hello' }])
     // Place cursor at DOM offset 2 inside "hello" (between 'l' and 'l')
     const span = el.querySelector('[data-raw]')!
     const textNode = span.firstChild as Text
@@ -342,3 +326,50 @@ describe('cursor on \\n text nodes between containers', () => {
   })
 })
 
+describe('tryGetLineOffset — unrecognized selections return null', () => {
+  function buildEditor(): HTMLElement {
+    const el = document.createElement('div')
+    const line0 = document.createElement('div')
+    line0.dataset.line = '0'
+    line0.textContent = 'hello'
+    el.appendChild(line0)
+    const line1 = document.createElement('div')
+    line1.dataset.line = '1'
+    line1.textContent = 'world'
+    el.appendChild(line1)
+    return el
+  }
+
+  it('returns null when the selection has no ranges', () => {
+    const el = buildEditor()
+    const sel = window.getSelection()!
+    sel.removeAllRanges()
+    expect(tryGetLineOffset(el)).toBeNull()
+  })
+
+  it('returns null when the selection is anchored outside the editor', () => {
+    const el = buildEditor()
+    const outside = document.createElement('p')
+    outside.textContent = 'page chrome text'
+    document.body.appendChild(outside)
+
+    setCaretAt(outside.firstChild!, 4)
+    expect(tryGetLineOffset(el)).toBeNull()
+
+    document.body.removeChild(outside)
+  })
+
+  it('getLineOffset keeps its legacy 0 default for unknown selections', () => {
+    const el = buildEditor()
+    const sel = window.getSelection()!
+    sel.removeAllRanges()
+    expect(getLineOffset(el)).toBe(0)
+  })
+
+  it('returns the offset for a valid in-editor selection', () => {
+    const el = buildEditor()
+    const line1 = el.children[1] as HTMLElement
+    setCaretAt(line1.firstChild!, 2)
+    expect(tryGetLineOffset(el)).toBe(5 + 1 + 2) // hello + newline + wo
+  })
+})
