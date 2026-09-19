@@ -13,6 +13,8 @@ export interface EditorShellOptions {
   assetPrefix: string
   autosaveMs: number
   searchEnabled: boolean
+  /** Configured home page slug (breadcrumb trail root); null = 'home'. */
+  homeSlug: string | null
   userName: string | null
   authDisabled: boolean
   /**
@@ -39,6 +41,7 @@ export function editorShellHtml(slug: string, opts: EditorShellOptions): string 
     slug,
     autosaveMs: opts.autosaveMs,
     searchEnabled: opts.searchEnabled,
+    homeSlug: opts.homeSlug,
     userName: opts.userName,
     authDisabled: opts.authDisabled,
   }

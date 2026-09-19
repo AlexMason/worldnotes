@@ -69,7 +69,8 @@ export async function registerPageHtmlRoutes(
 
   function trailFor(slug: string) {
     const crumbs = [{ href: '/', label: 'Home' }]
-    if (slug === 'home') return crumbs
+    const homeSlug = getSettings().homeSlug ?? 'home'
+    if (slug === homeSlug) return crumbs
     const parts = slug.split('/')
     for (let i = 0; i < parts.length; i++) {
       crumbs.push({
@@ -99,6 +100,7 @@ export async function registerPageHtmlRoutes(
         assetPrefix,
         autosaveMs,
         searchEnabled: settings.searchEnabled,
+        homeSlug: settings.homeSlug,
         userName: req.user.name ?? req.user.sub,
         authDisabled: config.authDisabled,
         page: page ? { content: page.content, version: page.version } : null,

@@ -7,6 +7,7 @@ import type { EditorDOM } from '../editor-dom'
 import type { EditorRenderAPI } from '../editor-render'
 import { createEditorNavigation } from '../editor-navigation'
 import { createPageBuffers } from '../page-buffers'
+import { createEditorState } from '../editor-state'
 import { createMemoryPageStore } from '../memory-page-store'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -465,6 +466,36 @@ describe('createEditorNavigation', () => {
       const nav = createEditorNavigation(s, errorStorage, dom, {})
 
       await expect(nav.navigateToPage('any')).rejects.toThrow('network down')
+    })
+  })
+
+  // Regression: opening the editor directly at /blog and navigating to a
+  // child page used to duplicate the segment (crumb: "blog / blog / post").
+  describe('trail rooting (real editor state)', () => {
+    it('roots the trail at home when opened on a nested page', async () => {
+      const realState = createEditorState({ initialPage: 'blog' })
+      const st = mockStorage({ 'blog/post': '# Post\n' })
+      const nav = createEditorNavigation(realState, st, mockDOM(), {})
+      nav.setRenderAPI(mockRender())
+
+      await nav.navigateToPage('blog/post')
+
+      expect(realState.getTrail()).toEqual(['home', 'blog', 'post'])
+      expect(realState.getCurrentPage()).toBe('blog/post')
+    })
+
+    it('roots at the configured home slug when provided', async () => {
+      const realState = createEditorState({ initialPage: 'blog', homeSlug: 'welcome' })
+      expect(realState.getTrail()).toEqual(['welcome', 'blog'])
+
+      const st = mockStorage({ 'welcome': '# Welcome\n', 'blog/post': '# Post\n' })
+      const nav = createEditorNavigation(realState, st, mockDOM(), { homeSlug: 'welcome' })
+      nav.setRenderAPI(mockRender())
+
+      await nav.navigateToPage('welcome')
+
+      expect(realState.getTrail()).toEqual(['welcome'])
+      expect(realState.getCurrentPage()).toBe('welcome')
     })
   })
 })

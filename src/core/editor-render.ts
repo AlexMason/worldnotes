@@ -7,7 +7,7 @@ import type { NotificationSystem } from './notifications'
 import { getLineOffset, setLineOffset } from './caret-offset'
 import { renderLines } from './line-renderer'
 import { renderInlineContent } from './renderer'
-import { pageDisplayName } from './navigation'
+import { slugDisplayName } from '../shared/slug'
 
 export interface EditorRenderAPI {
   render(force?: boolean, cursorOffset?: number): void
@@ -146,7 +146,9 @@ export function createEditorRender(
       const crumb = document.createElement('span')
       crumb.className =
         'wn-crumb' + (i === trail.length - 1 ? ' wn-crumb--active' : '')
-      crumb.textContent = pageDisplayName(page)
+      // Root crumb is always the wiki home (labelled "Home"); path segments
+      // are humanized slugs, matching the viewer's breadcrumb chrome.
+      crumb.textContent = i === 0 ? 'Home' : slugDisplayName(page)
       if (i < trail.length - 1) {
         crumb.addEventListener('click', () => {
           state.truncateTrail(i)

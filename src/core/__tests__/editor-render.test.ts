@@ -270,16 +270,17 @@ describe('createEditorRender: renderBreadcrumb()', () => {
     expect(onTrailChange).toHaveBeenCalledWith(['home', 'about'])
   })
 
-  // Test 11: breadcrumb text uses pageDisplayName
-  it('uses pageDisplayName for crumb text content', () => {
+  // Test 11: root crumb is labelled "Home", path crumbs are humanized slugs
+  it('labels the root crumb Home and humanizes path crumbs', () => {
     const render = createEditorRender(dom, plugins, state, {})
 
-    state.setTrail(['home', 'deep', 'nested', 'page'])
+    state.setTrail(['home', 'deep', 'nested-page'])
     render.renderBreadcrumb()
 
     const crumbs = dom.breadcrumb.querySelectorAll('.wn-crumb')
-    expect(crumbs[1].textContent).toBe('deep')
-    expect(crumbs[3].textContent).toBe('page')
+    expect(crumbs[0].textContent).toBe('Home')
+    expect(crumbs[1].textContent).toBe('Deep')
+    expect(crumbs[2].textContent).toBe('Nested Page')
   })
 })
 

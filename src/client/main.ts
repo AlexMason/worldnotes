@@ -12,6 +12,7 @@ interface ShellConfig {
   slug: string
   autosaveMs: number
   searchEnabled: boolean
+  homeSlug: string | null
   userName: string | null
   authDisabled: boolean
 }
@@ -36,6 +37,7 @@ function readShellConfig(): ShellConfig {
     slug: slugFromPath(window.location.pathname),
     autosaveMs: 1500,
     searchEnabled: true,
+    homeSlug: null,
     userName: null,
     authDisabled: false,
   }
@@ -129,6 +131,7 @@ async function main(): Promise<void> {
     initialPage: cfg.slug,
     // Seed the buffer from the embed so first paint is synchronous.
     initialContent: seeded ? (embed.content ?? '') : undefined,
+    homeSlug: cfg.homeSlug,
     saveDebounceMs: cfg.autosaveMs,
     onTrailChange: (trail) => {
       const page = trail.length <= 1 ? (trail[0] ?? 'home') : trail.slice(1).join('/')

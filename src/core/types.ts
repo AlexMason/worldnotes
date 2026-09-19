@@ -199,6 +199,13 @@ export interface EditorOptions {
    * load falls back to the PageStore (and to the seeded defaults for new pages).
    */
   initialContent?: string
+  /**
+   * The wiki's home page slug (server-configured), used as the breadcrumb
+   * trail root. Defaults to 'home'. Navigation to any other page builds the
+   * trail as [homeSlug, ...pathSegments] so the root crumb always points at
+   * the real home page.
+   */
+  homeSlug?: string | null
   saveDebounceMs?: number
   /**
    * Map of HTTP-style status codes to wiki page names.
