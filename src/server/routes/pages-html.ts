@@ -1,5 +1,5 @@
 // ─── SSR read path: /, /all, /search[/terms], /{slug} ────────────────────────
-// Anonymous visitors receive semantic HTML from the viewer renderer, served
+// Anonymous visitors receive the single-engine (core) render, served
 // from a bounded cache with ETag revalidation. Authenticated visitors receive
 // the client editor shell at /{slug} instead. Registered LAST so the catch-all
 // slug route only sees unmatched paths.

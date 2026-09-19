@@ -15,7 +15,7 @@ import { registerAdminRoutes } from './routes/admin'
 import { registerPageHtmlRoutes } from './routes/pages-html'
 import { registerEditRoutes } from './routes/edit'
 import { createRenderCache, INDEX_CACHE_KEY } from './cache'
-import { createViewerRenderer } from './render/markdown'
+import { createReaderRenderer } from './render/reader'
 import { renderLayout } from './render/layout'
 import type { OidcRelyingParty } from './auth/oidc'
 import fastifyStatic from '@fastify/static'
@@ -94,7 +94,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     config: deps.config,
     pages: deps.pages,
     cache,
-    render: createViewerRenderer(),
+    render: createReaderRenderer(),
     layout: renderLayout,
     assetPrefix: assetsMounted ? '/assets' : '',
     autosaveMs: deps.config.env.AUTOSAVE_DEBOUNCE_MS,

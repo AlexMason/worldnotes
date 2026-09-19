@@ -36,8 +36,7 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/**/*.ts'],
       exclude: [
-        'src/demo.ts',
-        'src/core/index.ts',
+          'src/core/index.ts',
         'src/core/types.ts',
         'src/core/plugins/index.ts',
         'src/core/plugins/defaults.ts',

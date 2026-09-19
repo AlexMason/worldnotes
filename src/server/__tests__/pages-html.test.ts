@@ -37,13 +37,14 @@ describe('SSR pages', () => {
     auth = editorCookie(config)
   })
 
-  it('renders a page as semantic HTML for anonymous readers', async () => {
+  it('renders the editor shape (single engine) for anonymous readers', async () => {
     await repo.put('blog/hello', { title: 'Hello There', content: '# Hello There\n\n**world**' })
     const res = await app.inject({ method: 'GET', url: '/blog/hello' })
     expect(res.statusCode).toBe(200)
     expect(res.headers['content-type']).toContain('text/html')
-    expect(res.body).toContain('<h1>Hello There</h1>')
-    expect(res.body).toContain('<strong>world</strong>')
+    expect(res.body).toContain('<span class="wn-h1">')
+    expect(res.body).toContain('>Hello There<')
+    expect(res.body).toContain('<span class="wn-bold">')
     expect(res.body).toContain('<title>Hello There</title>')
     // breadcrumb from slug segments
     expect(res.body).toContain('/blog')
@@ -190,7 +191,8 @@ describe('home page + search toggle', () => {
     await repo.put('welcome', { title: 'Welcome', content: '# Welcome\n\nhi' })
     const res = await app.inject({ method: 'GET', url: '/' })
     expect(res.statusCode).toBe(200)
-    expect(res.body).toContain('<h1>Welcome</h1>')
+    expect(res.body).toContain('<span class="wn-h1">')
+    expect(res.body).toContain('>Welcome<')
     // /all still shows the index
     const all = await app.inject({ method: 'GET', url: '/all' })
     expect(all.body).toContain('All pages')
@@ -236,7 +238,7 @@ describe('home page + search toggle', () => {
     // Landing at / still serves the home page (reader) without the link.
     const home = await app.inject({ method: 'GET', url: '/' })
     expect(home.statusCode).toBe(200)
-    expect(home.body).toContain('<h1>hi</h1>')
+    expect(home.body).toContain('class="wn-h1"')
     expect(home.body).not.toContain('href="/all"')
 
     // …and a regular page hides it too.
