@@ -56,6 +56,26 @@ describe('SSR pages', () => {
     expect(res.body).toContain('min-height: 44px')
   })
 
+  it('embeds the editor stylesheets without editor chrome', async () => {
+    await repo.put('style', { title: 'S', content: '# T' })
+    const res = await app.inject({ method: 'GET', url: '/style' })
+    // editor tokens + content rules are present…
+    expect(res.body).toContain('--wn-color-punct')
+    expect(res.body).toContain('.wn-punct')
+    expect(res.body).toContain('white-space: pre-wrap')
+    // …and the .wn-root FLEX LAYOUT rule (chrome-only) never reaches the reader
+    expect(res.body).not.toMatch(/\.wn-root\s*\{[^}]*overflow:\s*hidden/)
+    expect(res.body).not.toMatch(/\.wn-root\s*\{[^}]*height:\s*100%/)
+    // article carries wn-root so editor tokens resolve inside it
+    expect(res.body).toContain('<article class="wn-root wn-article">')
+  })
+
+  it('preserves leading whitespace on the read path (pre-wrap parity)', async () => {
+    await repo.put('ws', { title: 'WS', content: '   three spaces in' })
+    const res = await app.inject({ method: 'GET', url: '/ws' })
+    expect(res.body).toContain('<div data-line="0">   three spaces in</div>')
+  })
+
   it('serves the editor shell (not the reader) to authenticated users', async () => {
     await repo.put('page', { title: 'P', content: 'x' })
     const res = await app.inject({ method: 'GET', url: '/page', headers: { cookie: auth } })

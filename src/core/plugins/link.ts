@@ -92,13 +92,13 @@ export const linkPlugin: ContentPlugin = {
       case 'external': {
         if (!isSafeHref(url)) return escapeHTML(token.raw) // javascript:, data:, //host, …
         if (isHttpish(url)) {
-          return `<a class="wn-link" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer nofollow">${label}</a>`
+          return `<a class="wn-link" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer nofollow" data-raw="${escapeAttr(token.raw)}">${label}</a>`
         }
         // mailto: etc. — no new-tab, no nofollow
-        return `<a class="wn-link" href="${escapeAttr(url)}" rel="noopener noreferrer">${label}</a>`
+        return `<a class="wn-link" href="${escapeAttr(url)}" rel="noopener noreferrer" data-raw="${escapeAttr(token.raw)}">${label}</a>`
       }
       case 'same-doc': {
-        return `<a class="wn-link" href="${escapeAttr(url)}">${label}</a>`
+        return `<a class="wn-link" href="${escapeAttr(url)}" data-raw="${escapeAttr(token.raw)}">${label}</a>`
       }
       case 'internal': {
         const slug = wikiTargetToSlug(url)

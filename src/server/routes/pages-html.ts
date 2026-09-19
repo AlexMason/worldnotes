@@ -145,7 +145,7 @@ export async function registerPageHtmlRoutes(
         return respond(reply, { html, etag: hashEtag(html) }, 404)
       }
       title = page.title
-      articleHtml = `<article class="wn-article">${render.render(page.content)}</article>`
+      articleHtml = `<article class="wn-root wn-article">${render.render(page.content)}</article>`
       cache.set(`p:${slug}`, {
         value: { title, article: articleHtml },
         etag: hashEtag(articleHtml),

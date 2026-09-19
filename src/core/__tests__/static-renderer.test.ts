@@ -53,7 +53,7 @@ describe('renderDocumentToHTML', () => {
       allContentPlugins.flatMap((p) => p.tokens),
     )
     const html = renderDocumentToHTML(tokens, allContentPlugins)
-    expect(html).toBe('<div data-line="0">line1</div>\n<div data-line="1">line2</div>')
+    expect(html).toBe('<div data-line="0">line1</div><div data-line="1">line2</div>')
   })
 })
 

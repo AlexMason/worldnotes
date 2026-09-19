@@ -91,6 +91,8 @@ export function renderInlineHTML(text: string, contentPlugins: ContentPlugin[]):
  * Each line becomes a div[data-line] container matching the editor DOM.
  * Line content is NOT trimmed — the editor's DOM preserves intra-line
  * whitespace (`white-space: pre-wrap`), and reader parity depends on it.
+ * Line divs are joined with no separator: any inter-div whitespace text
+ * node would materialize as a blank line under `pre-wrap`.
  */
 export function renderDocumentToHTML(lines: Token[][], contentPlugins: ContentPlugin[]): string {
   const pluginMap = buildPluginMap(contentPlugins)
@@ -108,7 +110,7 @@ export function renderDocumentToHTML(lines: Token[][], contentPlugins: ContentPl
     }
   }
 
-  return parts.join('\n')
+  return parts.join('')
 }
 
 /**
