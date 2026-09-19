@@ -1,5 +1,20 @@
 # Project State
 
+> **⚠️ PIVOTED (2026-09-19).** WorldNotes is no longer a client-side
+> collaborative editor library. It is now a self-hosted Fastify + PostgreSQL
+> markdown wiki server: OIDC-authenticated users edit (autosave, If-Match
+> conflicts); anonymous visitors get cached server-rendered HTML at nested
+> slug URLs. Yjs/multiplayer, npm library packaging, browser storage
+> adapters, and export/import were **removed**; the plugin model survives
+> only internally. Decisions and history:
+> `.pi/docs/plans/worldnotes-server-pivot.md`.
+>
+> The phase/velocity records below are kept as an archive of the library era
+> and do NOT describe the current focus. Current focus: ship the server
+> pivot (branch `feature/server-pivot`).
+
+
+
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-23)

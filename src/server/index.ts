@@ -15,7 +15,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 async function main(): Promise<void> {
   const config = loadConfig()
   const pool = createPool(config.env.DATABASE_URL)
-  const migrationsDir = process.env.MIGRATIONS_DIR ?? resolve(here, '../../../migrations')
+  const migrationsDir = process.env.MIGRATIONS_DIR ?? resolve(here, '../../migrations')
 
   const applied = await runMigrations(pool, migrationsDir)
   if (applied.length) console.warn(`applied migrations: ${applied.join(', ')}`)

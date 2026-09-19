@@ -1,62 +1,35 @@
-# worldnotes Overview
+# WorldNotes — Project Overview
 
-`worldnotes` is a browser-based inline Markdown editor for building small, linked writing spaces. It renders formatting as you type, treats `[[wiki links]]` as navigable pages, and persists page content through a pluggable storage adapter. A static HTML render pipeline (`renderDocumentToHTML`) produces the same output as strings — usable in Node.js, SSR, or build pipelines. Supports real-time multi-user editing via WebSocket-based CRDT sync.
+**What it is.** A self-hosted, single-binary-style markdown wiki: PostgreSQL
+for storage, generic OIDC for auth, Fastify for serving. Anonymous visitors
+read fast cached server-rendered HTML; logged-in users edit with an inline
+WYSIWYG markdown editor that autosaves with conflict detection. Pages nest by
+slug (`/blog/post-name`) and wiki links (`[[Page]]`) are real URLs with a
+create-on-missing flow.
 
-## When to Use It
+**History.** WorldNotes began as an extensible client-side collaborative editor
+library (Yjs CRDT sync, pluggable storage backends, npm packaging). It pivoted
+to this server application: multiplayer, the library surface, and browser
+storage adapters were removed; the editor survives as the authenticated edit
+surface of the app. The full decision record lives in
+`.pi/docs/plans/worldnotes-server-pivot.md`.
 
-Use `worldnotes` when you want an embeddable editor for personal notes, lightweight knowledge bases, project notebooks, or local-first writing tools. It is intentionally small: the library owns the editable DOM, inline rendering, wiki-style navigation, and persistence hooks, while your application owns the surrounding UI.
+**Core invariants.**
 
-## Installation and Setup
+1. Readers never execute author markup: `html:false`, scheme-allowlisted
+   hrefs, escaped everything.
+2. Editors never lose work silently: versioned writes (`If-Match`/409) with an
+   explicit conflict choice.
+3. URLs are content: slug = address; no query strings, `/p/` prefixes, or
+   `?path=` trails.
+4. The browser editor and the server read path are deliberately separate
+   renderers sharing markdown + slug semantics, never edit-preview HTML.
 
-Install the package, then mount an editor into an existing element:
+**Non-goals.** Multi-user simultaneous editing, revision history, horizontal
+scale-out (single process), npm library distribution, email/password auth,
+per-user ACLs.
 
-```ts
-import { createEditor } from 'worldnotes'
-
-const editor = await createEditor(document.getElementById('app')!)
-  .mount()
-```
-
-For local development in this repository:
-
-```bash
-npm install
-npm run dev
-npm run build
-```
-
-## Core Concepts
-
-`createEditor()` returns an `EditorBuilder`. Use the builder to register plugins, choose storage, and mount the editor.
-
-Pages are plain Markdown strings keyed by page name. Typing `[[projects/acme]]` creates a clickable link that navigates to the `projects/acme` page and displays `acme` by default. Use `[[projects/acme|Client Portal]]` for custom display text.
-
-The navigation trail is shown as breadcrumbs and serialized into the URL query string as `?path=...`, so refreshing the browser restores the current trail.
-
-## Typical Configuration
-
-```ts
-import { createEditor, IndexedDBAdapter } from 'worldnotes'
-
-const editor = await createEditor(document.getElementById('app')!, {
-  initialPage: 'home',
-  saveDebounceMs: 800,
-  onTrailChange: (trail) => console.log('trail:', trail),
-  onPageLoad: (page, content) => console.log('loaded:', page, content),
-  onSave: (page, content) => console.log('saved:', page, content),
-})
-  .withStorage(new IndexedDBAdapter('my-world'))
-  .mount()
-```
-
-## Built-In Editing Features
-
-The default plugin set supports wiki links, `#` through `###` headings, `**bold**`, `*italic*`, `~~strikethrough~~`, `` `inline code` ``, `> blockquotes`, `---` horizontal rules, and autolinked URLs.
-
-Undo/redo is backed by a per-page Yjs CRDT (`Y.UndoManager`). Pass `syncServer` to enable real-time collaborative editing with remote cursor awareness.
-
-The editor injects default `--wn-*` CSS design tokens on first mount. Override them on a parent element, or pass a `theme` string for full stylesheet replacement. See [theming.md](./theming.md) for the full token reference.
-
-## Where to Go Next
-
-Read [`api.md`](./api.md) for exported functions, types, plugin authoring, storage adapters, sync, import/export, and static HTML rendering. Read [`architecture.md`](./architecture.md) if you want to contribute to the library or understand how the editor pipeline works. Read [`theming.md`](./theming.md) for the design token system and full theme replacement.
+**Status.** Feature-complete for v1 of the server pivot (Phase 1). Future
+directions: shared cache/locks for multi-instance, image/binary attachments,
+import from the old zip exports, RP-initiated provider logout wiring, viewer
+search highlighting.

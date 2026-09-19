@@ -1,225 +1,89 @@
-# worldnotes
+# WorldNotes
 
-An extensible inline-markdown editor with wiki-style navigation, real-time sync, and CRDT-backed persistence.  
-Type markdown and it renders in place — `[[links]]` navigate between pages, everything persists to your chosen storage backend. Supports undirected real-time multi-user editing via Yjs WebSocket sync.
+A self-hosted markdown wiki with wiki-style navigation.
 
----
+- **Anonymous visitors** get fast, cached, **server-rendered semantic HTML** — no
+  JavaScript required for reading.
+- **Authenticated users** (any OIDC provider) get an **inline WYSIWYG markdown
+  editor** that autosaves as you type, with conflict detection.
+- Pages live at **nested slugs**: `/blog`, `/blog/post-name`. Wiki links
+  (`[[Some Page]]`) resolve to real URLs; missing pages offer a **create** flow.
+- Content is stored in **PostgreSQL**. Single process; no external cache needed.
 
-## Quick start
+> WorldNotes was previously published as a client-side collaborative editor
+> library. The project pivoted to this server model: multiplayer/Yjs was
+> removed, packaging stopped, and the editor now ships as the app's authenticated
+> edit surface. See `docs/architecture.md`.
+
+## Quick start (development)
 
 ```bash
 npm install
-npm run dev      # Vite dev server with the demo
-npm run build    # Build the library to dist/
+
+# 1. Start Postgres
+docker run --rm --name wn-db -e POSTGRES_HOST_AUTH_METHOD=trust \
+  -e POSTGRES_DB=worldnotes -p 5432:5432 -d postgres:16
+
+# 2. Build the client bundle (also: npm run dev:client for watch mode)
+npm run build
+
+# 3. Run the server with auth bypassed (a fake editor identity is injected)
+AUTH_DISABLED=1 NODE_ENV=development \
+  DATABASE_URL=postgres://postgres@localhost:5432/worldnotes \
+  npm run dev
 ```
 
-## Documentation
+Open <http://localhost:3000>. Migrations (including a seeded `home` page) run
+automatically at boot. Edit at `/edit/home` — changes autosave.
 
-- [Overview](./docs/overview.md): what `worldnotes` is, setup, core concepts, and typical usage.
-- [API reference](./docs/api.md): editor options, builder methods, instance methods, plugins, storage adapters, sync, import/export, and exported types.
-- [Architecture](./docs/architecture.md): module responsibilities, editor lifecycle, rendering pipeline, CRDT model, navigation model, and contributor notes.
-- [Theming](./docs/theming.md): design token reference, token overrides, and full theme replacement.
+## Configuration
 
----
+Copy `.env.example` and set the values; every knob is an environment variable,
+validated at boot (`src/server/config.ts`).
 
-## Usage
-
-```ts
-import { createEditor } from 'worldnotes'
-
-const editor = await createEditor(document.getElementById('app'))
-  .mount()
-```
-
-### With options
-
-```ts
-import { createEditor, IndexedDBAdapter } from 'worldnotes'
-
-const editor = await createEditor(document.getElementById('app'), {
-  initialPage: 'home',
-  saveDebounceMs: 800,
-  onTrailChange: (trail) => console.log('trail:', trail),
-  onSave: (page, content) => console.log('saved', page),
-})
-  .withStorage(new IndexedDBAdapter('my-world'))
-  .mount()
-```
-
----
-
-## API
-
-### `createEditor(el, options?)`
-
-Returns an `EditorBuilder`. Chain `.use()`, `.withStorage()`, then await `.mount()`.
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `storage` | `StorageAdapter` | `LocalStorageAdapter` | Where pages are persisted |
-| `initialPage` | `string` | `'home'` | Page to load on mount |
-| `saveDebounceMs` | `number` | `600` | Ms to debounce saves after input |
-| `historyDepth` | `number` | `50` | Max undo states per page (FIFO eviction) |
-| `theme` | `string` | — | CSS string to replace the entire default stylesheet |
-| `syncServer` | `string` | — | WebSocket URL for real-time collaborative sync (e.g. `ws://localhost:1234`) |
-| `onTrailChange` | `(trail: string[]) => void` | — | Called on breadcrumb changes |
-| `onPageLoad` | `(page, content) => void` | — | Called after a page loads |
-| `onSave` | `(page, content) => void` | — | Called after a save completes |
-
-### `EditorBuilder`
-
-| Method | Description |
+| Variable | Meaning |
 |---|---|
-| `.use(plugin)` | Register or replace a plugin |
-| `.clearPlugins()` | Remove all default plugins |
-| `.withStorage(adapter)` | Swap the storage backend |
-| `.mount()` | Mount the editor and return a `Promise<EditorInstance>` (must be `await`ed) |
+| `PORT`, `HOST` | Listen address (default `3000`, `0.0.0.0`) |
+| `DATABASE_URL` | Postgres connection string |
+| `OIDC_ISSUER` | Provider issuer URL (`.well-known` discovery) |
+| `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | Registered client credentials |
+| `OIDC_REDIRECT_URL` | `<your-host>/oidc/callback`, registered at the provider |
+| `SESSION_SECRETS` | Comma-separated AES keys (each ≥ 32 chars); first key seals, all keys open → rotation |
+| `SESSION_MAX_AGE_SECONDS` | Session lifetime (default 8 h) |
+| `CACHE_MAX_ENTRIES` / `CACHE_TTL_SECONDS` | Bounded SSR render cache |
+| `AUTOSAVE_DEBOUNCE_MS` | Editor idle time before a save PUT (default 1500) |
+| `AUTH_DISABLED=1` | **Development only** — fake editor user; refused when `NODE_ENV=production` |
 
-### `EditorInstance`
+Auth model: **any account the OIDC provider lets in may edit.** Gate who can
+obtain an account at the provider (or a reverse-proxy layer) to restrict
+writing.
 
-```ts
-editor.navigate('some-page')     // programmatic navigation
-editor.getCurrentPage()          // → 'some-page'
-editor.getTrail()                // → ['home', 'some-page']
-editor.getContent()              // raw markdown string
-editor.setContent('# Hello')    // replace current page content
-editor.undo()                    // undo last change (→ true if performed)
-editor.redo()                    // redo last undone change
-editor.canUndo()                 // → true if undo stack non-empty
-editor.canRedo()                 // → true if redo stack non-empty
-editor.insertText('hello')      // insert text at cursor, dispatching input
-editor.deleteForward()           // delete one character after cursor
-editor.deleteBackward()          // delete one character before cursor
-editor.getSelection()            // → { text, start, end } or null
-editor.getDoc()                  // → Y.Doc (for advanced CRDT access)
-editor.destroy()                 // tear down, remove listeners
+## Deployment (Docker)
+
+```bash
+docker compose up --build -d
 ```
 
-Keyboard shortcuts: `Ctrl/⌘+Z` (undo), `Ctrl/⌘+Shift+Z` (redo), `Ctrl+Y` (redo). Tab inserts 2 spaces. Undo/redo history is per-page.
+`docker-compose.yml` runs the app plus Postgres; required env vars come from
+your shell or an `.env` file (`SESSION_SECRETS` and the `OIDC_*` values are
+mandatory — generate a secret with `openssl rand -hex 32`).
 
----
+Sessions are stored in an encrypted cookie and the render cache is in-process,
+so run **one app instance**. Multiple instances behind a load balancer will
+serve slightly stale reads within the cache TTL — acceptable, but a shared
+cache (Redis) is the natural next step if you scale.
 
-## Built-in plugins
+## Commands
 
-| Export | Syntax | Renders |
-|---|---|---|
-| `wikiLinkPlugin` | `[[page name]]`, `[[page name\|display text]]` | Clickable navigation link |
-| `headingsPlugin` | `# h1` `## h2` `### h3` | Styled heading |
-| `boldPlugin` | `**text**` | Bold |
-| `italicPlugin` | `*text*` | Italic |
-| `strikethroughPlugin` | `~~text~~` | Strikethrough |
-| `inlineCodePlugin` | `` `code` `` | Code span |
-| `blockquotePlugin` | `> text` | Blockquote |
-| `hrPlugin` | `---` | Horizontal rule |
-| `linkPlugin` | URL-like text (autolink) | Clickable external link |
-| `remoteCursorsPlugin` | (no syntax) | Remote user cursors for real-time sync |
+| Command | Purpose |
+|---|---|
+| `npm test` | Vitest (dom + node projects) |
+| `npm run test:coverage` | Tests with 80 % thresholds |
+| `npm run typecheck` | tsc across core / client / server configs |
+| `npm run lint` | ESLint |
+| `npm run build` | typecheck + client bundle → `dist/client/` |
+| `npm run dev` | server with hot reload (`tsx watch`) |
+| `npm run dev:client` | client bundle watch mode |
 
-`defaultPlugins` is the array containing all of the above, pre-ordered.
-
-Wiki links can target nested page names. `[[projects/acme]]` navigates to the
-`projects/acme` page but displays as `acme`. Use pipe syntax for custom display
-text, for example `[[projects/acme|Client Portal]]`.
-
-The active breadcrumb trail is serialized to the URL as `?path=...`, so a page
-refresh restores the same navigation path.
-
----
-
-## Writing a custom plugin
-
-```ts
-import type { Plugin, Token, EditorContext } from 'worldnotes'
-
-const mentionPlugin: Plugin = {
-  name: 'mention',
-
-  tokens: [
-    {
-      type: 'mention',
-      pattern: /@(\w+)/,   // inline pattern (no ^ anchor)
-    },
-  ],
-
-  render(token: Token, context: EditorContext): HTMLElement {
-    const el = document.createElement('span')
-    el.className = 'my-mention'
-    el.textContent = `@${token.groups[0]}`
-    return el
-  },
-
-  // Optional: intercept clicks on this token
-  onNavigate(token: Token, context: EditorContext): true {
-    console.log('clicked mention:', token.groups[0])
-    return true   // return true to suppress default behaviour
-  },
-}
-
-// Register it
-await createEditor(el).use(mentionPlugin).mount()
-```
-
-### Pattern rules
-
-- **Inline tokens**: plain regex, no `^` anchor. The tokenizer scans left-to-right and finds the earliest match.
-- **Line-level tokens**: anchor with `^` (e.g. `^# (.*)`). These are tested against the whole line before inline scanning begins.
-- Do **not** use the `g` flag — patterns are used with `.match()` per-segment.
-
----
-
-## Storage adapters
-
-### `LocalStorageAdapter(namespace?)`
-
-Default. Namespaces keys as `namespace::pageName`.
-
-### `IndexedDBAdapter(dbName?)`
-
-Better for large worlds. Opens (or creates) an IDB object store automatically.
-
-### Custom adapter
-
-```ts
-import type { StorageAdapter } from 'worldnotes'
-
-class MyAdapter implements StorageAdapter {
-  async get(key: string): Promise<string | null> { ... }
-  async set(key: string, value: string): Promise<void> { ... }
-  async keys(): Promise<string[]> { ... }
-}
-
-await createEditor(el).withStorage(new MyAdapter()).mount()
-```
-
----
-
-## Styling
-
-The library injects a default `--wn-*` design-token-driven stylesheet into `<head>` on first mount.
-Customize via two mechanisms:
-
-### 1. Design token overrides (CSS custom properties)
-
-Override individual `--wn-*` properties on a parent element of the editor container:
-
-```css
-/* Make wiki links teal instead of purple */
-.editor-container {
-  --wn-color-wiki-link: #2ec4b6;
-  --wn-color-wiki-link-bg: #0a2520;
-  --wn-color-wiki-link-border: #1a5048;
-  --wn-color-accent: #2ec4b6;
-  --wn-caret-color: #2ec4b6;
-}
-```
-
-For the full list of design tokens, see [docs/theming.md](./docs/theming.md).
-
-### 2. Full theme replacement
-
-Pass a complete CSS string via the `theme` option to replace the entire default stylesheet:
-
-```ts
-const editor = await createEditor(el, {
-  theme: '.wn-root { --wn-color-bg: #fff; --wn-color-fg: #111; } ...'
-}).mount()
-```
+Postgres-backed integration tests run when `WN_TEST_PG_URL` points at a
+reachable database (CI provides a service container).

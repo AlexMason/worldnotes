@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: worldnotes
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change-me}
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d worldnotes"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOST: 0.0.0.0
+      DATABASE_URL: postgres://postgres:${DB_PASSWORD:-change-me}@db:5432/worldnotes
+      OIDC_ISSUER: ${OIDC_ISSUER:?set OIDC_ISSUER}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?set OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?set OIDC_CLIENT_SECRET}
+      OIDC_REDIRECT_URL: ${OIDC_REDIRECT_URL:?set OIDC_REDIRECT_URL}
+      SESSION_SECRETS: ${SESSION_SECRETS:?set SESSION_SECRETS (32+ chars, comma-separated for rotation)}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  dbdata:
