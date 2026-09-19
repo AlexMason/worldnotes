@@ -4,12 +4,13 @@ export { createEditor, EditorBuilder } from './editor'
 // ─── Tokenizer ────────────────────────────────────────────────────────────────
 export { tokenizeLine, scanInline, tokenizeDocument } from './tokenizer'
 
-// ─── Static HTML Renderer ─────────────────────────────────────────────────────
+// ─── Static HTML Renderer (reader engine — DOM-free) ─────────────────────────
 export {
   renderLineToHTML,
   renderInlineHTML,
   renderDocumentToHTML,
-} from './renderer'
+  renderDocumentHtml,
+} from './static-renderer'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type {

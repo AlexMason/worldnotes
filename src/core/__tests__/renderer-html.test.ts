@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect } from 'vitest'
-import { renderDocumentToHTML, renderInlineHTML, renderLineToHTML } from '../renderer'
+import { renderDocumentToHTML, renderInlineHTML, renderLineToHTML } from '../static-renderer'
 import { tokenizeDocument } from '../tokenizer'
 import type { StaticRenderContext, ContentPlugin, Token } from '../types'
 import { defaultPlugins } from '../plugins/defaults'

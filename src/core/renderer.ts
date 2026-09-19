@@ -1,12 +1,11 @@
-import type { Token, ContentPlugin, EditorContext, StaticRenderContext } from './types'
-import { scanInline } from './tokenizer'
+// ─── Interactive DOM renderer ────────────────────────────────────────────────
+// Builds decorated DocumentFragments for the editor surface. The DOM-free
+// string-output sibling (the reader's engine) lives in `static-renderer.ts`;
+// both consume the same tokenizer + plugin grammar.
 
-function escapeHTML(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-}
+import type { Token, ContentPlugin, EditorContext } from './types'
+import { scanInline } from './tokenizer'
+import { buildPluginMap } from './plugin-map'
 
 /**
  * Build a decorated DOM fragment for a single line of tokens.
@@ -98,23 +97,6 @@ export function renderDocument(
 }
 
 /**
- * Build a Map from token type name → ContentPlugin for O(1) lookup during rendering.
- * Each TokenDef type is mapped to its owning plugin.
- *
- * @param plugins - Registered ContentPlugin instances
- * @returns       - Map<tokenType, ContentPlugin>
- */
-function buildPluginMap(plugins: ContentPlugin[]): Map<string, ContentPlugin> {
-  const map = new Map<string, ContentPlugin>()
-  for (const plugin of plugins) {
-    for (const def of plugin.tokens) {
-      map.set(def.type, plugin)
-    }
-  }
-  return map
-}
-
-/**
  * Tokenize raw text using only inline-level token definitions and render
  * through the corresponding content plugins. This allows line-level plugins
  * (headings, blockquotes) to render inline markdown within their content.
@@ -163,99 +145,4 @@ export function renderInlineContent(
   }
 
   return fragment
-}
-
-/**
- * Render a single line of tokens as an HTML string.
- * Falls back to escaped raw text for unknown token types or plugins that
- * do not implement `renderToHTML`.
- */
-export function renderLineToHTML(
-  tokens: Token[],
-  contentPlugins: ContentPlugin[],
-  context: StaticRenderContext,
-): string {
-  const pluginMap = buildPluginMap(contentPlugins)
-  const parts: string[] = []
-
-  for (const token of tokens) {
-    if (token.type === 'text') {
-      parts.push(escapeHTML(token.raw))
-      continue
-    }
-
-    const plugin = pluginMap.get(token.type)
-    if (!plugin || !plugin.renderToHTML) {
-      parts.push(escapeHTML(token.raw))
-      continue
-    }
-
-    parts.push(plugin.renderToHTML(token, context))
-  }
-
-  return parts.join('')
-}
-
-/**
- * Render inline markdown text as an HTML string using only inline-level
- * token definitions. Used as the `renderInline` implementation within
- * StaticRenderContext for plugins that need nested rendering.
- */
-export function renderInlineHTML(
-  text: string,
-  contentPlugins: ContentPlugin[],
-): string {
-  const inlineDefs = contentPlugins
-    .flatMap((p) => p.tokens)
-    .filter((d) => !d.pattern.source.startsWith('^'))
-
-  const tokens = scanInline(text, inlineDefs)
-  const pluginMap = buildPluginMap(contentPlugins)
-  const parts: string[] = []
-
-  for (const token of tokens) {
-    if (token.type === 'text') {
-      parts.push(escapeHTML(token.raw))
-      continue
-    }
-
-    const plugin = pluginMap.get(token.type)
-    if (!plugin || !plugin.renderToHTML) {
-      parts.push(escapeHTML(token.raw))
-      continue
-    }
-
-    const ctx: StaticRenderContext = {
-      renderInline: (t: string) => renderInlineHTML(t, contentPlugins),
-    }
-    parts.push(plugin.renderToHTML(token, ctx))
-  }
-
-  return parts.join('')
-}
-
-/**
- * Render a full tokenized document as an HTML string.
- * Each line is wrapped in a div[data-line] container matching the editor DOM.
- */
-export function renderDocumentToHTML(
-  lines: Token[][],
-  contentPlugins: ContentPlugin[],
-): string {
-  const parts: string[] = []
-
-  for (let i = 0; i < lines.length; i++) {
-    const ctx: StaticRenderContext = {
-      renderInline: (text: string) => renderInlineHTML(text, contentPlugins),
-    }
-    const lineHTML = renderLineToHTML(lines[i], contentPlugins, ctx)
-    const trimmed = lineHTML.trim()
-    if (trimmed) {
-      parts.push(`<div data-line="${i}">${trimmed}</div>`)
-    } else {
-      parts.push(`<div data-line="${i}"><br></div>`)
-    }
-  }
-
-  return parts.join('\n')
 }
