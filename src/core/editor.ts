@@ -157,6 +157,7 @@ async function mountEditor(
     onTrailChange: options.onTrailChange,
     statusPages: options.statusPages,
     showCreateOverlay: options.showCreateOverlay,
+    homeLabel: options.homeLabel,
     notifications,
   }
   const render = createEditorRender(dom, contentPlugins, state, renderOpts)

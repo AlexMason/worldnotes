@@ -295,6 +295,18 @@ describe('createEditorRender: renderBreadcrumb()', () => {
     expect(crumbs[1].textContent).toBe('Deep')
     expect(crumbs[2].textContent).toBe('Nested Page')
   })
+
+  // Test 11b: homeLabel option (site branding) replaces the root crumb label
+  it('labels the root crumb with homeLabel when provided', () => {
+    const render = createEditorRender(dom, plugins, state, { homeLabel: 'Acme KB' })
+
+    state.setTrail(['home', 'about'])
+    render.renderBreadcrumb()
+
+    const crumbs = dom.breadcrumb.querySelectorAll('.wn-crumb')
+    expect(crumbs[0].textContent).toBe('Acme KB')
+    expect(crumbs[1].textContent).toBe('About')
+  })
 })
 
 // ─── createEditorRender: Module shape ───────────────────────────────────────────

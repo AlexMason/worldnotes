@@ -289,6 +289,11 @@ export interface EditorOptions {
    * the real home page.
    */
   homeSlug?: string | null
+  /**
+   * Label for the breadcrumb root crumb (the site name, when branded).
+   * Defaults to 'Home'.
+   */
+  homeLabel?: string
   saveDebounceMs?: number
   /**
    * Map of HTTP-style status codes to wiki page names.

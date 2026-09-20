@@ -6,7 +6,8 @@
 // index/search/admin); it must not restyle anything the editor classes own.
 
 import type { SessionUser } from '../auth/session'
-import { EDITOR_TOKENS_CSS, EDITOR_CONTENT_CSS } from '../../core/styles'
+import { EDITOR_TOKENS_CSS, EDITOR_CONTENT_CSS, SITE_BANDS_CSS } from '../../core/styles'
+import { composeDocTitle } from '../../shared/doc-title'
 
 export function escapeHtml(text: string): string {
   return text
@@ -55,6 +56,9 @@ ul.wn-page-list { list-style: none; padding: 0; } ul.wn-page-list li { padding: 
 .wn-admin-form label.checkbox { flex-direction: row; align-items: center; gap: .5rem; }
 .wn-admin-form input[type='text'] { font: inherit; padding: .35em .6em;
   border: 1px solid var(--wn-border); border-radius: 6px; background: var(--wn-bg); color: var(--wn-fg); }
+.wn-admin-form textarea { font: 13px/1.5 ui-monospace, Menlo, monospace; min-height: 5.5rem;
+  padding: .35em .6em; border: 1px solid var(--wn-border); border-radius: 6px;
+  background: var(--wn-bg); color: var(--wn-fg); resize: vertical; }
 .wn-admin-form button { align-self: flex-start; font: inherit; padding: .4em 1.1em;
   border-radius: 6px; border: 1px solid var(--wn-accent); background: transparent;
   color: var(--wn-accent); cursor: pointer; }
@@ -92,6 +96,15 @@ export interface LayoutOptions {
   createForSlug?: string
   /** Extra inline scripts appended after the built-in ones. */
   scripts?: string
+  /** Site branding: tab-title suffix + breadcrumb home label ('' = none). */
+  siteName?: string
+  /**
+   * Raw admin-trusted HTML bands rendered inside `<main>` around the body.
+   * Emitted verbatim (no escaping) — scripts inside execute for anonymous
+   * readers; only the settings API (authenticated) can author them.
+   */
+  headerHtml?: string
+  footerHtml?: string
 }
 
 const CREATE_SCRIPT = `
@@ -132,12 +145,14 @@ const SEARCH_SCRIPT = `
 `
 
 export function renderLayout(opts: LayoutOptions): string {
-  const title = escapeHtml(opts.title)
+  const siteName = opts.siteName ?? ''
+  const title = escapeHtml(composeDocTitle(opts.title, siteName))
+  const homeLabel = siteName || 'Home'
   const crumbs = (opts.trail ?? [])
     .map((c, i, arr) =>
       i === arr.length - 1
-        ? `<span aria-current="page">${escapeHtml(c.label)}</span>`
-        : `<a href="${escapeHtml(c.href)}">${escapeHtml(c.label)}</a>`,
+        ? `<span aria-current="page">${escapeHtml(c.href === '/' ? homeLabel : c.label)}</span>`
+        : `<a href="${escapeHtml(c.href)}">${escapeHtml(c.href === '/' ? homeLabel : c.label)}</a>`,
     )
     .join('<span aria-hidden="true"> / </span>')
 
@@ -164,6 +179,10 @@ export function renderLayout(opts: LayoutOptions): string {
     (opts.searchEnabled !== false ? `<script>${SEARCH_SCRIPT}</script>` : '') +
     (opts.scripts ? `<script>${opts.scripts}</script>` : '')
 
+  // Admin-trusted raw HTML bands, inside <main> around the content.
+  const headerBand = opts.headerHtml ? `<div class="wn-site-header">${opts.headerHtml}</div>` : ''
+  const footerBand = opts.footerHtml ? `<div class="wn-site-footer">${opts.footerHtml}</div>` : ''
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -171,14 +190,14 @@ export function renderLayout(opts: LayoutOptions): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
 <link rel="icon" href="data:,">
-<style>${EDITOR_TOKENS_CSS}${EDITOR_CONTENT_CSS}${VIEW_CSS}</style>
+<style>${EDITOR_TOKENS_CSS}${EDITOR_CONTENT_CSS}${VIEW_CSS}${SITE_BANDS_CSS}</style>
 </head>
 <body class="wn-view">
 <header class="wn-view-bar">
-<nav class="wn-crumbs" aria-label="Breadcrumb">${crumbs || '<a href="/">Home</a>'}</nav>
+<nav class="wn-crumbs" aria-label="Breadcrumb">${crumbs || `<a href="/">${escapeHtml(homeLabel)}</a>`}</nav>
 <div class="wn-view-actions">${actions.join(' ')}</div>
 </header>
-<main>${opts.body}</main>
+<main>${headerBand}${opts.body}${footerBand}</main>
 ${scripts}
 </body>
 </html>`

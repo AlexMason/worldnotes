@@ -7,7 +7,7 @@
 
 // ─── Default styles ───────────────────────────────────────────────────────────
 
-import { EDITOR_TOKENS_CSS, EDITOR_CONTENT_CSS } from './styles'
+import { EDITOR_TOKENS_CSS, EDITOR_CONTENT_CSS, SITE_BANDS_CSS } from './styles'
 
 // Editor chrome: root layout, header, toolbar, panels, breadcrumbs, editor
 // column, overlay, toasts, keyframes, mobile rules. Reader pages must NOT
@@ -281,7 +281,7 @@ function el(tag: string, cls: string): HTMLElement {
  *
  * @param theme - Optional CSS string that replaces the default stylesheet entirely.
  */
-const DEFAULT_CSS = EDITOR_TOKENS_CSS + EDITOR_CHROME_CSS + EDITOR_CONTENT_CSS
+const DEFAULT_CSS = EDITOR_TOKENS_CSS + EDITOR_CHROME_CSS + EDITOR_CONTENT_CSS + SITE_BANDS_CSS
 
 function injectStyles(theme?: string): void {
   const STYLE_ID = 'worldnotes-styles'
@@ -322,6 +322,31 @@ export interface EditorDOM {
  * Build the complete editor DOM inside `container`, inject default CSS into the
  * document head, and return typed references to each element.
  */
+/**
+ * Insert the admin-authored site header/footer bands into the editor's
+ * scrollable wrapper (`editorWrap.prepend/appendChild`), mirroring the
+ * reader's placement inside `<main>`: the bands sit above and below the
+ * ~46rem content column and scroll with the document. The CSS is admin-
+ * trusted raw HTML (same sink policy as render/layout.ts); empty values
+ * insert nothing.
+ */
+export function insertSiteBands(
+  editorWrap: HTMLElement,
+  headerHtml: string,
+  footerHtml: string,
+): void {
+  if (headerHtml) {
+    const band = el('div', 'wn-site-header')
+    band.innerHTML = headerHtml
+    editorWrap.prepend(band)
+  }
+  if (footerHtml) {
+    const band = el('div', 'wn-site-footer')
+    band.innerHTML = footerHtml
+    editorWrap.appendChild(band)
+  }
+}
+
 export function createEditorDOM(container: HTMLElement, theme?: string): EditorDOM {
   injectStyles(theme)
 

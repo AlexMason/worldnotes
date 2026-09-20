@@ -222,3 +222,24 @@ export const EDITOR_CONTENT_CSS = `
 .wn-image-alt,
 .wn-image-src { display: none; }
 `
+
+/**
+ * Site branding bands (`.wn-site-header` / `.wn-site-footer`) — the ONE
+ * chrome group shared by BOTH surfaces: the reader composes it into VIEW_CSS
+ * (bands inside `<main>`), the editor injects it via DEFAULT_CSS (the client
+ * inserts them inside `.wn-editor-wrap`, around the content column). Token
+ * lookups try the editor `--wn-color-*` set first (resolved from `.wn-root`),
+ * then the reader `:root` palette, then literal fallbacks. `max-width` +
+ * `margin-inline: auto` align the bands with the ~46rem content column on
+ * the full-width editor wrapper and are a no-op inside the reader's `main`.
+ */
+export const SITE_BANDS_CSS = `
+.wn-site-header, .wn-site-footer {
+  font: 14px/1.5 system-ui, sans-serif;
+  color: var(--wn-color-fg-muted, var(--wn-muted, #6f6a61));
+  max-width: 46rem;
+  margin-inline: auto;
+}
+.wn-site-header { margin-block-end: 1.5rem; padding-block-end: 1rem; border-bottom: 1px solid var(--wn-color-border, var(--wn-border, #e3ded4)); }
+.wn-site-footer { margin-block-start: 3rem; padding-block-start: 1rem; border-top: 1px solid var(--wn-color-border, var(--wn-border, #e3ded4)); }
+`

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { createEditorDOM } from '../editor-dom'
+import { createEditorDOM, insertSiteBands } from '../editor-dom'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -437,7 +437,7 @@ describe('new UI slots (header, body, sidepanels, footer)', () => {
 describe('editor responsive CSS', () => {
   function injectedCss(): string {
     const style = document.getElementById('worldnotes-styles')
-    return style ? style.textContent ?? '' : ''
+    return style ? (style.textContent ?? '') : ''
   }
 
   it('includes the mobile chrome media query', () => {
@@ -448,5 +448,50 @@ describe('editor responsive CSS', () => {
     expect(css).toContain('@media (max-width: 640px)')
     expect(css).toContain('.wn-editor-wrap { padding: 1.2rem .9rem 4rem; }')
     expect(css).toContain('.wn-toast-container { max-width: calc(100vw - 16px); }')
+  })
+})
+
+// ─── Site branding bands ─────────────────────────────────────────────────────
+
+describe('insertSiteBands', () => {
+  function mountWrap() {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const dom = createEditorDOM(container, undefined)
+    return dom
+  }
+
+  it('inserts raw header/footer around the content column, in order', () => {
+    const dom = mountWrap()
+    insertSiteBands(dom.editorWrap, '<p>Head <em>note</em></p>', '<hr><p>foot</p>')
+
+    const header = dom.editorWrap.querySelector('.wn-site-header')
+    const footer = dom.editorWrap.querySelector('.wn-site-footer')
+    expect(header).not.toBeNull()
+    expect(footer).not.toBeNull()
+    // raw, admin-trusted HTML (not escaped text)
+    expect(header?.innerHTML).toBe('<p>Head <em>note</em></p>')
+    expect(footer?.innerHTML).toBe('<hr><p>foot</p>')
+    // bands are siblings of the content column: header above, footer below
+    const children = Array.from(dom.editorWrap.children)
+    expect(children.indexOf(header!)).toBeLessThan(
+      children.indexOf(dom.editorDiv.closest('.wn-editor-col')!),
+    )
+    expect(children.indexOf(footer!)).toBeGreaterThan(
+      children.indexOf(dom.editorDiv.closest('.wn-editor-col')!),
+    )
+  })
+
+  it('inserts nothing when a band is empty', () => {
+    const dom = mountWrap()
+    insertSiteBands(dom.editorWrap, '', '')
+    expect(dom.editorWrap.querySelector('.wn-site-header')).toBeNull()
+    expect(dom.editorWrap.querySelector('.wn-site-footer')).toBeNull()
+  })
+
+  it('band CSS ships in the default editor stylesheet', () => {
+    mountWrap()
+    expect(getStyleText()).toContain('.wn-site-header')
+    expect(getStyleText()).toContain('.wn-site-footer')
   })
 })

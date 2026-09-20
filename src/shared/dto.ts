@@ -26,3 +26,24 @@ export interface ApiError {
   /** Present on 409: the server-side version to reconcile against. */
   current?: { version: number; updatedAt?: number }
 }
+
+/**
+ * Shape of the JSON embedded in `<script id="wn-config">` by the editor
+ * shell — the single source of truth for the server writer
+ * (`render/editor-shell.ts`) and the client reader (`client/main.ts`).
+ */
+export interface EditorShellConfig {
+  slug: string
+  autosaveMs: number
+  searchEnabled: boolean
+  allPagesEnabled: boolean
+  /** Configured home page slug (breadcrumb trail root); null = 'home'. */
+  homeSlug: string | null
+  /** Site branding: document.title suffix + breadcrumb root label. */
+  siteName: string
+  /** Raw admin-trusted HTML bands, injected around the content column. */
+  headerHtml: string
+  footerHtml: string
+  userName: string | null
+  authDisabled: boolean
+}

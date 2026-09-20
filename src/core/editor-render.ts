@@ -22,6 +22,8 @@ export interface EditorRenderOptions {
   navigateFn?: (page: string) => void
   statusPages?: Record<number, string>
   showCreateOverlay?: boolean
+  /** Breadcrumb root crumb label (site name); defaults to 'Home'. */
+  homeLabel?: string
   notifications?: NotificationSystem
 }
 
@@ -176,9 +178,10 @@ export function createEditorRender(
       }
       const crumb = document.createElement('span')
       crumb.className = 'wn-crumb' + (i === trail.length - 1 ? ' wn-crumb--active' : '')
-      // Root crumb is always the wiki home (labelled "Home"); path segments
-      // are humanized slugs, matching the viewer's breadcrumb chrome.
-      crumb.textContent = i === 0 ? 'Home' : slugDisplayName(page)
+      // Root crumb is always the wiki home (labelled with the site name when
+      // branded, else "Home"); path segments are humanized slugs, matching
+      // the viewer's breadcrumb chrome.
+      crumb.textContent = i === 0 ? options.homeLabel || 'Home' : slugDisplayName(page)
       if (i < trail.length - 1) {
         crumb.addEventListener('click', () => {
           state.truncateTrail(i)

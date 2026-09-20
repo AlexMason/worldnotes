@@ -45,7 +45,7 @@ describe('SSR pages', () => {
     expect(res.body).toContain('<span class="wn-h1">')
     expect(res.body).toContain('>Hello There<')
     expect(res.body).toContain('<span class="wn-bold">')
-    expect(res.body).toContain('<title>Hello There</title>')
+    expect(res.body).toContain('<title>Hello There — WorldNotes</title>')
     // breadcrumb from slug segments
     expect(res.body).toContain('/blog')
     // anonymous: no edit affordance, has login link
@@ -106,6 +106,111 @@ describe('SSR pages', () => {
     const second = await app.inject({ method: 'GET', url: '/memo' })
     expect(second.statusCode).toBe(200)
     expect(second.body).toContain('from cache')
+  })
+
+  it('renders branding: site-name crumb label + raw header/footer bands inside main', async () => {
+    await repo.put('brand', { title: 'B', content: 'body text' })
+    await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: auth, 'content-type': 'application/json' },
+      payload: {
+        siteName: 'Acme KB',
+        headerHtml: '<p>Head <em>note</em></p>',
+        footerHtml: '<hr><p>Totals raw &amp; unescaped</p>',
+      },
+    })
+    const res = await app.inject({ method: 'GET', url: '/brand' })
+    // Bands are emitted raw (unescaped inner markup), inside <main>, in order.
+    expect(res.body).toMatch(
+      /<main><div class="wn-site-header"><p>Head <em>note<\/em><\/p><\/div>[\s\S]*<div class="wn-site-footer"><hr><p>Totals raw &amp; unescaped<\/p><\/div><\/main>/,
+    )
+    expect(res.body).toContain('<title>B — Acme KB</title>')
+    // The root crumb (href "/") is relabelled to the site name.
+    expect(res.body).toContain('<a href="/">Acme KB</a>')
+    expect(res.body).not.toContain('<a href="/">Home</a>')
+  })
+
+  it('omits empty bands and keeps Home label without branding', async () => {
+    await repo.put('plain', { title: 'P', content: 'x' })
+    const res = await app.inject({ method: 'GET', url: '/plain' })
+    // No band DIVS (the class selectors still exist in the shared stylesheet).
+    expect(res.body).not.toContain('<div class="wn-site-header">')
+    expect(res.body).not.toContain('<div class="wn-site-footer">')
+    // Default siteName still decorates title/crumb
+    expect(res.body).toContain('<title>P — WorldNotes</title>')
+  })
+
+  it('busts reader ETags when only the settings chrome changes', async () => {
+    await repo.put('chrome', { title: 'C', content: 'same bytes' })
+    const first = await app.inject({ method: 'GET', url: '/chrome' })
+    const etagBefore = first.headers.etag as string
+
+    await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: auth, 'content-type': 'application/json' },
+      payload: { siteName: 'Renamed' },
+    })
+
+    // Same article bytes — but a reader revalidating with the old ETag must
+    // get the new document, not a 304 that pins stale chrome indefinitely.
+    const reval = await app.inject({
+      method: 'GET',
+      url: '/chrome',
+      headers: { 'if-none-match': etagBefore },
+    })
+    expect(reval.statusCode).toBe(200)
+    expect(reval.body).toContain('<title>C — Renamed</title>')
+    const second = await app.inject({ method: 'GET', url: '/chrome' })
+    expect(second.headers.etag).not.toBe(etagBefore)
+    // …and normal revalidation of the CURRENT revision still 304s.
+    const stable = await app.inject({
+      method: 'GET',
+      url: '/chrome',
+      headers: { 'if-none-match': second.headers.etag as string },
+    })
+    expect(stable.statusCode).toBe(304)
+  })
+
+  it('titles the index with the site name', async () => {
+    await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: auth, 'content-type': 'application/json' },
+      payload: { siteName: 'Acme KB' },
+    })
+    const res = await app.inject({ method: 'GET', url: '/all' })
+    expect(res.body).toContain('<title>Acme KB</title>')
+  })
+
+  it('serves the editor shell to authenticated users with branding title + config', async () => {
+    await repo.put('page2', { title: 'P', content: 'x' })
+    await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: auth, 'content-type': 'application/json' },
+      payload: { siteName: 'Acme KB', headerHtml: '<b>hd</b>', footerHtml: '<i>ft</i>' },
+    })
+    const res = await app.inject({ method: 'GET', url: '/page2', headers: { cookie: auth } })
+    expect(res.body).toContain('<title>Page2 — Acme KB</title>')
+    // Bands are NOT server-rendered in the shell — they ride the embedded
+    // config and the client inserts them around the content column
+    // (reader-<main> parity inside the editor's scroll area).
+    expect(res.body).not.toContain('<div class="wn-site-header">')
+    expect(res.body).toContain('id="wn-app"')
+    // The original 100dvh height chain on #wn-app is intact.
+    expect(res.body).toContain('height: 100dvh')
+    const cfg = JSON.parse(
+      JSON.parse(
+        /<script id="wn-config" type="application\/json">(.+?)<\/script>/.exec(
+          res.body,
+        )![1]! as string,
+      ),
+    )
+    expect(cfg.siteName).toBe('Acme KB')
+    expect(cfg.headerHtml).toBe('<b>hd</b>')
+    expect(cfg.footerHtml).toBe('<i>ft</i>')
   })
 
   it('API writes invalidate the SSR cache for that slug and the index', async () => {

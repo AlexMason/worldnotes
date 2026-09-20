@@ -47,7 +47,9 @@ describe('admin settings', () => {
 
   it('requires auth for GET /admin and PUT /api/settings', async () => {
     expect((await app.inject({ method: 'GET', url: '/admin' })).statusCode).toBe(401)
-    expect((await app.inject({ method: 'PUT', url: '/api/settings', payload: {} })).statusCode).toBe(401)
+    expect(
+      (await app.inject({ method: 'PUT', url: '/api/settings', payload: {} })).statusCode,
+    ).toBe(401)
   })
 
   it('renders the admin form with the current settings', async () => {
@@ -83,12 +85,71 @@ describe('admin settings', () => {
       searchEnabled: false,
       homeSlug: 'blog/intro',
       allPagesEnabled: true,
+      siteName: 'WorldNotes',
+      headerHtml: '',
+      footerHtml: '',
     })
     expect(settingsRepo.dump()).toEqual({
       search_enabled: 'false',
       home_slug: 'blog/intro',
       all_pages_enabled: 'true',
+      site_name: 'WorldNotes',
+      header_html: '',
+      footer_html: '',
     })
+  })
+
+  it('renders branding fields and persists raw header/footer HTML', async () => {
+    const put = await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: auth, 'content-type': 'application/json' },
+      payload: {
+        siteName: 'My Wiki',
+        headerHtml: '<p> welcome <b>in</b></p>',
+        footerHtml: '\n<p>foot</p>',
+      },
+    })
+    expect(put.statusCode).toBe(200)
+    expect(put.json()).toMatchObject({
+      siteName: 'My Wiki',
+      headerHtml: '<p> welcome <b>in</b></p>',
+      footerHtml: '\n<p>foot</p>',
+    })
+
+    const res = await app.inject({ method: 'GET', url: '/admin', headers: { cookie: auth } })
+    expect(res.body).toContain('name="siteName"')
+    expect(res.body).toContain('value="My Wiki"')
+    // textarea values are escaped; the leading synthetic newline guards the
+    // parser's newline-strip so the stored leading \n survives the round trip
+    expect(res.body).toContain(
+      'name="headerHtml" rows="4">\n&lt;p&gt; welcome &lt;b&gt;in&lt;/b&gt;&lt;/p&gt;</textarea>',
+    )
+    expect(res.body).toContain('name="footerHtml" rows="4">\n\n&lt;p&gt;foot&lt;/p&gt;</textarea>')
+    // D1: bands are deliberately NOT rendered on /admin itself…
+    expect(res.body).not.toContain('<div class="wn-site-header">')
+    // …but the site name still decorates the admin chrome
+    expect(res.body).toContain('<title>Admin settings — My Wiki</title>')
+  })
+
+  it('rejects oversized and non-string branding values with 400', async () => {
+    const tooLong = await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: auth, 'content-type': 'application/json' },
+      payload: { siteName: 'x'.repeat(201) },
+    })
+    expect(tooLong.statusCode).toBe(400)
+    expect(tooLong.json()).toMatchObject({ error: /exceeds 200/ })
+
+    const wrongType = await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: auth, 'content-type': 'application/json' },
+      payload: { headerHtml: 42 },
+    })
+    expect(wrongType.statusCode).toBe(400)
+    expect(wrongType.json()).toMatchObject({ error: /must be a string/ })
   })
 
   it('renders the all-pages checkbox and honours its state', async () => {
