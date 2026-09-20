@@ -335,8 +335,9 @@ export function getSelectionFocusEnd(el: HTMLElement): 'start' | 'end' | null {
   const sel = window.getSelection()
   if (!sel || !sel.rangeCount) return null
   const range = sel.getRangeAt(0)
+  const sc = range.startContainer
+  if (sc !== el && !el.contains(sc)) return null
   if (range.collapsed) return 'end'
-  void el
   // DOM ranges are always start≤end ordered; anchor/focus carry direction.
   const focusAtEnd = range.endContainer === sel.focusNode && range.endOffset === sel.focusOffset
   const focusAtStart =
