@@ -272,6 +272,7 @@ describe('listItemPlugin onKeydown', () => {
     context.setPageText('home', 'hello world')
 
     const editorDiv = document.createElement('div')
+    editorDiv.contentEditable = 'true' // keydown preamble walks to this root
     document.body.appendChild(editorDiv)
     editorDiv.innerHTML = '<div data-line="0">hello world</div>'
 
@@ -295,6 +296,7 @@ describe('listItemPlugin onKeydown', () => {
     context.setPageText('home', '- milk\n- eggs')
 
     const editorDiv = document.createElement('div')
+    editorDiv.contentEditable = 'true' // keydown preamble walks to this root
     document.body.appendChild(editorDiv)
     editorDiv.innerHTML = '<div data-line="0">- milk</div><div data-line="1">- eggs</div>'
 
@@ -324,6 +326,7 @@ describe('listItemPlugin onKeydown', () => {
     context.setPageText('home', '  - milk\n- eggs')
 
     const editorDiv = document.createElement('div')
+    editorDiv.contentEditable = 'true' // keydown preamble walks to this root
     document.body.appendChild(editorDiv)
     editorDiv.innerHTML = '<div data-line="0">  - milk</div><div data-line="1">- eggs</div>'
 
@@ -351,6 +354,7 @@ describe('listItemPlugin onKeydown', () => {
     context.setPageText('home', '- milk')
 
     const editorDiv = document.createElement('div')
+    editorDiv.contentEditable = 'true' // keydown preamble walks to this root
     document.body.appendChild(editorDiv)
     editorDiv.innerHTML = '<div data-line="0">- milk</div>'
 
@@ -380,6 +384,7 @@ describe('listItemPlugin onKeydown', () => {
     context.setPageText('home', '- milk\nplain')
 
     const editorDiv = document.createElement('div')
+    editorDiv.contentEditable = 'true' // keydown preamble walks to this root
     document.body.appendChild(editorDiv)
     editorDiv.innerHTML = '<div data-line="0">- milk</div><div data-line="1">plain</div>'
 
@@ -410,6 +415,7 @@ describe('listItemPlugin onKeydown', () => {
     context.setPageText('home', '- \nplain')
 
     const editorDiv = document.createElement('div')
+    editorDiv.contentEditable = 'true' // keydown preamble walks to this root
     document.body.appendChild(editorDiv)
     editorDiv.innerHTML = '<div data-line="0">- </div><div data-line="1">plain</div>'
 
@@ -438,6 +444,7 @@ describe('listItemPlugin onKeydown', () => {
     context.setPageText('home', 'hello world')
 
     const editorDiv = document.createElement('div')
+    editorDiv.contentEditable = 'true' // keydown preamble walks to this root
     document.body.appendChild(editorDiv)
     editorDiv.innerHTML = '<div data-line="0">hello world</div>'
 
@@ -462,6 +469,7 @@ describe('listItemPlugin onKeydown', () => {
     context.setPageText('home', '1. milk\nplain')
 
     const editorDiv = document.createElement('div')
+    editorDiv.contentEditable = 'true' // keydown preamble walks to this root
     document.body.appendChild(editorDiv)
     editorDiv.innerHTML = '<div data-line="0">1. milk</div><div data-line="1">plain</div>'
 
@@ -491,6 +499,7 @@ describe('listItemPlugin onKeydown', () => {
     context.setPageText('home', 'a. \nplain')
 
     const editorDiv = document.createElement('div')
+    editorDiv.contentEditable = 'true' // keydown preamble walks to this root
     document.body.appendChild(editorDiv)
     editorDiv.innerHTML = '<div data-line="0">a. </div><div data-line="1">plain</div>'
 

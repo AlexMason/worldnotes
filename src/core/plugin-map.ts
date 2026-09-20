@@ -13,6 +13,12 @@ export function buildPluginMap(plugins: ContentPlugin[]): Map<string, ContentPlu
     for (const def of plugin.tokens) {
       map.set(def.type, plugin)
     }
+    // Block line tokens (e.g. 'table-row') are emitted by buildDocument, not
+    // by pattern scanning — registered here so BOTH renderers' existing
+    // render/renderToHTML dispatch handles them structurally.
+    for (const block of plugin.blocks ?? []) {
+      if (block.lineTokenType) map.set(block.lineTokenType, plugin)
+    }
   }
   return map
 }

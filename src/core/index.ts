@@ -4,6 +4,9 @@ export { createEditor, EditorBuilder } from './editor'
 // ─── Tokenizer ────────────────────────────────────────────────────────────────
 export { tokenizeLine, scanInline, tokenizeDocument } from './tokenizer'
 
+// ─── Document model (block pass) ──────────────────────────────────────────
+export { buildDocument, regionAt } from './document'
+
 // ─── Static HTML Renderer (reader engine — DOM-free) ─────────────────────────
 export {
   renderLineToHTML,
@@ -16,6 +19,10 @@ export {
 export type {
   Token,
   TokenDef,
+  BlockDef,
+  BlockRegion,
+  BlockHelpers,
+  DocModel,
   PluginManifest,
   ContentPlugin,
   UIPlugin,

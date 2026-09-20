@@ -14,9 +14,10 @@
 // `escapeAttr`. Plugins enforce the href scheme policy (`isSafeHref`, slug
 // folding) in their own `renderToHTML`.
 
-import type { Token, ContentPlugin, StaticRenderContext } from './types'
-import { scanInline, tokenizeDocument } from './tokenizer'
+import type { BlockRegion, DocModel, Token, ContentPlugin, StaticRenderContext } from './types'
+import { scanInline } from './tokenizer'
 import { buildPluginMap } from './plugin-map'
+import { buildDocument } from './document'
 import { escapeHTML } from './escape'
 
 /**
@@ -114,11 +115,73 @@ export function renderDocumentToHTML(lines: Token[][], contentPlugins: ContentPl
 }
 
 /**
+ * Render a document MODEL (block-pass output) as an HTML string.
+ *
+ * Block regions get their line divs wrapped in the region's wrapper element
+ * — the same generic grouping the editor DOM performs in line-renderer.ts,
+ * so parity between surfaces is structural. HARD RULE: wrapper inner HTML is
+ * joined with '' (no whitespace text nodes between line divs) — under the
+ * reader's inherited `pre-wrap` any inter-div whitespace materializes as a
+ * blank line AND desyncs extractContentText/rawNodeLength on the editor.
+ */
+export function renderDocModelToHTML(doc: DocModel, contentPlugins: ContentPlugin[]): string {
+  const pluginMap = buildPluginMap(contentPlugins)
+  const ctx: StaticRenderContext = {
+    renderInline: (text: string) => renderInlineHTML(text, contentPlugins),
+  }
+
+  const regionsByStart = new Map<number, BlockRegion>()
+  const owner = new Map<number, BlockRegion>()
+  for (const region of doc.blocks) {
+    regionsByStart.set(region.startLine, region)
+    for (let l = region.startLine; l <= region.endLine; l++) owner.set(l, region)
+  }
+
+  const parts: string[] = []
+  let openRegion: BlockRegion | null = null
+
+  for (let i = 0; i < doc.lines.length; i++) {
+    const region = owner.get(i) ?? null
+
+    // Close a finished wrapper before this line is emitted.
+    if (openRegion && (!region || region !== openRegion)) {
+      parts.push('</div>')
+      openRegion = null
+    }
+    // Open a new wrapper at the region's first line.
+    if (region && region !== openRegion) {
+      parts.push(`<div class="${region.def.wrapperClass}" data-block="${region.type}">`)
+      openRegion = region
+    }
+
+    const lineHTML = renderLineToHTML(doc.lines[i], contentPlugins, ctx, pluginMap)
+    const blockAttr = region ? ` data-block="${region.type}"` : ''
+    const lineClass = region ? region.def.lineClass?.(i, region.state) : undefined
+    const classAttr = lineClass ? ` class="${lineClass}"` : ''
+    if (lineHTML === '') {
+      parts.push(`<div data-line="${i}"${blockAttr}${classAttr}><br></div>`)
+    } else {
+      parts.push(`<div data-line="${i}"${blockAttr}${classAttr}>${lineHTML}</div>`)
+    }
+
+    if (region && i === region.endLine && openRegion === region) {
+      parts.push('</div>')
+      openRegion = null
+    }
+  }
+  if (openRegion) parts.push('</div>')
+
+  return parts.join('')
+}
+
+/**
  * One-call pipeline: raw markdown → reader HTML string.
  * `plugins` is explicit (not defaulted to `defaultPlugins`) to keep this
  * module free of an import cycle through `plugins/defaults`.
  */
 export function renderDocumentHtml(markdown: string, plugins: ContentPlugin[]): string {
-  const defs = plugins.flatMap((p) => p.tokens)
-  return renderDocumentToHTML(tokenizeDocument(markdown, defs), plugins)
+  // The block pass (buildDocument) is part of THE pipeline — both this
+  // reader entry and the editor's renderLines must go through it, or the
+  // surfaces drift.
+  return renderDocModelToHTML(buildDocument(markdown, plugins), plugins)
 }

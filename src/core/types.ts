@@ -26,6 +26,83 @@ export interface TokenDef {
   pattern: RegExp
 }
 
+/**
+ * Helpers a BlockDef matcher may consult, supplied by the document builder.
+ */
+export interface BlockHelpers {
+  /**
+   * True when the line matches NO registered line-level (`^`-anchored) token
+   * def (headings, hr, blockquote, list items, …). Region starts are only
+   * eligible on plain lines so the block pass can never swallow line-level
+   * grammar (which it out-runs by scanning first).
+   */
+  isPlainLine(line: string): boolean
+}
+
+/**
+ * Detection + declarative rendering metadata for a MULTI-LINE block region
+ * (fenced code, tables). Deliberately DATA, not structural hooks: the two
+ * renderers group region lines generically (wrapper element, per-line
+ * classes, data-block attr), and region lines are tokenized by
+ * `buildDocument` itself — so `data-line`/`<br>` emission lives in exactly
+ * one place per surface and cross-surface parity is structural.
+ *
+ * @property type          - Region type id, emitted as data-block="<type>"
+ * @property match         - Given all source lines and a candidate start
+ *                           index, return the region's inclusive endLine plus
+ *                           parsed state, or null. MUST return null unless
+ *                           helpers.isPlainLine(lines[start]).
+ * @property lineMode      - 'verbatim': the line renders as its raw text
+ *                           (single text token — NO inline parsing, this is
+ *                           what makes fences code-safe).
+ *                           'token': buildDocument calls parseLine for the
+ *                           line's tokens (e.g. table rows → cell groups).
+ * @property parseLine     - Required for 'token' lines; returns tokens whose
+ *                           raw concatenation EXACTLY equals the source line
+ *                           (text-fidelity rule — data-raw stays a
+ *                           token-span mechanism, never a line mechanism).
+ * @property lineTokenType - Token type parseLine emits; registered in the
+ *                           plugin map so normal render/renderToHTML handle it
+ * @property wrapperClass  - Class for the generic wrapper div
+ * @property lineClass     - Optional per-line class (fence vs content, header
+ *                           vs separator vs body row)
+ */
+export interface BlockDef {
+  type: string
+  match(
+    lines: string[],
+    start: number,
+    helpers: BlockHelpers,
+  ): { endLine: number; state?: unknown } | null
+  lineMode(index: number, state?: unknown): 'verbatim' | 'token'
+  parseLine?(index: number, state?: unknown): Token[]
+  lineTokenType?: string
+  wrapperClass: string
+  lineClass?(index: number, state?: unknown): string | undefined
+}
+
+/**
+ * A matched block region over source line indices (inclusive).
+ */
+export interface BlockRegion {
+  type: string
+  def: BlockDef
+  plugin: ContentPlugin
+  startLine: number
+  endLine: number
+  state?: unknown
+}
+
+/**
+ * Document model produced by buildDocument: per-line tokens (region lines
+ * carry block-emitted tokens, everything else is line-tokenized as usual)
+ * plus the ordered, non-overlapping list of block regions.
+ */
+export interface DocModel {
+  lines: Token[][]
+  blocks: BlockRegion[]
+}
+
 // ─── Page Store ──────────────────────────────────────────────────────────────
 
 /**
@@ -110,6 +187,8 @@ export interface ContentPlugin extends PluginLifecycle {
   version: string
   kind: 'content'
   tokens: TokenDef[]
+  /** Optional multi-line block detectors (see BlockDef). */
+  blocks?: BlockDef[]
   render(token: Token, context: EditorContext): HTMLElement | Text
   onNavigate?(token: Token, context: EditorContext): boolean | void
   onUpdate?(): void
@@ -128,10 +207,7 @@ export interface ContentPlugin extends PluginLifecycle {
    * @param event   - The raw KeyboardEvent
    * @param context - EditorContext for document access
    */
-  onKeydown?(
-    event: KeyboardEvent,
-    context: EditorContext,
-  ): { cursorOffset: number } | false | void
+  onKeydown?(event: KeyboardEvent, context: EditorContext): { cursorOffset: number } | false | void
   /**
    * Optional: render a token as an HTML string for DOM-free static rendering.
    * When provided, this enables the `renderDocumentToHTML` pipeline.
