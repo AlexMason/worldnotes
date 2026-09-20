@@ -4,19 +4,14 @@
 
 import { createEditor } from '../core/editor'
 import type { EditorInstance } from '../core/types'
+import { insertSiteBands } from '../core/editor-dom'
 import { createApiPageStore } from './api-page-store'
 import { slugFromPath, pageUrlPath } from '../shared/url-helpers'
 import { slugify, validateSlug, slugDisplayName } from '../shared/slug'
+import { composeDocTitle } from '../shared/doc-title'
+import type { EditorShellConfig } from '../shared/dto'
 
-interface ShellConfig {
-  slug: string
-  autosaveMs: number
-  searchEnabled: boolean
-  allPagesEnabled: boolean
-  homeSlug: string | null
-  userName: string | null
-  authDisabled: boolean
-}
+type ShellConfig = EditorShellConfig
 
 interface PageEmbed {
   slug: string
@@ -40,6 +35,9 @@ function readShellConfig(): ShellConfig {
     searchEnabled: true,
     allPagesEnabled: true,
     homeSlug: null,
+    siteName: 'WorldNotes',
+    headerHtml: '',
+    footerHtml: '',
     userName: null,
     authDisabled: false,
   }
@@ -74,7 +72,7 @@ async function main(): Promise<void> {
     {
       onSaved(page) {
         instance?.notify({ id: 'wn-save', message: 'Saved', type: 'success', duration: 1500 })
-        document.title = slugDisplayName(page)
+        document.title = composeDocTitle(slugDisplayName(page), cfg.siteName)
       },
       onAuthLost() {
         const target = encodeURIComponent(window.location.pathname)
@@ -134,6 +132,7 @@ async function main(): Promise<void> {
     // Seed the buffer from the embed so first paint is synchronous.
     initialContent: seeded ? (embed.content ?? '') : undefined,
     homeSlug: cfg.homeSlug,
+    homeLabel: cfg.siteName || undefined,
     saveDebounceMs: cfg.autosaveMs,
     onTrailChange: (trail) => {
       const page = trail.length <= 1 ? (trail[0] ?? 'home') : trail.slice(1).join('/')
@@ -141,12 +140,17 @@ async function main(): Promise<void> {
       if (slug !== currentSlug) {
         currentSlug = slug
         window.history.pushState(null, '', pageUrlPath(slug))
-        document.title = slugDisplayName(slug)
+        document.title = composeDocTitle(slugDisplayName(slug), cfg.siteName)
       }
     },
   })
 
   instance = await editor.mount()
+
+  // Site header/footer bands (admin-authored raw HTML) around the content
+  // column, mirroring the reader's placement inside <main>.
+  const editorWrap = container.querySelector<HTMLElement>('.wn-editor-wrap')
+  if (editorWrap) insertSiteBands(editorWrap, cfg.headerHtml, cfg.footerHtml)
 
   // Header actions — mirror the viewer chrome (Search / All pages / Admin / sign-out)
   const actions = container.querySelector('.wn-actions')

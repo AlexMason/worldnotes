@@ -6,6 +6,8 @@
 // paint the editor synchronously without extra round-trips.
 
 import { escapeHtml } from './layout'
+import { composeDocTitle } from '../../shared/doc-title'
+import type { EditorShellConfig } from '../../shared/dto'
 import { slugDisplayName } from '../../shared/slug'
 
 export interface EditorShellOptions {
@@ -17,6 +19,15 @@ export interface EditorShellOptions {
   homeSlug: string | null
   /** Show the "All pages" nav affordance in the editor chrome. */
   allPagesEnabled: boolean
+  /** Site branding: tab-title suffix + breadcrumb root label ('' = none). */
+  siteName: string
+  /**
+   * Raw admin-trusted HTML bands, embedded in the client config and injected
+   * around the editor's content column by the client (mirroring the reader's
+   * placement inside `<main>`). The shell itself renders no band DOM.
+   */
+  headerHtml: string
+  footerHtml: string
   userName: string | null
   authDisabled: boolean
   /**
@@ -39,12 +50,15 @@ function embedJson(value: unknown, doubleEncode = false): string {
 }
 
 export function editorShellHtml(slug: string, opts: EditorShellOptions): string {
-  const config = {
+  const config: EditorShellConfig = {
     slug,
     autosaveMs: opts.autosaveMs,
     searchEnabled: opts.searchEnabled,
     allPagesEnabled: opts.allPagesEnabled,
     homeSlug: opts.homeSlug,
+    siteName: opts.siteName,
+    headerHtml: opts.headerHtml,
+    footerHtml: opts.footerHtml,
     userName: opts.userName,
     authDisabled: opts.authDisabled,
   }
@@ -56,7 +70,7 @@ export function editorShellHtml(slug: string, opts: EditorShellOptions): string 
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>${escapeHtml(slugDisplayName(slug))}</title>
+<title>${escapeHtml(composeDocTitle(slugDisplayName(slug), opts.siteName))}</title>
 <link rel="icon" href="data:,">
 <style>
   html, body { height: 100%; margin: 0; }

@@ -69,6 +69,20 @@ remain display-only divergences.
   `.wn-article` typography (pre-wrap surface like `.wn-editor`),
   `.wn-page-list`, `.wn-search-form`, `.wn-admin-form` (admin settings),
   `.wn-status` + `.wn-create` (404 create overlay).
+- **Site bands** (`.wn-site-header` / `.wn-site-footer`, styled by
+  `SITE_BANDS_CSS` in `src/core/styles.ts` — the one chrome group shared by
+  both surfaces): admin-authored **raw HTML** from `PUT /api/settings`, shown
+  to all readers. On the reader they sit **inside `<main>`** — header above
+  the article, footer below, each emitted only when non-empty. In the editor
+  the SAME HTML rides the embedded config and the client inserts the bands
+  **inside the scrollable `.wn-editor-wrap`, above/below the content
+  column** — so they scroll with the document and align with the ~46rem
+  column, matching the reader placement. These are _viewer/editor chrome_
+  and unrelated to the editor's `.wn-header`/`.wn-footer` plugin slots. The
+  `/admin` page shows the site name but never the bands (anti-lockout). The
+  site name also suffixes every tab title (`Page — Site`, rule shared via
+  `src/shared/doc-title.ts`) and relabels the breadcrumb root in both
+  chrome and the editor (`EditorOptions.homeLabel`).
 
 There is no cascade override layer yet.
 
@@ -87,6 +101,10 @@ stylesheet:
   full-width under the editor, and toasts clamped to the viewport.
 - **Edit shell**: `viewport-fit=cover` + `100dvh` height chain so the editor
   fills the screen correctly around mobile browser URL bars and keyboards.
+  The chain is untouched by site branding: bands live INSIDE the app (the
+  client inserts them into the scrollable `.wn-editor-wrap`), so a very tall
+  admin-authored band scrolls with the document instead of squeezing the
+  editor.
 
 Mobile _editing_ beyond layout fit (touch caret behavior, keyboard UX) is a
 deliberate follow-up (roadmap M3); reading on phones is first-class today.

@@ -99,6 +99,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     assetPrefix: assetsMounted ? '/assets' : '',
     autosaveMs: deps.config.env.AUTOSAVE_DEBOUNCE_MS,
     getSettings: () => settingsService.get(),
+    getSettingsRevision: () => settingsService.getRevision(),
   })
 
   app.get('/healthz', async () => ({ ok: true }))

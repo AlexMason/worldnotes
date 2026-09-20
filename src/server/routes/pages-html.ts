@@ -25,6 +25,9 @@ export interface PageHtmlDeps {
   assetPrefix: string
   autosaveMs: number
   getSettings: () => AppSettings
+  /** Settings revision — mixed into reader ETags so chrome-only changes
+   *  (branding, toggles) bust browser revalidation of cached pages. */
+  getSettingsRevision: () => number
 }
 
 interface PageCacheValue {
@@ -52,6 +55,7 @@ export async function registerPageHtmlRoutes(
   deps: PageHtmlDeps,
 ): Promise<void> {
   const { config, pages, cache, render, layout, assetPrefix, autosaveMs, getSettings } = deps
+  const getSettingsRevision = deps.getSettingsRevision
   const MAX_AGE = 'public, max-age=60, stale-while-revalidate=300'
 
   function respond(reply: FastifyReply, entry: CacheEntry, status = 200): FastifyReply {
@@ -87,6 +91,9 @@ export async function registerPageHtmlRoutes(
       authDisabled: config.authDisabled,
       searchEnabled: settings.searchEnabled,
       allPagesEnabled: settings.allPagesEnabled,
+      siteName: settings.siteName,
+      headerHtml: settings.headerHtml,
+      footerHtml: settings.footerHtml,
     }
   }
 
@@ -107,6 +114,9 @@ export async function registerPageHtmlRoutes(
         searchEnabled: settings.searchEnabled,
         homeSlug: settings.homeSlug,
         allPagesEnabled: settings.allPagesEnabled,
+        siteName: settings.siteName,
+        headerHtml: settings.headerHtml,
+        footerHtml: settings.footerHtml,
         userName: req.user.name ?? req.user.sub,
         authDisabled: config.authDisabled,
         page: page ? { content: page.content, version: page.version } : null,
@@ -159,7 +169,10 @@ export async function registerPageHtmlRoutes(
       trail: home ? [{ href: '/', label: 'Home' }] : trailFor(slug),
       ...chrome(req.user, getSettings()),
     })
-    return respond(reply, { html, etag: hashEtag(articleHtml) })
+    // ETag covers article bytes AND the settings revision: cached entries are
+    // article-only, but the served document embeds chrome (branding bands,
+    // nav toggles) that re-renders per request.
+    return respond(reply, { html, etag: hashEtag(`${articleHtml}\n${getSettingsRevision()}`) })
   }
 
   // ── Index (served at /all, and at / when no home page is configured) ─────
@@ -183,7 +196,7 @@ export async function registerPageHtmlRoutes(
       })
     }
     const html = layout({
-      title: 'WorldNotes',
+      title: settings.siteName,
       body: `<h1>All pages</h1>${searchFormHtml(settings.searchEnabled)}<ul class="wn-page-list">${
         listHtml || '<li><em>No pages yet.</em></li>'
       }</ul>`,
