@@ -325,6 +325,45 @@ export function setSelectionOffsets(el: HTMLElement, start: number, end: number)
   sel.addRange(range)
 }
 
+/**
+ * Which end of a NORMALIZED selection carries the focus (the moving end of
+ * a Shift+arrow extension). 'end' when the caret/selection reads
+ * left-to-right (the common case, incl. collapsed), 'start' when the user
+ * dragged right-to-left. Returns null when the selection is unmappable.
+ */
+export function getSelectionFocusEnd(el: HTMLElement): 'start' | 'end' | null {
+  const sel = window.getSelection()
+  if (!sel || !sel.rangeCount) return null
+  const range = sel.getRangeAt(0)
+  if (range.collapsed) return 'end'
+  void el
+  // DOM ranges are always start≤end ordered; anchor/focus carry direction.
+  const focusAtEnd = range.endContainer === sel.focusNode && range.endOffset === sel.focusOffset
+  const focusAtStart =
+    range.startContainer === sel.focusNode && range.startOffset === sel.focusOffset
+  return focusAtEnd ? 'end' : focusAtStart ? 'start' : null
+}
+
+/**
+ * True when the current selection's start sits inside a block region (fenced
+ * code, table): the nearest [data-line] ancestor carries data-block.
+ * Formatting shortcuts no-op there so markers never splice into real code.
+ */
+export function selectionInBlock(el: HTMLElement): boolean {
+  const sel = window.getSelection()
+  if (!sel || !sel.rangeCount) return false
+  let node: Node | null = sel.getRangeAt(0).startContainer
+  while (node) {
+    if (node instanceof HTMLElement) {
+      if (node.dataset.block !== undefined) return true
+      if (node.dataset.line !== undefined) return false
+      if (node === el) return false
+    }
+    node = node.parentNode
+  }
+  return false
+}
+
 function findTextInNode(el: HTMLElement, offset: number): { node: Node; offset: number } | null {
   let remaining = offset
 

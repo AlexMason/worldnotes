@@ -12,7 +12,8 @@ import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
 import type { EditorRenderAPI } from './editor-render'
 import type { EditorNavigationAPI } from './editor-navigation'
-import { getLineOffset, setLineOffset } from './caret-offset'
+import { getLineOffset, setLineOffset, getSelectionOffsets } from './caret-offset'
+import { createEditingKeymap } from './editor-keymap'
 import { extractContentText } from './content-text'
 import { renderInlineContent } from './renderer'
 import type { NotificationSystem } from './notifications'
@@ -55,21 +56,42 @@ export function createEditorLifecycle(
     const saveDebounce = options.saveDebounceMs ?? 600
     const buffers = state.getPageBuffers()
 
+    /**
+     * Immediate save (Ctrl+S path): clears any pending debounce, reads the
+     * buffer AT CALL TIME, and runs the shared save body so onSave/toast
+     * semantics match the debounced path.
+     */
+    async function saveNow(): Promise<void> {
+      state.clearSaveTimer()
+      const page = state.getCurrentPage()
+      const content = buffers.getPageText(page)
+      try {
+        await pageStore.save(page, content)
+        options.onSave?.(page, content)
+      } catch (e) {
+        console.error('worldnotes: page save failed', e)
+        notifications.notify({ message: 'Failed to save page', type: 'error' })
+      }
+    }
+
     const saveDebounced = (): void => {
       state.clearSaveTimer()
-      const timer = setTimeout(async () => {
-        const page = state.getCurrentPage()
-        const content = buffers.getPageText(page)
-        try {
-          await pageStore.save(page, content)
-          options.onSave?.(page, content)
-        } catch (e) {
-          console.error('worldnotes: page save failed', e)
-          notifications.notify({ message: 'Failed to save page', type: 'error' })
-        }
-      }, saveDebounce)
+      const timer = setTimeout(() => void saveNow(), saveDebounce)
       state.setSaveTimer(timer)
     }
+
+    // ── Editing keymap (line ops, word ops, formatting, Ctrl+S) ────────
+
+    const keymap = createEditingKeymap({
+      editorEl: dom.editorDiv,
+      getCurrentPage: () => state.getCurrentPage(),
+      pageExists: (page) => page in buffers.getWorld(),
+      getPageText: (page) => buffers.getPageText(page),
+      setPageText: (page, text) => buffers.setPageText(page, text),
+      render: (offset) => render.render(true, offset),
+      scheduleSave: saveDebounced,
+      saveNow: () => void saveNow(),
+    })
 
     // ── Input handler ──────────────────────────────────────────────────────
 
@@ -149,6 +171,11 @@ export function createEditorLifecycle(
         return
       }
 
+      // ── Editing keymap ──────────────────────────────────────────────
+      // Line/word/format ops and Ctrl+S. Consumed events never reach plugin
+      // dispatch or the plain-key fallbacks below.
+      if (keymap.handle(e)) return
+
       // ── Plugin keydown dispatch ─────────────────────────────────────
       // Give content plugins first crack at keyboard events so they can
       // implement custom behaviors (list indentation, etc.).
@@ -181,13 +208,13 @@ export function createEditorLifecycle(
         }
       }
 
-      if (e.key === 'Tab') {
+      if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault()
         insertTextAtSelection('  ')
-      } else if (e.key === 'Enter') {
+      } else if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault()
         insertTextAtSelection('\n')
-      } else if (e.key === 'Backspace') {
+      } else if (e.key === 'Backspace' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault()
         const sel = window.getSelection()
         if (!sel || !sel.rangeCount) return
@@ -381,15 +408,14 @@ export function createEditorLifecycle(
       },
 
       getSelection(): { text: string; start: number; end: number } | null {
-        const sel = window.getSelection()
-        if (!sel || !sel.rangeCount) return null
-
-        const text = sel.toString()
-
-        const start = getLineOffset(dom.editorDiv)
-        const end = start + text.length
-
-        return { text, start, end: Math.max(start, end) }
+        // Raw-offset selection via the two-ended map (replaces the old
+        // start + DOM-string-length math, which was wrong for multi-line and
+        // data-raw token spans); null when unmappable, like tryGetLineOffset.
+        const off = getSelectionOffsets(dom.editorDiv)
+        if (!off) return null
+        const page = state.getCurrentPage()
+        const raw = buffers.getPageText(page)
+        return { text: raw.slice(off.start, off.end), start: off.start, end: off.end }
       },
 
       notify(opts: ToastOptions): string {

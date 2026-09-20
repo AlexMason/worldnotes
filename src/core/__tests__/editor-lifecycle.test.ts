@@ -1143,8 +1143,10 @@ describe('EditorInstance cursor API', () => {
     })
 
     it('reports selected text with correct start/end offsets', async () => {
-      // Set up DOM with data-line structure expected by getLineOffset
-      dom.editorDiv.innerHTML = '<span data-line="0">hello world</span>'
+      // Real [data-line] structure + buffer content (raw-space mapping reads
+      // the BUFFER, so DOM and buffer must agree — as the renderer guarantees).
+      state.getPageBuffers().setPageText('home', 'hello world')
+      dom.editorDiv.innerHTML = '<div data-line="0">hello world</div>'
       dom.editorDiv.focus()
       const textNode = dom.editorDiv.querySelector('[data-line="0"]')!.firstChild!
       const range = document.createRange()
@@ -1162,8 +1164,10 @@ describe('EditorInstance cursor API', () => {
     })
 
     it('always returns start <= end (min/max logic)', async () => {
-      setContentAndFocus('hello world')
-      const textNode = dom.editorDiv.firstChild!
+      state.getPageBuffers().setPageText('home', 'hello world')
+      dom.editorDiv.innerHTML = '<div data-line="0">hello world</div>'
+      dom.editorDiv.focus()
+      const textNode = dom.editorDiv.querySelector('[data-line="0"]')!.firstChild!
       const range = document.createRange()
       range.setStart(textNode, 1)
       range.setEnd(textNode, 10)
@@ -1174,7 +1178,7 @@ describe('EditorInstance cursor API', () => {
       const result = editor.getSelection()
       expect(result).not.toBeNull()
       expect(result!.start).toBeLessThanOrEqual(result!.end)
-      expect(result!.text.length).toBe(9) // 'ello worl'
+      expect(result!.text).toBe('ello worl')
     })
   })
 

@@ -80,6 +80,9 @@ export const listItemPlugin: ContentPlugin = {
   },
 
   onKeydown(event: KeyboardEvent, context: EditorContext): { cursorOffset: number } | false | void {
+    // Pure Tab / Shift+Tab / Enter only — modifier chords belong to the
+    // editing keymap (and browser conventions), never list mechanics.
+    if (event.ctrlKey || event.metaKey || event.altKey) return
     if (event.key === 'Tab' && !event.shiftKey) {
       return handleTab(context)
     }
