@@ -6,7 +6,8 @@ A self-hosted markdown wiki with wiki-style navigation.
   editor's output, read-only** (single render engine) — no JavaScript required
   for reading.
 - **Authenticated users** (any OIDC provider) get an **inline WYSIWYG markdown
-  editor** that autosaves as you type, with conflict detection.
+  editor** that autosaves as you type, with conflict detection and
+  [keyboard shortcuts](docs/shortcuts.md) (line moves, word ops, bold/italic/link).
 - Pages live at **nested slugs**: `/blog`, `/blog/post-name`. Wiki links
   (`[[Some Page]]`) resolve to real URLs; missing pages offer a **create** flow.
 - Content is stored in **PostgreSQL**. Single process; no external cache needed.

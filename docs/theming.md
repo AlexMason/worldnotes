@@ -26,7 +26,9 @@ Classes are the `.wn-*` namespace: `.wn-root .wn-header .wn-actions
 .wn-table .wn-table-row .wn-table-head .wn-table-sep .wn-table-cells
 .wn-table-cell .wn-table-edge .wn-align-left|center|right`, images
 `.wn-image .wn-image-img .wn-image-alt .wn-image-src`, plus `.wn-toast*`
-notifications.
+notifications and the shortcuts-help overlay (`.wn-shortcuts`,
+`.wn-shortcuts-title/-group/-group-name/-row/-keys/-action` — editor chrome
+in `editor-dom.ts`, token-styled, never shipped to the reader).
 
 The header (`.wn-header`) mirrors the viewer's `.wn-view-bar` (breadcrumbs
 left, `.wn-actions` right), and the editor content sits in a centered ~46rem
