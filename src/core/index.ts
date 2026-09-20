@@ -61,6 +61,9 @@ export {
 export { strikethroughPlugin } from './plugins/strikethrough'
 export { linkPlugin } from './plugins/link'
 export { imagePlugin } from './plugins/image'
+export { listItemPlugin } from './plugins/listItem'
+export { codeBlockPlugin } from './plugins/codeBlock'
+export { tablePlugin } from './plugins/table'
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 export { createNotificationSystem } from './notifications'

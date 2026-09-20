@@ -83,7 +83,7 @@ describe('grammar degradation (accepted: editor subset is the whole grammar)', (
   // markdown-it-era syntax that the single engine does not parse: it must
   // survive as VISIBLE literal source (never silently vanish, never execute).
   const literals = [
-    ['table row', '| a | b |', '| a | b |'],
+    ['task checkbox', '- [ ] todo', '[ ] todo'],
     ['task checkbox', '- [ ] todo', '[ ] todo'],
     ['h4 heading', '#### deep', '#### deep'],
     ['bare url stays text', 'visit https://example.com now', 'visit https://example.com now'],
@@ -169,6 +169,24 @@ describe('grammar degradation (accepted: editor subset is the whole grammar)', (
 })
 
 describe('lists render styled (restored grammar)', () => {
+  it('pipe tables render styled with cells and alignment (no <table>)', () => {
+    const html = render.render('| a | b |\n|:--|--:|\n| 1 | **x** |')
+    expect(html).toContain('<div class="wn-table" data-block="table">')
+    expect(html).toContain('class="wn-table-row wn-table-head"')
+    expect(html).toContain('wn-table-cell wn-align-left')
+    expect(html).toContain('wn-table-cell wn-align-right')
+    expect(html).toContain('<span class="wn-bold">') // inline grammar lives in cells
+    expect(html).not.toContain('<table')
+    expect(html).not.toContain('<td')
+  })
+
+  it('false-positive guards: hr and list grammar are never table starts', () => {
+    expect(render.render('prose | here\n---')).toContain('wn-hr')
+    expect(render.render('prose | here\n---')).not.toContain('wn-table')
+    const bullets = render.render('- x\n- |---|')
+    expect(bullets).not.toContain('wn-table')
+  })
+
   it('unordered markers display as bullets; source preserved in data-raw', () => {
     const html = render.render('- milk')
     expect(html).toContain('class="wn-list-item" data-raw="- milk"')

@@ -152,6 +152,31 @@ export const EDITOR_CONTENT_CSS = `
 .wn-code-fence { color: var(--wn-color-punct, #a39b8d); }
 .wn-code-line { color: var(--wn-color-code, #23211d); }
 
+/* Pipe tables — FLEX rows, not display:table (deliberate: expanded raw rows
+   and collapsed cell rows both flow sanely; anonymous-table-box caret quirks
+   impossible; no layout engine exists in this repo's test harness to catch
+   them). Columns are equal-width by design (sizing is out of scope). */
+.wn-table { margin: .6em 0; font-size: var(--wn-font-size-small, 14px); }
+.wn-table-row { display: flex; align-items: stretch; }
+.wn-table-cells { display: contents; }
+.wn-table-cell {
+  flex: 1 1 0;
+  min-width: 0;
+  border: 1px solid var(--wn-color-border, #e3ded4);
+  padding: .15em .5em;
+  white-space: normal; /* display-only collapse of source padding; text nodes intact */
+}
+.wn-table-head .wn-table-cell { font-weight: 700; }
+.wn-table-edge { color: transparent; font-size: 0; } /* outer-pipe padding, fidelity-only */
+.wn-table-sep { font-size: 0; line-height: 0; border-bottom: 1px solid var(--wn-color-border, #e3ded4); }
+.wn-align-left { text-align: left; }
+.wn-align-center { text-align: center; }
+.wn-align-right { text-align: right; }
+/* Pipes are grammar, not content — hidden on BOTH surfaces while the row is
+   collapsed (cells own the layout). Expanded rows are raw text nodes with no
+   punct spans, so editing always shows every pipe. */
+.wn-table-row .wn-punct { display: none; }
+
 /* Wiki link — mirrors the viewer (dotted underline, no pill) */
 .wn-wiki-link {
   color: var(--wn-color-wiki-link, #1a5fb4);

@@ -34,6 +34,13 @@ const FIXTURE = [
   'unsafe ![a](data:text/html,x) stays literal',
   'wiki [[projects/acme|Client Portal]] and [[plain-page]]',
   'unsafe [nope](javascript:alert(1)) stays literal',
+  '```js',
+  'const **not-bold** = 1',
+  '',
+  '```',
+  '| h1 | h2 |',
+  '|:---|---:|',
+  '| a | **b** |',
   '  leading spaces preserved',
 ].join('\n')
 

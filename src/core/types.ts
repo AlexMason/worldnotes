@@ -11,6 +11,13 @@ export interface Token {
   type: string
   raw: string
   groups: string[]
+  /**
+   * Non-serialized annotation emitted by BlockDef.parseLine for its own
+   * render/renderToHTML pair (e.g. table cell alignments). NEVER part of the
+   * source text: fidelity accounting uses `raw` only. Must not leak into
+   * HTML output by anything but its owning plugin.
+   */
+  meta?: unknown
 }
 
 // ─── Token Definition ────────────────────────────────────────────────────────
