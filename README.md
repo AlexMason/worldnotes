@@ -62,6 +62,11 @@ Auth model: **any account the OIDC provider lets in may edit.** Gate who can
 obtain an account at the provider (or a reverse-proxy layer) to restrict
 writing.
 
+The site ships no sign-in links: header chrome and 404 pages carry no login
+affordance, so sign-in is a known route — visit
+`http://<your-host>/oidc/login?returnTo=/` to authenticate (bookmark it for
+the first-admin setup), or run with `AUTH_DISABLED=1` in development.
+
 ## Deployment (Docker)
 
 ```bash

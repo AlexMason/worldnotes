@@ -12,7 +12,7 @@ Browser (anonymous)                  Browser (authenticated)
 ┌──────────────────────────── Fastify ────────────────────────────┐
 │ core static renderer (SSR) ── bounded LRU + ETag                │
 │ / → home|index · /all · /search/{terms} · /{slug} catch-all    │
-│   (editor for auth, registered LAST) · 404 create overlay      │
+│   (editor for auth, registered LAST) · plain 404 documents    │
 │ OIDC RP (state+PKCE+nonce) ── AES-GCM cookie sessions           │
 │ /api/pages CRUD ── requireAuth + same-origin ── PagesRepository │
 │ /api/settings ── SettingsRepository ── key/value table          │
@@ -67,6 +67,17 @@ Boundary rules (enforced by tooling):
   that invariant and writable only via `PUT /api/settings` (authenticated —
   see `docs/api.md` trust model). The `/admin` page omits the bands so
   broken branding can never hide the recovery form.
+- **Nav-page links are engine-extracted chrome:** the `navSlug` setting
+  designates a page whose top-level list items containing internal links
+  become header nav links (reader layout + editor shell). Extraction
+  (`src/server/render/nav.ts`) rides the ONE engine — `buildDocument` + the
+  shared inline scan — so list-marker grammar, fence/table regions, and
+  image-vs-link precedence can never drift from the rendered page; hrefs are
+  `validateSlug`-gated (the same charset guard that makes wiki-link hrefs
+  injection-safe). The parse is memoized in the render cache under
+  `nav:{slug}`; a nav-page write evicts it, a `navSlug` change is
+  self-busting (different key + settings revision). Chrome, not renderer
+  grammar.
 - **Favicon & uploads are server chrome, not renderer grammar:** the icon
   `<link>` tags come from `render/icons.ts`, fed by the `faviconMediaId`
   setting, and are emitted synchronously in BOTH the reader head
@@ -154,7 +165,7 @@ Public, no query strings anywhere:
 | `GET /search`, `GET /search/{terms}`            | search form + ILIKE results                                         | anon ok                |
 | `GET /admin`                                    | settings form (search, home page, branding; bands omitted)          | editors                |
 | `GET /edit`, `GET /edit/{slug}`                 | legacy 302s → `/`, `/{slug}`                                        | —                      |
-| `GET /{slug}` (catch-all, last)                 | editor shell (auth) / SSR article (anon); miss → 404 create overlay | mixed                  |
+| `GET /{slug}` (catch-all, last)                 | editor shell (auth) / SSR article (anon); miss → plain 404      | mixed                  |
 | `GET /api/pages`, `GET /api/pages/{slug}`       | JSON reads + ETags                                                  | anon ok                |
 | `POST/PUT/DELETE /api/pages[/{slug}]`           | writes; `requireSameOrigin` + `requireAuth`                         | editors                |
 | `PUT /api/settings`                             | instance settings write; `requireSameOrigin` + `requireAuth`        | editors                |
@@ -188,11 +199,13 @@ boot in production.
 `src/server/cache.ts`: bounded LRU (max entries + TTL). Page entries store
 renderer output (auth-independent); layout chrome is composed per request and
 responses carry `Vary: Cookie` (the editor/reader split now lives on the same
-URLs), so ETags track article bytes **plus a settings revision** — branding
-(`siteName`/`headerHtml`/`footerHtml`) and nav toggles re-render the chrome on
+URLs), so ETags track article bytes **plus a settings revision and the
+extracted nav links** — branding
+(`siteName`/`headerHtml`/`footerHtml`), nav toggles, and nav-page links
+re-render the chrome on
 every request, and the revision stamp ensures a settings change busts browser
 revalidation instead of 304-ing stale chrome indefinitely. Writes (any page
-route) invalidate `p:{slug}` and the index. Settings are read per-request
+route) invalidate `p:{slug}`, the index, and `nav:{slug}`. Settings are read per-request
 (cached in the `SettingsService`); changing them leaves the article caches
 intact (they stay settings-independent) but advances the revision mixed into
 every ETag. Responses carry `ETag` + `Cache-Control: public, max-age=60,

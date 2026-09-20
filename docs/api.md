@@ -68,8 +68,7 @@ zero network; a "Page deleted" toast confirms a blank save; typing again
 (after undo or fresh input) recreates the page via the normal create path.
 Reader caches: a delete invalidates the server-side render cache
 immediately, but anonymous browsers may still serve the deleted page from
-their own `max-age=60` cache for up to a minute before the 404 create
-overlay appears.
+their own `max-age=60` cache for up to a minute before the 404 appears.
 
 `updated_by` records the writer's OIDC `sub` (informational).
 
@@ -80,10 +79,22 @@ key/value table and editable from `GET /admin`.
 
 | Verb                | Path   | Auth                                                                                                                                                                                                                                                                                                                                           | Notes |
 | ------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| `PUT /api/settings` | editor | body `{searchEnabled?: boolean, homeSlug?: string\|null, allPagesEnabled?: boolean, siteName?: string, headerHtml?: string, footerHtml?: string, faviconMediaId?: number\|null}`; `homeSlug` blank/`null` clears it; invalid slugs 400; `faviconMediaId` must reference an existing media row (400 otherwise); returns the normalized settings |
+| `PUT /api/settings` | editor | body `{searchEnabled?: boolean, homeSlug?: string\|null, navSlug?: string\|null, allPagesEnabled?: boolean, siteName?: string, headerHtml?: string, footerHtml?: string, faviconMediaId?: number\|null}`; `homeSlug`/`navSlug` blank/`null` clears them; invalid slugs 400; `faviconMediaId` must reference an existing media row (400 otherwise); returns the normalized settings |
 
 - `searchEnabled` (default `true`) — hides the search form/links everywhere;
   `/search` and `/search/{terms}` remain functional.
+- `navSlug` (default unset) — designates a page as **the nav**: its top-level
+  list items that contain an internal page link (wiki `[[target|label]]` or
+  markdown `[label](/slug)`, same fold the link plugins use) become site-nav
+  links in the header chrome, rendered before Search/All-pages on both the
+  reader and the editor. Extraction runs the real engine (`buildDocument` +
+  inline scan), so fence/table regions and the full list-marker grammar
+  behave exactly like the rendered page. Nested items, non-list links,
+  external/anchor targets, and unfoldable slugs are skipped; max 8 links,
+  labels truncated to 40 chars. `/admin` names the empty state when the nav
+  page is set but yields no links. The parse is cached in the render cache
+  (`nav:{slug}`) and re-parsed when the nav page is saved or the setting
+  changes.
 - `allPagesEnabled` (default `true`) — serves the page index at `/` and
   `/all`; disabling it requires a `homeSlug` landing page (400 otherwise).
 - `siteName` (default `WorldNotes`) — branding name: suffixes every tab title
@@ -114,11 +125,19 @@ it to trusted operators, or every account is effectively a site-wide script
 injection vector. There is no CSP. Concurrent PUTs are last-write-wins (no
 versioning), so two admins editing different fields can clobber each other.
 The `/admin` page deliberately renders the bands nowhere — broken branding
-cannot bury the recovery form.
+cannot bury the recovery form. Nav-page links ARE rendered on `/admin`
+(server-escaped chrome, not raw content — same reasoning as the site name).
 
-Reader `ETag`s mix in a settings revision, so branding/toggle changes bust
-browser revalidation even when the article bytes are unchanged — including a
-favicon change (the head `<link>` tags are part of the cached chrome).
+No page ships a sign-in link: header chrome and 404 documents carry no login
+affordance (the editor's session-expiry toast keeps a re-login action —
+recovery UX, not a public button). Authentication is therefore a known route:
+`GET /oidc/login?returnTo=/{slug}`. First-admin bootstrap: hit that URL
+directly after deploy, or run with `AUTH_DISABLED=1` (dev mode).
+
+Reader `ETag`s mix in a settings revision and the extracted nav links, so
+branding/toggle/nav-page changes bust browser revalidation even when the
+article bytes are unchanged — including a favicon change (the head `<link>`
+tags are part of the cached chrome).
 
 ## Media
 
@@ -161,10 +180,11 @@ delete/clear to retract.
 - `GET /{slug}` — **authenticated**: the editor SPA shell (`no-store`);
   **anonymous**: server-rendered reading view (`ETag`, `Cache-Control:
 public, max-age=60, stale-while-revalidate=300`, `Vary: Cookie`, 304
-  revalidation). Unknown-but-valid slugs → 404 document with a create
-  overlay: “Create this page” links to the page (login first, via the hint);
-  the editor seeds a starter and the row is created on the first non-blank
-  save — the server never stores blank pages.
+  revalidation). Unknown-but-valid slugs → plain “Page not found”
+  404 document (no create/login affordance — header chrome carries no sign-in
+  link by design: authentication is a known route, `GET /oidc/login?returnTo=…`,
+  typically bookmarked by operators); the editor seeds a starter and the row
+  is created on the first non-blank save — the server never stores blank pages.
 - `GET /` — the configured home page, else the page index; `GET /all` — the
   page index (+ search box).
 - `GET /search/{terms}` — results (no query strings anywhere on public routes).

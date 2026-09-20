@@ -17,8 +17,9 @@ are declared on `.wn-root` (`--wn-color-bg/-fg/-fg-muted/-accent/-border/
 -code-bg`, plus heading/bold/punct/toast tokens); override them, or replace
 the entire stylesheet via `createEditor(el, { theme: '…css…' })`.
 
-Classes are the `.wn-*` namespace: `.wn-root .wn-header .wn-actions
-.wn-breadcrumb .wn-toolbar .wn-editor-wrap .wn-editor-col .wn-editor
+Classes are the `.wn-*` namespace: `.wn-root .wn-header .wn-nav .wn-menu
+.wn-actions .wn-breadcrumb .wn-crumb .wn-crumb-sep .wn-crumb-more
+.wn-crumb-drop .wn-toolbar .wn-editor-wrap .wn-editor-col .wn-editor
 .wn-placeholder .wn-overlay .wn-footer .wn-left-sidepanel
 .wn-right-sidepanel`, token spans `.wn-h1..h3`, `.wn-bold .wn-italic
 .wn-code .wn-wiki-link .wn-link .wn-strikethrough .wn-blockquote .wn-hr
@@ -31,8 +32,13 @@ notifications and the shortcuts-help overlay (`.wn-shortcuts`,
 in `editor-dom.ts`, token-styled, never shipped to the reader).
 
 The header (`.wn-header`) mirrors the viewer's `.wn-view-bar` (breadcrumbs
-left, `.wn-actions` right), and the editor content sits in a centered ~46rem
-column (`.wn-editor-col`) matching the viewer's `<main>`.
+left; site nav right — a `.wn-nav` wrapper holding the zero-JS hamburger
+`<details class="wn-menu">` whose SIBLING `.wn-actions` div carries nav-page
+links + built-ins). Under the shared 640px breakpoint, `:has()` hides the
+actions until the menu opens; deep breadcrumb trails collapse their middle
+under a `.wn-crumb-more` ellipsis dropdown on both surfaces. The editor
+content sits in a centered ~46rem column (`.wn-editor-col`) matching the
+viewer's `<main>`.
 
 The client bundles the editor with its default theme; re-theming the edit
 surface today means forking the bundle (the option exists in core for future
@@ -66,11 +72,14 @@ remain display-only divergences.
 - `--wn-bg` / `--wn-fg` / `--wn-muted` / `--wn-accent` / `--wn-border` /
   `--wn-code-bg` CSS variables on `:root` (chrome palette), with automatic
   dark variants via `color-scheme: light dark` + `prefers-color-scheme`.
-- Structural classes: `.wn-view-bar` (header), `.wn-crumbs` (breadcrumb),
-  `.wn-view-actions` (search / all-pages / admin / sign-in-out links),
+- Structural classes: `.wn-view-bar` (header), `.wn-crumbs` (breadcrumb,
+  with `.wn-crumb-sep` / `.wn-crumb-more` + `.wn-crumb-drop` middle-collapse),
+  `.wn-nav` + `.wn-menu` (site-nav wrapper + zero-JS hamburger toggle),
+  `.wn-view-actions` (nav-page `.wn-nav-link`s + search / all-pages /
+  admin / sign-out links — no sign-in link by design),
   `.wn-article` typography (pre-wrap surface like `.wn-editor`),
   `.wn-page-list`, `.wn-search-form`, `.wn-admin-form` (admin settings),
-  `.wn-status` + `.wn-create` (404 create overlay).
+  `.wn-status` (404/status documents).
 - **Site bands** (`.wn-site-header` / `.wn-site-footer`, styled by
   `SITE_BANDS_CSS` in `src/core/styles.ts` — the one chrome group shared by
   both surfaces): admin-authored **raw HTML** from `PUT /api/settings`, shown
