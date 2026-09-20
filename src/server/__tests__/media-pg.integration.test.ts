@@ -64,7 +64,12 @@ describe.skipIf(!url)('MediaRepository on Postgres', () => {
   })
 
   it('accepts ICO and GIF rows', async () => {
-    const ico = await repo.insert({ mediaType: 'image/vnd.microsoft.icon', width: 1, height: 1, data: ICO_BYTES })
+    const ico = await repo.insert({
+      mediaType: 'image/vnd.microsoft.icon',
+      width: 1,
+      height: 1,
+      data: ICO_BYTES,
+    })
     const gif = await repo.insert({ mediaType: 'image/gif', width: 1, height: 1, data: GIF_BYTES })
     expect((await repo.get(ico.id))!.mediaType).toBe('image/vnd.microsoft.icon')
     expect((await repo.get(gif.id))!.mediaType).toBe('image/gif')

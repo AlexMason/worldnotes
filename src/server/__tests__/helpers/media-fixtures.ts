@@ -48,6 +48,7 @@ export const GIF_BYTES = Buffer.from(
 
 export const ICO_BYTES = (() => {
   const header = Buffer.alloc(6 + 16)
+  header.writeUInt16LE(1, 2) // type: 1 = icon
   header.writeUInt16LE(1, 4) // one image
   header[6] = 1 // width
   header[7] = 1 // height
@@ -55,16 +56,22 @@ export const ICO_BYTES = (() => {
   return header
 })()
 
-/** Minimal lossy WebP: RIFF/WEBP + VP8 chunk declaring 1x1. */
+/** Minimal lossy WebP: RIFF/WEBP + VP8 chunk declaring 1x1. Real bitstream
+ *  layout: 3-byte frame tag, 0x9d 0x01 0x2a sync code, 14-bit (w-1),(h-1). */
 export const WEBP_BYTES = (() => {
-  const body = Buffer.alloc(10 + 3)
-  body.writeUInt8(0x9d, 0)
-  body.writeUInt8(0x01, 1)
-  body.writeUInt8(0x2a, 2)
-  body.writeUInt16LE(1, 3) // width - 1
-  body.writeUInt16LE(1, 5) // height - 1
+  const body = Buffer.alloc(3 + 7)
+  body.writeUInt8(0x9d, 3)
+  body.writeUInt8(0x01, 4)
+  body.writeUInt8(0x2a, 5)
+  body.writeUInt16LE(0, 6) // width - 1
+  body.writeUInt16LE(0, 8) // height - 1
   const chunk = Buffer.concat([Buffer.from('VP8 ', 'ascii'), u32(body.length), body])
-  const riff = Buffer.concat([Buffer.from('RIFF', 'ascii'), u32(4 + chunk.length), Buffer.from('WEBP', 'ascii'), chunk])
+  const riff = Buffer.concat([
+    Buffer.from('RIFF', 'ascii'),
+    u32(4 + chunk.length),
+    Buffer.from('WEBP', 'ascii'),
+    chunk,
+  ])
   return riff
 })()
 
@@ -87,4 +94,6 @@ export const JPEG_BYTES = (() => {
   return Buffer.concat([Buffer.from('ffd8', 'hex'), sof, Buffer.from('ffd9', 'hex')])
 })()
 
-export const SVG_BYTES = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>')
+export const SVG_BYTES = Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+)
