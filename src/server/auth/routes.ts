@@ -27,32 +27,21 @@ export function formatAuthError(e: unknown): string {
   return parts.length ? parts.join(' — ') : String(e)
 }
 
-export async function registerAuthRoutes(
-  app: FastifyInstance,
-  deps: AuthRouteDeps,
-): Promise<void> {
+export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDeps): Promise<void> {
   const { config } = deps
   const pendingMaxAge = 600
   // Scope the pending cookie to the callback's actual path so sub-path
   // deployments (https://host/worldnotes/oidc/callback) work too.
-  const pendingPath = config.oidc
-    ? new URL(config.oidc.redirectUrl).pathname
-    : '/oidc/callback'
+  const pendingPath = config.oidc ? new URL(config.oidc.redirectUrl).pathname : '/oidc/callback'
 
   app.get('/oidc/login', async (req, reply) => {
     if (config.authDisabled || !deps.relyingParty) return reply.redirect('/', 302)
     const { query } = req as { query: { returnTo?: string } }
-    const { url, pending } = await deps.relyingParty.startLogin(
-      sanitizeReturnTo(query.returnTo),
-    )
-    reply.cookie(
-      PENDING_COOKIE,
-      seal(pending, config.sessionSecrets),
-      {
-        ...sessionCookieOptions(pendingMaxAge, config.isProduction),
-        path: pendingPath, // scoped: only travels to the callback
-      },
-    )
+    const { url, pending } = await deps.relyingParty.startLogin(sanitizeReturnTo(query.returnTo))
+    reply.cookie(PENDING_COOKIE, seal(pending, config.sessionSecrets), {
+      ...sessionCookieOptions(pendingMaxAge, config.isProduction),
+      path: pendingPath, // scoped: only travels to the callback
+    })
     return reply.redirect(url, 302)
   })
 
@@ -102,7 +91,7 @@ export async function registerAuthRoutes(
 
   app.get('/oidc/logout', async (req, reply) => {
     reply.clearSession()
-    const end = config.authDisabled ? null : deps.relyingParty?.endSessionUrl() ?? null
+    const end = config.authDisabled ? null : (deps.relyingParty?.endSessionUrl() ?? null)
     return reply.redirect(end ?? '/', 302)
   })
 

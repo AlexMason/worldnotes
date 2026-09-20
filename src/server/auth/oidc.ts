@@ -55,9 +55,7 @@ export async function createRelyingParty(
   const oidcCfg = config.oidc
   if (!oidcCfg) throw new Error('createRelyingParty: OIDC not configured')
 
-  const options = deps.fetch
-    ? { [customFetch]: deps.fetch }
-    : undefined
+  const options = deps.fetch ? { [customFetch]: deps.fetch } : undefined
 
   const rpOptions: Record<string, unknown> = { ...options }
   if (!config.isProduction) {
@@ -73,7 +71,9 @@ export async function createRelyingParty(
   // (Go/gin) compare the decoded header literally — UUID client IDs and
   // 'ta-' secrets then fail with invalid_client.
   const clientAuth: oidc.ClientAuth = (_as, _client, _body, headers) => {
-    const raw = Buffer.from(`${oidcCfg.clientId}:${oidcCfg.clientSecret}`, 'utf8').toString('base64')
+    const raw = Buffer.from(`${oidcCfg.clientId}:${oidcCfg.clientSecret}`, 'utf8').toString(
+      'base64',
+    )
     headers.set('authorization', `Basic ${raw}`)
   }
 

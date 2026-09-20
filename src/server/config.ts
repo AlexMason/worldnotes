@@ -4,13 +4,9 @@
 import { z } from 'zod'
 
 const EnvSchema = z.object({
-  NODE_ENV: z
-    .enum(['development', 'production', 'test'])
-    .default('development'),
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   /** Server log level; 'silent' disables (tests rely on the buildApp default). */
-  LOG_LEVEL: z
-    .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
-    .default('info'),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   PORT: z.coerce.number().int().positive().default(3000),
   HOST: z.string().default('0.0.0.0'),
   DATABASE_URL: z.string().min(1).default('postgres://localhost:5432/worldnotes'),
@@ -60,14 +56,10 @@ export interface ServerConfig {
   authDisabled: boolean
 }
 
-export function loadConfig(
-  overrides: Record<string, string | undefined> = {},
-): ServerConfig {
+export function loadConfig(overrides: Record<string, string | undefined> = {}): ServerConfig {
   const parsed = EnvSchema.safeParse({ ...process.env, ...overrides })
   if (!parsed.success) {
-    const details = parsed.error.issues
-      .map((i) => `${i.path.join('.')}: ${i.message}`)
-      .join('; ')
+    const details = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')
     throw new Error(`Invalid environment configuration — ${details}`)
   }
   const env = parsed.data

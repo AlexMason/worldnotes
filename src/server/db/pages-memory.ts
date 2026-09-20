@@ -65,7 +65,11 @@ export function createMemoryPagesRepository(
       const prev = pages.get(slug)
       if (!prev) return { ok: false, reason: 'missing' }
       if (prev.version !== ifMatch)
-        return { ok: false, reason: 'conflict', current: { version: prev.version, updatedAt: prev.updatedAt } }
+        return {
+          ok: false,
+          reason: 'conflict',
+          current: { version: prev.version, updatedAt: prev.updatedAt },
+        }
       return { ok: true, record: snapshot(slug, title, content, by) }
     },
 
@@ -79,7 +83,11 @@ export function createMemoryPagesRepository(
       const prev = pages.get(slug)
       if (!prev) return { ok: false, reason: 'missing' }
       if (prev.version !== ifMatch)
-        return { ok: false, reason: 'conflict', current: { version: prev.version, updatedAt: prev.updatedAt } }
+        return {
+          ok: false,
+          reason: 'conflict',
+          current: { version: prev.version, updatedAt: prev.updatedAt },
+        }
       pages.delete(slug)
       return { ok: true }
     },

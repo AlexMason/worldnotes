@@ -37,10 +37,7 @@ export function seal<T extends SealedFields>(payload: T, secrets: string[]): str
   const iv = randomBytes(12)
   const cipher = createCipheriv('aes-256-gcm', key, iv)
   const ct = Buffer.concat([cipher.update(JSON.stringify(payload), 'utf8'), cipher.final()])
-  return (
-    PFX +
-    Buffer.concat([iv, cipher.getAuthTag(), ct]).toString('base64url')
-  )
+  return PFX + Buffer.concat([iv, cipher.getAuthTag(), ct]).toString('base64url')
 }
 
 export function open<T extends SealedFields>(value: string, secrets: string[]): T | null {
@@ -131,7 +128,11 @@ export async function registerSessions(
       ...user,
       exp: Math.floor(Date.now() / 1000) + opts.maxAgeSeconds,
     }
-    this.cookie(SESSION_COOKIE, seal(payload, opts.secrets), sessionCookieOptions(opts.maxAgeSeconds, opts.secure))
+    this.cookie(
+      SESSION_COOKIE,
+      seal(payload, opts.secrets),
+      sessionCookieOptions(opts.maxAgeSeconds, opts.secure),
+    )
   })
 
   app.decorateReply('clearSession', function clearSession(this: FastifyReply) {

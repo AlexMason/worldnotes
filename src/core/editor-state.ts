@@ -138,7 +138,7 @@ export function createEditorState(
       return {
         ...context,
         getTrail: () => [...trail],
-        getCurrentPage: () => trail.length <= 1 ? (trail[0] ?? '') : trail.slice(1).join('/'),
+        getCurrentPage: () => (trail.length <= 1 ? (trail[0] ?? '') : trail.slice(1).join('/')),
       }
     },
   }

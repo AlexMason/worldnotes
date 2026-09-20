@@ -101,7 +101,11 @@ describe('pages API', () => {
         payload: { slug: 'blog/hello-world', content: '# Hello There\n\nbody' },
       })
       expect(ok.statusCode).toBe(201)
-      expect(ok.json()).toMatchObject({ slug: 'blog/hello-world', title: 'Hello There', version: 1 })
+      expect(ok.json()).toMatchObject({
+        slug: 'blog/hello-world',
+        title: 'Hello There',
+        version: 1,
+      })
       expect(writes).toEqual(['blog/hello-world'])
     })
 

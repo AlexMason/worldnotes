@@ -10,6 +10,7 @@ import { createPool } from './db/pool'
 import { runMigrations } from './db/migrate'
 import { createPgPagesRepository } from './db/pages-pg'
 import { createPgSettingsRepository } from './db/settings-pg'
+import { createPgMediaRepository } from './db/media-pg'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -30,8 +31,10 @@ async function main(): Promise<void> {
     config,
     pages: createPgPagesRepository(pool),
     settings: createPgSettingsRepository(pool),
+    media: createPgMediaRepository(pool),
     relyingParty,
     clientAssetsDir: resolve(here, '../../dist/client'),
+    bundledIconsDir: resolve(here, '../../public/icons'),
     logger: config.env.LOG_LEVEL === 'silent' ? false : { level: config.env.LOG_LEVEL },
   })
 

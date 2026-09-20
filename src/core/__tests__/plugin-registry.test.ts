@@ -31,7 +31,6 @@ function makeUIPlugin(overrides: Partial<UIPlugin> = {}): UIPlugin {
   }
 }
 
-
 // ─── A. Semver Validation (PLUG-06) ────────────────────────────────────────────
 
 describe('Semver Validation', () => {
@@ -496,7 +495,6 @@ describe('Edge Cases', () => {
     expect(() => registry.register(plugin)).not.toThrow()
     expect(registry.getPlugin('test-content')).toBeDefined()
   })
-
 
   it('allContentPlugins filters out UI plugins', () => {
     const registry = new PluginRegistry()

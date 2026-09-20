@@ -93,7 +93,6 @@ export class PluginRegistry {
       this.uiPlugins.delete(name)
       return
     }
-
   }
 
   // ── Registration ────────────────────────────────────────────────────────────
@@ -214,17 +213,12 @@ export class PluginRegistry {
    * Returns undefined if no plugin with that name is registered.
    */
   getPlugin(name: string): PluginManifest | undefined {
-    return (
-      this.contentPlugins.get(name) ?? this.uiPlugins.get(name)
-    )
+    return this.contentPlugins.get(name) ?? this.uiPlugins.get(name)
   }
 
   /** Return all registered plugins from all categories combined. */
   getAllPlugins(): PluginManifest[] {
-    return [
-      ...this.contentPlugins.values(),
-      ...this.uiPlugins.values(),
-    ]
+    return [...this.contentPlugins.values(), ...this.uiPlugins.values()]
   }
 
   /** Return all registered UI plugins. */

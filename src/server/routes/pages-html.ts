@@ -94,6 +94,7 @@ export async function registerPageHtmlRoutes(
       siteName: settings.siteName,
       headerHtml: settings.headerHtml,
       footerHtml: settings.footerHtml,
+      faviconMediaId: settings.faviconMediaId,
     }
   }
 
@@ -117,6 +118,7 @@ export async function registerPageHtmlRoutes(
         siteName: settings.siteName,
         headerHtml: settings.headerHtml,
         footerHtml: settings.footerHtml,
+        faviconMediaId: settings.faviconMediaId,
         userName: req.user.name ?? req.user.sub,
         authDisabled: config.authDisabled,
         page: page ? { content: page.content, version: page.version } : null,

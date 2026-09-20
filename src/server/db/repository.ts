@@ -37,7 +37,10 @@ export interface PagesRepository {
   /** All pages, newest first; optional ILIKE-free substring filter over slug/title/content. */
   list(opts?: { query?: string; limit?: number }): Promise<PageListItem[]>
   /** Insert-or-update with optimistic concurrency. */
-  put(slug: string, data: { title: string; content: string; by?: string | null }): Promise<PageRecord>
+  put(
+    slug: string,
+    data: { title: string; content: string; by?: string | null },
+  ): Promise<PageRecord>
   /** Update only if the page already exists AND version matches `ifMatch`. */
   putIfMatch(
     slug: string,

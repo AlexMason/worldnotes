@@ -35,7 +35,7 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
   return {
     getPageBuffers: () => pageBuffers,
     getTrail: () => [...trail],
-    getCurrentPage: () => trail.length <= 1 ? trail[0] : trail.slice(1).join('/'),
+    getCurrentPage: () => (trail.length <= 1 ? trail[0] : trail.slice(1).join('/')),
     getWorld: () => pageBuffers.getWorld(),
     pushTrail: (page: string) => {
       trail.push(page)
@@ -67,7 +67,7 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
     toContext: (_navigate: (page: string) => void): EditorContext => ({
       navigate: _navigate,
       getTrail: () => [...trail],
-      getCurrentPage: () => trail.length <= 1 ? trail[0] : trail.slice(1).join('/'),
+      getCurrentPage: () => (trail.length <= 1 ? trail[0] : trail.slice(1).join('/')),
       getWorld: () => pageBuffers.getWorld(),
       getPageText: (p: string) => pageBuffers.getPageText(p),
       setPageText: (p: string, c: string) => pageBuffers.setPageText(p, c),
@@ -94,7 +94,21 @@ function mockDOM(): EditorDOM {
   container.appendChild(toolbar)
   container.appendChild(editorWrap)
 
-  return { container, actions, breadcrumb, toolbar, editorWrap, editorDiv, placeholder, overlay: document.createElement('div'), header: document.createElement('div'), body: document.createElement('div'), footer: document.createElement('div'), leftSidepanel: document.createElement('div'), rightSidepanel: document.createElement('div') }
+  return {
+    container,
+    actions,
+    breadcrumb,
+    toolbar,
+    editorWrap,
+    editorDiv,
+    placeholder,
+    overlay: document.createElement('div'),
+    header: document.createElement('div'),
+    body: document.createElement('div'),
+    footer: document.createElement('div'),
+    leftSidepanel: document.createElement('div'),
+    rightSidepanel: document.createElement('div'),
+  }
 }
 
 function mockRender(state: EditorStateAPI, dom: EditorDOM): EditorRenderAPI {
@@ -616,9 +630,7 @@ describe('Editor lifecycle event handlers', () => {
 
       expect(preventDefault).toHaveBeenCalled()
       expect(onKeydown).toHaveBeenCalled()
-      expect(
-        state.getPageBuffers().getPageText('home'),
-      ).toBe('plugin handled')
+      expect(state.getPageBuffers().getPageText('home')).toBe('plugin handled')
     })
 
     it('lets default handler run when onKeydown returns false', async () => {

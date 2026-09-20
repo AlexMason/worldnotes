@@ -194,9 +194,9 @@ describe('createSettingsService', () => {
     await expect(svc.update({ faviconMediaId: 0 })).rejects.toThrow(/positive integer or null/)
     await expect(svc.update({ faviconMediaId: -2 })).rejects.toThrow(/positive integer or null/)
     await expect(svc.update({ faviconMediaId: 1.5 })).rejects.toThrow(/positive integer or null/)
-    await expect(
-      svc.update({ faviconMediaId: '7' as unknown as number }),
-    ).rejects.toThrow(/positive integer or null/)
+    await expect(svc.update({ faviconMediaId: '7' as unknown as number })).rejects.toThrow(
+      /positive integer or null/,
+    )
     expect(svc.get().faviconMediaId).toBeNull()
   })
 

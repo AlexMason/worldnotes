@@ -10,11 +10,13 @@ import type { FastifyInstance } from 'fastify'
 import { requireAuth } from '../auth/session'
 import { renderLayout, escapeHtml } from '../render/layout'
 import type { SettingsService } from '../settings'
+import type { MediaRepository } from '../db/media-repository'
 import type { ServerConfig } from '../config'
 
 export interface AdminDeps {
   config: ServerConfig
   settings: SettingsService
+  media: MediaRepository
 }
 
 const ADMIN_SCRIPT = `
@@ -53,11 +55,66 @@ const ADMIN_SCRIPT = `
 })();
 `
 
+// Favicon controls live OUTSIDE the main settings form (own buttons, own
+// message line) so the main "Save settings" never carries icon fields, and
+// an icon upload is a two-call flow: POST /api/media then a partial
+// PUT /api/settings — the settings API only applies fields it receives.
+const ICON_SCRIPT = `
+(function () {
+  var uploadBtn = document.getElementById('wn-icon-upload');
+  var removeBtn = document.getElementById('wn-icon-remove');
+  var fileInput = document.getElementById('wn-icon-file');
+  var msg = document.getElementById('wn-icon-msg');
+  function show(text) { if (msg) { msg.hidden = false; msg.textContent = text; } }
+  async function saveFavicon(patch) {
+    var res = await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    if (res.ok) { window.location.reload(); return; }
+    var detail = '';
+    try { detail = (await res.json()).error || ''; } catch (err) { /* ignore */ }
+    show('Save failed — ' + (detail || 'check the image and try again.'));
+  }
+  if (uploadBtn && fileInput) {
+    uploadBtn.addEventListener('click', async function () {
+      if (!fileInput.files || !fileInput.files[0]) { show('Choose an image first.'); return; }
+      var form = new FormData();
+      form.append('file', fileInput.files[0]);
+      var res;
+      try { res = await fetch('/api/media', { method: 'POST', body: form }); }
+      catch (err) { show('Upload failed — network error.'); return; }
+      if (!res.ok) {
+        var detail = '';
+        try { detail = (await res.json()).error || ''; } catch (err) { /* ignore */ }
+        show('Upload failed — ' + (detail || res.status));
+        return;
+      }
+      var uploaded = await res.json();
+      await saveFavicon({ faviconMediaId: uploaded.id });
+    });
+  }
+  if (removeBtn) {
+    removeBtn.addEventListener('click', function () { saveFavicon({ faviconMediaId: null }); });
+  }
+})();
+`
+
 export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps): Promise<void> {
-  const { config, settings } = deps
+  const { config, settings, media } = deps
 
   app.get('/admin', { preHandler: [requireAuth] }, async (req, reply) => {
     const s = settings.get()
+    // Icon state: override row healthy → thumbnail; row missing (dangling
+    // two-step/restore) → name the state so the operator knows to re-upload.
+    let iconState = '<p class="wn-admin-msg">Using the bundled default icons.</p>'
+    if (s.faviconMediaId !== null) {
+      const row = await media.get(s.faviconMediaId)
+      iconState = row
+        ? `<p class="wn-admin-msg">Custom icon in use (<img src="/media/${s.faviconMediaId}" alt="current icon" width="32" height="32">, ${row.width ?? '?'}\u00d7${row.height ?? '?'} ${row.mediaType}).</p>`
+        : `<p class="wn-admin-msg">Icon override points at media #${s.faviconMediaId}, which is missing \u2014 upload a new image to recover.</p>`
+    }
     // Leading newline in each textarea guards against the HTML parser
     // swallowing a stored value's own first newline (it strips exactly one
     // after the opening tag; this synthetic one is what gets stripped).
@@ -84,7 +141,15 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
       )}</textarea></label>` +
       `<button type="submit">Save settings</button>` +
       `<p id="wn-admin-msg" class="wn-admin-msg" hidden></p>` +
-      `</form>`
+      `</form>` +
+      `<section class="wn-admin-form" style="margin-top:2rem">` +
+      `<h2>Favicon</h2>` +
+      iconState +
+      `<label>Override icon (PNG / JPEG / GIF / WebP / ICO, one image)<input type="file" id="wn-icon-file" accept="image/png,image/jpeg,image/gif,image/webp,image/vnd.microsoft.icon"></label>` +
+      `<div class="wn-admin-icon-actions"><button type="button" id="wn-icon-upload">Upload icon</button>` +
+      `<button type="button" id="wn-icon-remove">Use default icons</button></div>` +
+      `<p id="wn-icon-msg" class="wn-admin-msg" hidden></p>` +
+      `</section>`
 
     const html = renderLayout({
       title: 'Admin settings',
@@ -98,7 +163,8 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
       searchEnabled: s.searchEnabled,
       allPagesEnabled: s.allPagesEnabled,
       siteName: s.siteName,
-      scripts: ADMIN_SCRIPT,
+      faviconMediaId: s.faviconMediaId,
+      scripts: ADMIN_SCRIPT + ICON_SCRIPT,
     })
     return reply
       .header('content-type', 'text/html; charset=utf-8')

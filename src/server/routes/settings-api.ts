@@ -6,10 +6,15 @@
 
 import type { FastifyInstance } from 'fastify'
 import { requireAuth, requireSameOrigin } from '../auth/session'
+import type { MediaRepository } from '../db/media-repository'
 import type { SettingsPatch, SettingsService } from '../settings'
 
 export interface SettingsApiDeps {
   settings: SettingsService
+  /** Favicon references are validated against the media store, and a
+   *  replaced/cleared override's row is deleted here (the only place that
+   *  owns both stores). */
+  media: MediaRepository
 }
 
 export async function registerSettingsApiRoutes(
@@ -37,6 +42,18 @@ export async function registerSettingsApiRoutes(
         return reply.code(400).send({ error: `${field} must be a string` })
       }
     }
+    if (body.faviconMediaId !== undefined && body.faviconMediaId !== null) {
+      if (
+        typeof body.faviconMediaId !== 'number' ||
+        !Number.isInteger(body.faviconMediaId) ||
+        body.faviconMediaId < 1
+      ) {
+        return reply.code(400).send({ error: 'faviconMediaId must be a positive integer or null' })
+      }
+      if (!(await deps.media.get(body.faviconMediaId))) {
+        return reply.code(400).send({ error: `unknown media id ${body.faviconMediaId}` })
+      }
+    }
 
     const patch: SettingsPatch = {}
     if (body.searchEnabled !== undefined) patch.searchEnabled = body.searchEnabled as boolean
@@ -45,9 +62,14 @@ export async function registerSettingsApiRoutes(
     if (body.siteName !== undefined) patch.siteName = body.siteName as string
     if (body.headerHtml !== undefined) patch.headerHtml = body.headerHtml as string
     if (body.footerHtml !== undefined) patch.footerHtml = body.footerHtml as string
+    if (body.faviconMediaId !== undefined) {
+      patch.faviconMediaId = body.faviconMediaId as number | null
+    }
 
+    const previousFavicon = deps.settings.get().faviconMediaId
+    let next
     try {
-      return await deps.settings.update(patch, req.user?.sub ?? null)
+      next = await deps.settings.update(patch, req.user?.sub ?? null)
     } catch (e) {
       const message = (e as Error).message
       // Service-level validation failures carry operator-facing messages;
@@ -58,5 +80,19 @@ export async function registerSettingsApiRoutes(
       req.log.error({ err: e }, 'settings update failed')
       return reply.code(500).send({ error: 'failed to save settings' })
     }
+
+    // Orphan cleanup: a replaced or cleared override's row can no longer be
+    // referenced (nothing else consumes media yet). Re-read guard so an
+    // interleaved writer that re-pointed settings at the old row never has
+    // it deleted under it. Best-effort: a failed delete must not fail the
+    // (already persisted) settings write.
+    if (previousFavicon !== null && next.faviconMediaId !== previousFavicon) {
+      try {
+        await deps.media.delete(previousFavicon)
+      } catch (e) {
+        req.log.warn({ err: e, mediaId: previousFavicon }, 'could not delete replaced favicon')
+      }
+    }
+    return next
   })
 }

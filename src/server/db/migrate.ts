@@ -6,16 +6,13 @@ import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { SqlPool } from './pool'
 
-const LOCK_KEY = 7266796  // 'wnos' — stable application-level migration lock
+const LOCK_KEY = 7266796 // 'wnos' — stable application-level migration lock
 
 export async function runMigrations(pool: SqlPool, dir: string): Promise<string[]> {
   const client = await pool.connect()
   const applied: string[] = []
   try {
-    const locked = await client.query(
-      'SELECT pg_try_advisory_lock($1) AS locked',
-      [LOCK_KEY],
-    )
+    const locked = await client.query('SELECT pg_try_advisory_lock($1) AS locked', [LOCK_KEY])
     if (!locked.rows[0]?.locked) {
       throw new Error('migrations: another instance holds the advisory lock')
     }

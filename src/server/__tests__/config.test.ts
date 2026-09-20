@@ -55,9 +55,7 @@ describe('loadConfig', () => {
   })
 
   it('supports multiple secrets for rotation', () => {
-    const config = loadConfig(
-      baseEnv({ SESSION_SECRETS: `${'a'.repeat(32)},${'b'.repeat(40)}` }),
-    )
+    const config = loadConfig(baseEnv({ SESSION_SECRETS: `${'a'.repeat(32)},${'b'.repeat(40)}` }))
     expect(config.sessionSecrets).toHaveLength(2)
   })
 
@@ -74,9 +72,9 @@ describe('loadConfig', () => {
   })
 
   it('refuses AUTH_DISABLED in production', () => {
-    expect(() =>
-      loadConfig(baseEnv({ NODE_ENV: 'production', AUTH_DISABLED: '1' })),
-    ).toThrow(/not permitted/)
+    expect(() => loadConfig(baseEnv({ NODE_ENV: 'production', AUTH_DISABLED: '1' }))).toThrow(
+      /not permitted/,
+    )
   })
 
   it('coerces numeric settings', () => {

@@ -6,6 +6,7 @@
 // paint the editor synchronously without extra round-trips.
 
 import { escapeHtml } from './layout'
+import { iconTagsHtml } from './icons'
 import { composeDocTitle } from '../../shared/doc-title'
 import type { EditorShellConfig } from '../../shared/dto'
 import { slugDisplayName } from '../../shared/slug'
@@ -21,6 +22,8 @@ export interface EditorShellOptions {
   allPagesEnabled: boolean
   /** Site branding: tab-title suffix + breadcrumb root label ('' = none). */
   siteName: string
+  /** Media row overriding the bundled favicon set; null = defaults. */
+  faviconMediaId: number | null
   /**
    * Raw admin-trusted HTML bands, embedded in the client config and injected
    * around the editor's content column by the client (mirroring the reader's
@@ -71,7 +74,7 @@ export function editorShellHtml(slug: string, opts: EditorShellOptions): string 
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${escapeHtml(composeDocTitle(slugDisplayName(slug), opts.siteName))}</title>
-<link rel="icon" href="data:,">
+${iconTagsHtml(opts.faviconMediaId)}
 <style>
   html, body { height: 100%; margin: 0; }
   #wn-app { height: 100%; height: 100dvh; }
