@@ -56,14 +56,34 @@ PUT /api/pages/blog/post      If-Match: "7"
 Instance-wide settings (any authenticated user), persisted in a `settings`
 key/value table and editable from `GET /admin`.
 
-| Verb                | Path   | Auth                                                                                                                                             | Notes |
-| ------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----- |
-| `PUT /api/settings` | editor | body `{searchEnabled?: boolean, homeSlug?: string\|null}`; `homeSlug` blank/`null` clears it; invalid slugs 400; returns the normalized settings |
+| Verb                | Path   | Auth                                                                                                                                                                                                                                     | Notes |
+| ------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `PUT /api/settings` | editor | body `{searchEnabled?: boolean, homeSlug?: string\|null, allPagesEnabled?: boolean, siteName?: string, headerHtml?: string, footerHtml?: string}`; `homeSlug` blank/`null` clears it; invalid slugs 400; returns the normalized settings |
 
 - `searchEnabled` (default `true`) — hides the search form/links everywhere;
   `/search` and `/search/{terms}` remain functional.
-- `homeSlug` (default unset) — the page served at `/` (falling back to the
-  index when unset or when the page is missing).
+- `allPagesEnabled` (default `true`) — serves the page index at `/` and
+  `/all`; disabling it requires a `homeSlug` landing page (400 otherwise).
+- `siteName` (default `WorldNotes`) — branding name: suffixes every tab title
+  (`Page — Site`) and replaces the "Home" breadcrumb label (reader + editor).
+  Whitespace-collapsed, max 200 chars; blank resets to the default.
+- `headerHtml` / `footerHtml` (default empty) — **raw HTML bands** rendered
+  inside `<main>` above/below the article on every reader page; in the
+  editor the same HTML rides the embedded config and the client inserts the
+  bands around the content column (reader placement parity). Max 20 000
+  chars each; scripts inside them execute for anonymous readers.
+
+**Trust model:** there is no role concept — _any authenticated user_ (anyone
+the configured OIDC issuer admits) can write these settings, including the
+raw HTML bands. Treat the IdP audience as the admin access control: restrict
+it to trusted operators, or every account is effectively a site-wide script
+injection vector. There is no CSP. Concurrent PUTs are last-write-wins (no
+versioning), so two admins editing different fields can clobber each other.
+The `/admin` page deliberately renders the bands nowhere — broken branding
+cannot bury the recovery form.
+
+Reader `ETag`s mix in a settings revision, so branding/toggle changes bust
+browser revalidation even when the article bytes are unchanged.
 
 ## HTML routes
 

@@ -56,6 +56,16 @@ Boundary rules (enforced by tooling):
   source/pipes, hairline separators) and the editor-only `data-expanded`
   marker — the parity harness compares collapsed trees, so display states
   cannot hide structural drift.
+- **Admin-trusted HTML is the one raw sink:** the `headerHtml`/`footerHtml`
+  settings are emitted verbatim — on the read path by `render/layout.ts`
+  inside `<main>`, and in the editor via the config embedded by
+  `render/editor-shell.ts`, which the client injects with `insertSiteBands`
+  (`src/core/editor-dom.ts`) around the content column. Everything else on
+  the read path is escaped or safety-gated inside the plugins (href/src
+  policy, no raw-HTML markdown plugin); these bands are deliberately outside
+  that invariant and writable only via `PUT /api/settings` (authenticated —
+  see `docs/api.md` trust model). The `/admin` page omits the bands so
+  broken branding can never hide the recovery form.
 - **Text fidelity:** region lines render byte-exact DOM text — fences, pipes
   and separator dashes stay present as text (dimmed/zero-sized by CSS), so
   `extractContentText` round-trips with no `data-raw` on lines. `data-raw`
@@ -92,7 +102,7 @@ Public, no query strings anywhere:
 | `GET /`                                   | configured home page, else the index listing                        | anon ok                |
 | `GET /all`                                | index (page list + search form island)                              | anon ok                |
 | `GET /search`, `GET /search/{terms}`      | search form + ILIKE results                                         | anon ok                |
-| `GET /admin`                              | settings form (search toggle, home page)                            | editors                |
+| `GET /admin`                              | settings form (search, home page, branding; bands omitted)          | editors                |
 | `GET /edit`, `GET /edit/{slug}`           | legacy 302s → `/`, `/{slug}`                                        | —                      |
 | `GET /{slug}` (catch-all, last)           | editor shell (auth) / SSR article (anon); miss → 404 create overlay | mixed                  |
 | `GET /api/pages`, `GET /api/pages/{slug}` | JSON reads + ETags                                                  | anon ok                |
@@ -124,12 +134,17 @@ boot in production.
 `src/server/cache.ts`: bounded LRU (max entries + TTL). Page entries store
 renderer output (auth-independent); layout chrome is composed per request and
 responses carry `Vary: Cookie` (the editor/reader split now lives on the same
-URLs), so ETags track article bytes and anonymous/authenticated revalidation
-never diverges. Writes (any page route) invalidate `p:{slug}` and the index.
-Settings are read per-request (cached in the `SettingsService`); they do not
-invalidate the SSR caches because the cached entries are settings-independent.
-Responses carry `ETag` + `Cache-Control: public, max-age=60,
-stale-while-revalidate=300`; `If-None-Match` → 304. Single-process scope.
+URLs), so ETags track article bytes **plus a settings revision** — branding
+(`siteName`/`headerHtml`/`footerHtml`) and nav toggles re-render the chrome on
+every request, and the revision stamp ensures a settings change busts browser
+revalidation instead of 304-ing stale chrome indefinitely. Writes (any page
+route) invalidate `p:{slug}` and the index. Settings are read per-request
+(cached in the `SettingsService`); changing them leaves the article caches
+intact (they stay settings-independent) but advances the revision mixed into
+every ETag. Responses carry `ETag` + `Cache-Control: public, max-age=60,
+stale-while-revalidate=300`; `If-None-Match` → 304. Single-process scope —
+with multiple server instances, each process caches settings in memory and
+revisions diverge; branding on every page makes that failure mode visible.
 
 ## Database
 
