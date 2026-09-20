@@ -325,10 +325,10 @@ export function setSelectionOffsets(el: HTMLElement, start: number, end: number)
   sel.addRange(range)
 }
 
-function findTextInNode(el: HTMLElement, offset: number): { node: Text; offset: number } | null {
+function findTextInNode(el: HTMLElement, offset: number): { node: Node; offset: number } | null {
   let remaining = offset
 
-  function walk(node: Node): { node: Text; offset: number } | null {
+  function walk(node: Node): { node: Node; offset: number } | null {
     if (node.nodeType === Node.TEXT_NODE) {
       const len = (node as Text).length
       if (remaining <= len) {
@@ -343,7 +343,7 @@ function findTextInNode(el: HTMLElement, offset: number): { node: Text; offset: 
       if (remaining < rawLen) {
         // The target offset falls inside this data-raw element.
         // Map to a DOM-text offset by walking the element's subtree.
-        function walkChild(child: Node): { node: Text; offset: number } | null {
+        function walkChild(child: Node): { node: Node; offset: number } | null {
           if (child.nodeType === Node.TEXT_NODE) {
             const clen = (child as Text).length
             if (remaining < clen) {
