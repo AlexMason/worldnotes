@@ -82,22 +82,40 @@ key/value table and editable from `GET /admin`.
 ## Viewer markdown
 
 The reader renders with the **same engine as the editor** (`src/core`:
-line-oriented tokenizer + content plugins) — no markdown-it. Output is the
-editor's read-only shape (`div[data-line]` lines with dimmed `wn-punct`
-markers). Supported grammar: `#`–`###` headings, `**bold**`, `*italic*`,
-`~~strike~~`, backtick inline code, `> ` blockquotes, `-`/`*`/`+` list lines
-(indent is visual, not semantic), `---` rules, `[text](url)` links, and
-`[[Page]]` / `[[a/b|Display]]` wiki links → `<a class="wn-wiki-link"
-href="/a/b">Display</a>` (targets that can't fold to a valid slug stay
-literal). Raw HTML is always escaped; hrefs use a scheme allowlist
-(`http/https/mailto` + relative/same-origin).
+line-oriented tokenizer + content plugins + a document-level **block pass**
+for multi-line constructs) — no markdown-it. Output is the editor's
+read-only shape (`div[data-line]` lines with dimmed `wn-punct` markers;
+block regions wrapped in `div.wn-code-block` / `div.wn-table` with
+`data-block` provenance). Supported grammar: `#`–`###` headings,
+`**bold**`, `*italic*`, `~~strike~~`, backtick inline code, `> `
+blockquotes, list lines — bullets (`-`/`*`/`+`, displayed as `•`) **and
+ordered markers as typed** (`1.`, `a.`, `A.`, `i.`, `II.`, …; no
+auto-renumbering, no `<ol>` — indent is visual, not semantic) —, `---`
+rules, `[text](url)` links, `[[Page]]` / `[[a/b|Display]]` wiki links →
+`<a class="wn-wiki-link" href="/a/b">Display</a>` (targets that can't fold
+to a valid slug stay literal), **fenced code blocks** (``` … ```;
+unclosed fences run to EOF; nothing inside is parsed), **pipe tables**
+(header + `|:---|` separator + rows; alignment honored; cells accept
+inline grammar; flex-div markup, never `<table>`), and **images**
+`![alt](src)` → `<img loading="lazy" referrerpolicy="no-referrer">`.
+Raw HTML is always escaped; hrefs use a scheme allowlist
+(`http/https/mailto` + relative/same-origin, resolved against a fake base);
+image srcs use a **narrower policy** (no `mailto:`, no `data:`; no
+backslashes anywhere — URL parsers disagree on them, see
+`src/shared/url-policy.ts`).
 
-**Not parsed** (renders as visible literal source): fenced/indented code
-blocks, tables, ordered lists, semantic list nesting, autolinked bare URLs,
-`- [ ]` checkboxes, `####`–`######`, images, `_underscore_` emphasis,
-backslash escapes (these produce emphasis instead — no escape grammar), HTML
-entities (shown literally), multi-backtick spans, link titles. Wiki-link
-labels show the target's LAST segment (`[[blog/my-post]]` → "my-post").
+Relative image `src`s resolve against the page's directory (pages live at
+`/{slug}`) — prefer root-absolute paths like `/assets/diagram.png` or
+`/uploads/img.png`.
+
+**Not parsed** (renders as visible literal source): indented code blocks,
+semantic list nesting, autolinked bare URLs, `- [ ]` checkboxes,
+`####`–`######`, `_underscore_` emphasis, backslash escapes (these produce
+emphasis instead — no escape grammar), HTML entities (shown literally),
+multi-backtick spans, link titles, linked images (`[![alt](i.png)](url)` —
+the link token wins the scan, so no `<img>`), syntax highlighting inside
+fences. Wiki-link labels show the target's LAST segment
+(`[[blog/my-post]]` → "my-post").
 
 ## Environment variables
 

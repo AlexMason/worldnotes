@@ -52,14 +52,26 @@ All steps must pass.
   node smoke test).
 - **Single renderer:** the read path and the editor share one engine —
   `src/core/static-renderer.ts` (plugin `renderToHTML`) renders the reader,
-  `src/core/renderer.ts` (plugin `render()`) renders the editor DOM, both over
-  `src/core/tokenizer.ts` + `src/core/plugins/`. There is no markdown-it. Any
-  grammar change happens ONLY in `src/core/plugins/`; href safety
-  (`isSafeHref`) lives inside the plugins because their string output is served
-  to anonymous readers. The one sanctioned divergence: internal links emit
-  `<a href="/slug">` statically (zero-JS reader) but `<span data-page>` in the
-  editable DOM (clicks intercepted via `onNavigate`) — pinned by
-  `src/core/__tests__/surface-parity.test.ts`.
+  `src/core/renderer.ts` (plugin `render()`) renders the editor DOM, both
+  over `src/core/tokenizer.ts` + `src/core/document.ts` (block pass for
+  multi-line regions: fences, tables) + `src/core/plugins/`. There is no
+  markdown-it. Any grammar change happens ONLY in `src/core/plugins/` and,
+  for multi-line constructs, through a declarative `BlockDef` (detection +
+  metadata; no structural render hooks — renderers group region lines
+  generically). href/src safety
+  (`isSafeHref`, `isSafeImageUrl`) lives inside the plugins because their
+  string output is served to anonymous readers. The sanctioned divergences:
+  internal links emit `<a href="/slug">` statically (zero-JS reader) but
+  `<span data-page>` in the editable DOM (clicks intercepted via
+  `onNavigate`), and reader CSS hides image punctuation — pinned by
+  `src/core/__tests__/surface-parity.test.ts` (compares trees, not styles).
+- **Text fidelity:** block-region lines render byte-exact DOM text (fences,
+  pipes, dashes stay as dimmed/zero-sized text); `data-raw` belongs to
+  token spans only (wiki links, list-item wrappers) and NEVER to a
+  `div[data-line]` (the data-raw branch in content-text.ts swallows the line
+  separator). `src/core/content-text.ts` is the single DOM↔source model
+  shared by input serialization and caret math; the corpus property test
+  must stay green with any grammar change.
 - Slug policy lives in `src/shared/slug.ts` — change it, the DB `CHECK` in
   `migrations/001_init.sql`, and both route/SSR layers together. SECURITY:
   `SEGMENT_RE`'s charset is also what makes wiki-link `href="/{slug}"`

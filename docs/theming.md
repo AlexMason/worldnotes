@@ -22,7 +22,11 @@ Classes are the `.wn-*` namespace: `.wn-root .wn-header .wn-actions
 .wn-placeholder .wn-overlay .wn-footer .wn-left-sidepanel
 .wn-right-sidepanel`, token spans `.wn-h1..h3`, `.wn-bold .wn-italic
 .wn-code .wn-wiki-link .wn-link .wn-strikethrough .wn-blockquote .wn-hr
-.wn-list-item*`, plus `.wn-toast*` notifications.
+.wn-list-item*`, block regions `.wn-code-block .wn-code-fence .wn-code-line
+.wn-table .wn-table-row .wn-table-head .wn-table-sep .wn-table-cells
+.wn-table-cell .wn-table-edge .wn-align-left|center|right`, images
+`.wn-image .wn-image-img .wn-image-alt .wn-image-src`, plus `.wn-toast*`
+notifications.
 
 The header (`.wn-header`) mirrors the viewer's `.wn-view-bar` (breadcrumbs
 left, `.wn-actions` right), and the editor content sits in a centered ~46rem
@@ -39,8 +43,19 @@ wn-article"` so the embedded `EDITOR_TOKENS_CSS` + `EDITOR_CONTENT_CSS`
 (the same strings the editor injects) style its markup — `.wn-h1..h3`,
 `.wn-punct`, `.wn-bold`, `.wn-inline-code`, `.wn-blockquote`,
 `.wn-list-item*`, `.wn-hr`, `.wn-wiki-link`, `.wn-link`,
-`.wn-strikethrough`. Restyling CONTENT means editing `src/core/styles.ts`
+`.wn-strikethrough`, `.wn-code-block*`, `.wn-table*`, `.wn-image*`.
+Restyling CONTENT means editing `src/core/styles.ts`
 (it changes the editor too — one engine, one look).
+
+**Sanctioned display divergences** (reader-only, `.wn-article`-scoped rules
+living in `EDITOR_CONTENT_CSS`): image punctuation/alt/src spans are hidden
+on the reader (`display:none`; the text nodes stay in the DOM — fidelity and
+caret math are CSS-independent) so readers see the rendered image alone.
+The editor keeps the punct convention there; the cursor-in-block expand
+rule keeps every source character reachable. Parity tests compare TREES, so
+style-scope divergence cannot hide a structural drift. Table pipes are
+hidden on BOTH surfaces while collapsed (cells own the layout) — expanded
+raw rows always show them.
 
 `VIEW_CSS` in `layout.ts` is chrome only:
 
@@ -62,8 +77,9 @@ stylesheet:
 
 - **Viewer**: `@media (max-width: 640px)` — wrapping header with scrollable
   breadcrumbs, tighter article padding, `overflow-wrap` for long tokens,
-  horizontally scrollable tables, and ≥ 44 px touch targets on search,
-  page-list, and create-overlay controls.
+  and ≥ 44 px touch targets on search, page-list, and create-overlay
+  controls. Tables never scroll horizontally by design: flex cells shrink
+  and wrap (`min-width: 0`).
 - **Editor**: `@media (max-width: 640px)` — scrollable breadcrumb strip,
   roomier crumb hit areas, compact editor padding, side panels stacked
   full-width under the editor, and toasts clamped to the viewport.

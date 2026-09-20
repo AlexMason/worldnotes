@@ -27,7 +27,7 @@ Browser (anonymous)                  Browser (authenticated)
 
 | Directory | Runs in | Purpose |
 |---|---|---|
-| `src/core/` | browser + node | The ONE render engine: tokenizer, content plugins (each with an interactive `render()` and a static `renderToHTML()`), interactive DOM renderer (`renderer.ts`) + DOM-free static renderer (`static-renderer.ts`, used by the SSR read path), editor DOM/state/render/navigation/lifecycle, plugin registry, `PageBuffers` (content model), `PageStore` contract, editor stylesheets (`styles.ts`) |
+| `src/core/` | browser + node | The ONE render engine: line tokenizer + document-level **block pass** (`document.ts` — fenced code, pipe tables as multi-line regions), content plugins (each with an interactive `render()` and a static `renderToHTML()`; block plugins add a declarative `BlockDef`), interactive DOM renderer (`renderer.ts`/`line-renderer.ts`) + DOM-free static renderer (`static-renderer.ts`, used by the SSR read path), shared DOM↔source text model (`content-text.ts`), editor DOM/state/render/navigation/lifecycle, plugin registry, `PageBuffers` (content model), `PageStore` contract, editor stylesheets (`styles.ts`) |
 | `src/client/` | browser | Editor bootstrap: `main.ts` mounts the editor over `api-page-store.ts` (fetch + versions + conflicts) and builds the header actions (Search / All pages / Admin / sign-out) |
 | `src/server/` | node | Fastify app: config, auth (OIDC/sessions), DB (pool/migrations/repositories), render (reader adapter over core static renderer, layout, title extraction), routes, LRU cache |
 | `src/shared/` | both | Env-agnostic code: `slug.ts` policy, `url-policy.ts`, `url-helpers.ts`, `dto.ts` |
@@ -44,10 +44,31 @@ Boundary rules (enforced by tooling):
   `src/server/render/reader.ts` wraps `renderDocumentHtml` from
   `src/core/static-renderer.ts` (import it directly, never the core barrel).
   Reader output is the editor's shape: `div[data-line]` lines, dimmed
-  `wn-punct` markers, literal markdown source. Grammar lives only in
-  `src/core/plugins/`; cross-surface structural parity (with the documented
-  internal span→anchor divergence) is pinned by
-  `src/core/__tests__/surface-parity.test.ts`.
+  `wn-punct` markers, literal markdown source; multi-line blocks arrive as
+  `div.{wrapperClass}[data-block]` regions grouped generically by both
+  renderers (plugins declare detection + metadata via `BlockDef` — there are
+  no structural render hooks, so `data-line`/`<br>` emission lives in exactly
+  one place per surface). Grammar lives only in `src/core/plugins/` and the
+  block pass (`src/core/document.ts`); cross-surface structural parity is
+  pinned by `src/core/__tests__/surface-parity.test.ts` with TWO documented
+  divergences: (1) internal links — span in the editable DOM, anchor
+  statically; (2) reader CSS hides image punctuation
+  (`.wn-article .wn-image …{display:none}`) — trees stay identical, computed
+  styles differ.
+- **Text fidelity:** region lines render byte-exact DOM text — fences, pipes
+  and separator dashes stay present as text (dimmed/zero-sized by CSS), so
+  `extractContentText` round-trips with no `data-raw` on lines. `data-raw`
+  belongs to token spans only (wiki links, list bullets, where display
+  glyphs may differ from source). `content-text.ts` is the single
+  implementation of this mapping for BOTH input serialization and caret
+  math; the corpus property test (`content-text.test.ts`) asserts
+  `extract(render(doc)) === doc`.
+- **Tables are flex divs, not `<table>`:** `.wn-table-row{display:flex}` +
+  `flex:1 1 0` cells. Chosen over `display:table` (anonymous-cell layout
+  jumps when a row expands to raw text mid-edit; contenteditable-in-table
+  caret quirks) and real `<table>` tags (the HTML parser drops stray `<tr>`
+  in the string path; semantic-HTML was ruled out by the reader==editor
+  decision). Columns are equal-width; sizing is out of scope.
 
 ## Content model & save flow
 
@@ -132,10 +153,19 @@ roots and type-only files are excluded (`vitest.config.ts`).
 
 - source-based rendering — all text and attribute positions pass through the
   shared escapers (`src/core/escape.ts`: `escapeHTML` for text, `escapeAttr`
-  for every `"`-delimited attribute); author HTML is never emitted
+  for every `"`-delimited attribute); author HTML is never emitted —
+  including inside verbatim fence lines and table cells (B4 vectors, pinned
+  by reader fixtures)
 - scheme-based link classification (`src/core/plugins/link.ts`) with the shared
   `url-policy` allowlist (`http/https/mailto` + relative/same-origin); unsafe
   and unfoldable targets render as escaped literal source, never anchors
+- image srcs pass a NARROWER policy (`isSafeImageUrl`: no `mailto:`, no
+  `data:`); BOTH policies resolve relative forms against a fake base and
+  reject backslashes outright — Node and browsers disagree on `\evil.com\x`
+  (path vs origin escape), the browser is the threat model
+- no CSP is emitted by the server yet (deliberate: self-hosted scope);
+  images carry `referrerpolicy="no-referrer"` because allowlisted external
+  `src`s make anonymous readers fire third-party requests
 - `target=_blank` + `rel="noopener noreferrer nofollow"` on external http(s)
   links; internal anchors ride on `validateSlug`'s charset (AGENTS.md warning)
 - cookie sessions encrypted (no claim leakage), SameSite=Lax + origin checks

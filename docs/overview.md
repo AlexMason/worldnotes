@@ -25,9 +25,10 @@ surface of the app. The full decision record lives in
 3. URLs are content: slug = address; no query strings, `/p/` prefixes, or
    `?path=` trails.
 4. One grammar, one renderer: the server read path and the browser editor
-   share the single `src/core` engine (tokenizer + content plugins); the
-   reader is the editor, read-only. Grammar changes happen only in
-   `src/core/plugins/`.
+   share the single `src/core` engine (tokenizer + block pass + content
+   plugins); the reader is the editor, read-only. Grammar changes happen
+   only in `src/core/plugins/` and the declarative `BlockDef` layer
+   (`src/core/document.ts`).
 
 **Non-goals.** Multi-user simultaneous editing, revision history, horizontal
 scale-out (single process), npm library distribution, email/password auth,
