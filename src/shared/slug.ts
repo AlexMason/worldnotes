@@ -14,6 +14,8 @@ export const RESERVED_FIRST_SEGMENTS: readonly string[] = [
   'static',
   'healthz',
   'favicon.ico',
+  'icons',
+  'media',
   'all',
   'admin',
 ]
