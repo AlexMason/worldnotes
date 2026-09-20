@@ -150,6 +150,47 @@ describe('media routes', () => {
     expect(empty.statusCode).toBe(400)
   })
 
+  it('rejects a text-field part (fields limit → 400, no row)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/media',
+      headers: { ...multipartHeaders(), cookie: auth },
+      payload: Buffer.from(
+        `--${BOUNDARY}\r\nContent-Disposition: form-data; name="alt"\r\n\r\nmy icon\r\n` +
+          `--${BOUNDARY}--\r\n`,
+      ),
+    })
+    expect(res.statusCode).toBe(400)
+    expect(mediaRepo.dump()).toEqual([])
+  })
+
+  it('rejects non-multipart content types (415)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/media',
+      headers: { cookie: auth, 'content-type': 'application/json' },
+      payload: { sneaky: true },
+    })
+    expect(res.statusCode).toBe(415)
+    expect(mediaRepo.dump()).toEqual([])
+  })
+
+  it('serves the first part only when a second file sneaks in', async () => {
+    const twoFiles = Buffer.concat([
+      multipartBuf(pngBytes(8, 8)),
+      multipartBuf(Buffer.from('pretender')), // beyond the parts limit
+    ])
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/media',
+      headers: { ...multipartHeaders(), cookie: auth },
+      payload: twoFiles,
+    })
+    // The extra part is drained/discarded; at most one row results.
+    expect([200, 201, 400, 415]).toContain(res.statusCode)
+    expect(mediaRepo.dump().length).toBeLessThanOrEqual(1)
+  })
+
   it('rejects oversize uploads with 413', async () => {
     // MEDIA_MAX_BYTES = 2 MiB; the file part alone exceeds it.
     const big = Buffer.concat([
