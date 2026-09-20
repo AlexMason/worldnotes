@@ -1,21 +1,7 @@
 import type { ContentPlugin, Token, EditorContext, StaticRenderContext } from '../types'
 import { parseWikiLink } from '../navigation'
-
-function escapeAttr(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-function escapeHTML(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-}
+import { wikiTargetToSlug } from '../../shared/slug'
+import { escapeHTML, escapeAttr } from '../escape'
 
 /**
  * Built-in plugin: wiki-style page links.
@@ -53,9 +39,16 @@ export const wikiLinkPlugin: ContentPlugin = {
     return el
   },
 
+  // Static (reader) surface: foldable targets become real anchors so the
+  // zero-JS read path can navigate; href safety rides on validateSlug's
+  // charset (AGENTS.md slug policy). Non-foldable targets (e.g. `[[中文]]`)
+  // stay escaped literal source text — same visible outcome as clicking
+  // them in the editor would not resolve.
   renderToHTML(token: Token, _context: StaticRenderContext): string {
     const { page, display } = parseWikiLink(token.groups[0] ?? '')
-    return `<span class="wn-wiki-link" data-page="${escapeAttr(page)}" data-raw="${escapeAttr(token.raw)}">${escapeHTML(display)}</span>`
+    const slug = wikiTargetToSlug(page)
+    if (slug === null) return escapeHTML(token.raw)
+    return `<a class="wn-wiki-link" href="/${slug}" data-page="${escapeAttr(page)}" data-raw="${escapeAttr(token.raw)}">${escapeHTML(display)}</a>`
   },
 
   onNavigate(token: Token, context: EditorContext): true {

@@ -2,7 +2,8 @@
 
 **What it is.** A self-hosted, single-binary-style markdown wiki: PostgreSQL
 for storage, generic OIDC for auth, Fastify for serving. Anonymous visitors
-read fast cached server-rendered HTML; logged-in users edit with an inline
+read fast cached server-rendered HTML rendered by the same engine as the
+editor; logged-in users edit with an inline
 WYSIWYG markdown editor that autosaves with conflict detection. Pages nest by
 slug (`/blog/post-name`) and wiki links (`[[Page]]`) are real URLs with a
 create-on-missing flow.
@@ -16,14 +17,18 @@ surface of the app. The full decision record lives in
 
 **Core invariants.**
 
-1. Readers never execute author markup: `html:false`, scheme-allowlisted
-   hrefs, escaped everything.
+1. Readers never execute author markup: source-based rendering escapes every
+   text and attribute position, scheme-allowlisted hrefs (unsafe targets stay
+   literal).
 2. Editors never lose work silently: versioned writes (`If-Match`/409) with an
    explicit conflict choice.
 3. URLs are content: slug = address; no query strings, `/p/` prefixes, or
    `?path=` trails.
-4. The browser editor and the server read path are deliberately separate
-   renderers sharing markdown + slug semantics, never edit-preview HTML.
+4. One grammar, one renderer: the server read path and the browser editor
+   share the single `src/core` engine (tokenizer + block pass + content
+   plugins); the reader is the editor, read-only. Grammar changes happen
+   only in `src/core/plugins/` and the declarative `BlockDef` layer
+   (`src/core/document.ts`).
 
 **Non-goals.** Multi-user simultaneous editing, revision history, horizontal
 scale-out (single process), npm library distribution, email/password auth,

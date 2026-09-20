@@ -5,7 +5,8 @@ import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
 import type { NotificationSystem } from './notifications'
 import { setLineOffset, tryGetLineOffset } from './caret-offset'
-import { renderLines } from './line-renderer'
+import { renderDocLines } from './line-renderer'
+import { buildDocument, regionAt } from './document'
 import { renderInlineContent } from './renderer'
 import { slugDisplayName } from '../shared/slug'
 
@@ -72,7 +73,15 @@ export function createEditorRender(
 
     activeLine = determineActiveLine(raw, offset)
 
+    // D3: the cursor's line is raw-rendered — and when it sits INSIDE a
+    // multi-line block region (fence, table), EVERY line of the region joins
+    // activeLines so the whole block expands to plain source text.
+    const doc = buildDocument(raw, contentPlugins)
     const activeLines = new Set<number>([activeLine])
+    const region = regionAt(doc.blocks, activeLine)
+    if (region) {
+      for (let l = region.startLine; l <= region.endLine; l++) activeLines.add(l)
+    }
 
     const context: EditorContext = state.toContext(
       options.navigateFn ??
@@ -85,7 +94,7 @@ export function createEditorRender(
       return renderInlineContent(text, contentPlugins, context)
     }
 
-    renderLines(raw, contentPlugins, context, editorDiv, activeLines)
+    renderDocLines(doc, contentPlugins, context, editorDiv, activeLines)
 
     placeholder.style.display = raw.length ? 'none' : 'block'
 

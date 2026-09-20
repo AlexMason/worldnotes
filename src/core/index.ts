@@ -4,17 +4,25 @@ export { createEditor, EditorBuilder } from './editor'
 // ─── Tokenizer ────────────────────────────────────────────────────────────────
 export { tokenizeLine, scanInline, tokenizeDocument } from './tokenizer'
 
-// ─── Static HTML Renderer ─────────────────────────────────────────────────────
+// ─── Document model (block pass) ──────────────────────────────────────────
+export { buildDocument, regionAt } from './document'
+
+// ─── Static HTML Renderer (reader engine — DOM-free) ─────────────────────────
 export {
   renderLineToHTML,
   renderInlineHTML,
   renderDocumentToHTML,
-} from './renderer'
+  renderDocumentHtml,
+} from './static-renderer'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type {
   Token,
   TokenDef,
+  BlockDef,
+  BlockRegion,
+  BlockHelpers,
+  DocModel,
   PluginManifest,
   ContentPlugin,
   UIPlugin,
@@ -52,6 +60,10 @@ export {
 } from './plugins/inline'
 export { strikethroughPlugin } from './plugins/strikethrough'
 export { linkPlugin } from './plugins/link'
+export { imagePlugin } from './plugins/image'
+export { listItemPlugin } from './plugins/listItem'
+export { codeBlockPlugin } from './plugins/codeBlock'
+export { tablePlugin } from './plugins/table'
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 export { createNotificationSystem } from './notifications'

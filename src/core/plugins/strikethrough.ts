@@ -1,21 +1,7 @@
 import type { ContentPlugin, Token, EditorContext, StaticRenderContext } from '../types'
 import { withPunct } from './inline'
 
-function escapeAttr(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-function escapeHTML(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-}
+import { escapeHTML, escapeAttr } from '../escape'
 
 /**
  * Built-in plugin: ~~strikethrough~~ text.

@@ -1,11 +1,6 @@
 import type { ContentPlugin, Token, EditorContext, StaticRenderContext } from '../types'
 
-function escapeHTML(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-}
+import { escapeHTML } from '../escape'
 
 /**
  * Render a heading span with dimmed punctuation and styled content.

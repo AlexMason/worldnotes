@@ -464,12 +464,12 @@ describe('wikiLinkPlugin', () => {
     expect(result).toBe(true)
   })
 
-  it('falls back to empty string in renderToHTML when groups is empty', () => {
+  it('renders empty/unfoldable target as escaped literal source', () => {
     const token = createToken('wiki-link', '[[]]', [])
     const html = wikiLinkPlugin.renderToHTML!(token, {
       renderInline: (t: string) => t,
     })
-    expect(html).toContain('class="wn-wiki-link"')
+    expect(html).toBe('[[]]')
     expect(html).not.toContain('undefined')
   })
 })
@@ -501,30 +501,30 @@ describe('strikethroughPlugin', () => {
   })
 
   it('handles empty content between tildes', () => {
-      const token = createToken('strikethrough', '~~~~', [''])
-      const el = renderPlugin(strikethroughPlugin, token, createContext())
+    const token = createToken('strikethrough', '~~~~', [''])
+    const el = renderPlugin(strikethroughPlugin, token, createContext())
 
-      expect(el.className).toBe('wn-strikethrough')
-      expect(el.dataset.raw).toBe('~~~~')
-      expect(el.childNodes[1].textContent).toBe('')
-    })
-
-    it('falls back to empty string when token.groups is empty (render)', () => {
-      const token = createToken('strikethrough', '~~~~', [])
-      const el = renderPlugin(strikethroughPlugin, token, createContext())
-
-      expect(el.className).toBe('wn-strikethrough')
-      expect(el.childNodes[1].textContent).toBe('')
-    })
-
-    it('falls back to empty string when token.groups is empty (renderToHTML)', () => {
-      const token = createToken('strikethrough', '~~~~', [])
-      const html = strikethroughPlugin.renderToHTML!(token, { renderInline: (t: string) => t })
-
-      expect(html).toContain('class="wn-strikethrough"')
-      expect(html).not.toContain('undefined')
-    })
+    expect(el.className).toBe('wn-strikethrough')
+    expect(el.dataset.raw).toBe('~~~~')
+    expect(el.childNodes[1].textContent).toBe('')
   })
+
+  it('falls back to empty string when token.groups is empty (render)', () => {
+    const token = createToken('strikethrough', '~~~~', [])
+    const el = renderPlugin(strikethroughPlugin, token, createContext())
+
+    expect(el.className).toBe('wn-strikethrough')
+    expect(el.childNodes[1].textContent).toBe('')
+  })
+
+  it('falls back to empty string when token.groups is empty (renderToHTML)', () => {
+    const token = createToken('strikethrough', '~~~~', [])
+    const html = strikethroughPlugin.renderToHTML!(token, { renderInline: (t: string) => t })
+
+    expect(html).toContain('class="wn-strikethrough"')
+    expect(html).not.toContain('undefined')
+  })
+})
 
 // ─── Link Plugin ──────────────────────────────────────────────────────────────
 
@@ -540,7 +540,7 @@ describe('linkPlugin', () => {
     expect(el.className).toBe('wn-link')
     expect((el as HTMLAnchorElement).href).toBe('https://example.com/')
     expect((el as HTMLAnchorElement).target).toBe('_blank')
-    expect((el as HTMLAnchorElement).rel).toBe('noopener noreferrer')
+    expect((el as HTMLAnchorElement).rel).toBe('noopener noreferrer nofollow')
     expect(el.dataset.raw).toBe('[Example](https://example.com)')
     expect(el.textContent).toBe('Example')
   })
@@ -582,15 +582,16 @@ describe('linkPlugin', () => {
     expect(result).toBe(false)
   })
 
-  it('detects protocol-relative URLs as external', () => {
+  it('renders protocol-relative URLs as literal source (origin-escape policy)', () => {
     const token = createToken('link', '[CDN](//cdn.example.com/lib.js)', [
       'CDN',
       '//cdn.example.com/lib.js',
     ])
     const el = renderPlugin(linkPlugin, token, createContext())
 
-    expect(el.tagName).toBe('A')
-    expect(el.className).toBe('wn-link')
+    // isSafeHref rejects `//host` — no anchor is minted, source is shown
+    expect(el.nodeType).toBe(Node.TEXT_NODE)
+    expect(el.textContent).toBe('[CDN](//cdn.example.com/lib.js)')
   })
 
   it('handles empty group content gracefully', () => {

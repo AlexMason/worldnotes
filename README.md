@@ -2,8 +2,9 @@
 
 A self-hosted markdown wiki with wiki-style navigation.
 
-- **Anonymous visitors** get fast, cached, **server-rendered semantic HTML** — no
-  JavaScript required for reading.
+- **Anonymous visitors** get fast, cached, **server-rendered HTML that is the
+  editor's output, read-only** (single render engine) — no JavaScript required
+  for reading.
 - **Authenticated users** (any OIDC provider) get an **inline WYSIWYG markdown
   editor** that autosaves as you type, with conflict detection.
 - Pages live at **nested slugs**: `/blog`, `/blog/post-name`. Wiki links

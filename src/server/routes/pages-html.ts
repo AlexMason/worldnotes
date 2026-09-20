@@ -1,5 +1,5 @@
 // ─── SSR read path: /, /all, /search[/terms], /{slug} ────────────────────────
-// Anonymous visitors receive semantic HTML from the viewer renderer, served
+// Anonymous visitors receive the single-engine (core) render, served
 // from a bounded cache with ETag revalidation. Authenticated visitors receive
 // the client editor shell at /{slug} instead. Registered LAST so the catch-all
 // slug route only sees unmatched paths.
@@ -145,7 +145,7 @@ export async function registerPageHtmlRoutes(
         return respond(reply, { html, etag: hashEtag(html) }, 404)
       }
       title = page.title
-      articleHtml = `<article class="wn-article">${render.render(page.content)}</article>`
+      articleHtml = `<article class="wn-root wn-article">${render.render(page.content)}</article>`
       cache.set(`p:${slug}`, {
         value: { title, article: articleHtml },
         etag: hashEtag(articleHtml),

@@ -37,13 +37,14 @@ describe('SSR pages', () => {
     auth = editorCookie(config)
   })
 
-  it('renders a page as semantic HTML for anonymous readers', async () => {
+  it('renders the editor shape (single engine) for anonymous readers', async () => {
     await repo.put('blog/hello', { title: 'Hello There', content: '# Hello There\n\n**world**' })
     const res = await app.inject({ method: 'GET', url: '/blog/hello' })
     expect(res.statusCode).toBe(200)
     expect(res.headers['content-type']).toContain('text/html')
-    expect(res.body).toContain('<h1>Hello There</h1>')
-    expect(res.body).toContain('<strong>world</strong>')
+    expect(res.body).toContain('<span class="wn-h1">')
+    expect(res.body).toContain('>Hello There<')
+    expect(res.body).toContain('<span class="wn-bold">')
     expect(res.body).toContain('<title>Hello There</title>')
     // breadcrumb from slug segments
     expect(res.body).toContain('/blog')
@@ -53,6 +54,26 @@ describe('SSR pages', () => {
     // responsive mobile chrome (M1)
     expect(res.body).toContain('@media (max-width: 640px)')
     expect(res.body).toContain('min-height: 44px')
+  })
+
+  it('embeds the editor stylesheets without editor chrome', async () => {
+    await repo.put('style', { title: 'S', content: '# T' })
+    const res = await app.inject({ method: 'GET', url: '/style' })
+    // editor tokens + content rules are present…
+    expect(res.body).toContain('--wn-color-punct')
+    expect(res.body).toContain('.wn-punct')
+    expect(res.body).toContain('white-space: pre-wrap')
+    // …and the .wn-root FLEX LAYOUT rule (chrome-only) never reaches the reader
+    expect(res.body).not.toMatch(/\.wn-root\s*\{[^}]*overflow:\s*hidden/)
+    expect(res.body).not.toMatch(/\.wn-root\s*\{[^}]*height:\s*100%/)
+    // article carries wn-root so editor tokens resolve inside it
+    expect(res.body).toContain('<article class="wn-root wn-article">')
+  })
+
+  it('preserves leading whitespace on the read path (pre-wrap parity)', async () => {
+    await repo.put('ws', { title: 'WS', content: '   three spaces in' })
+    const res = await app.inject({ method: 'GET', url: '/ws' })
+    expect(res.body).toContain('<div data-line="0">   three spaces in</div>')
   })
 
   it('serves the editor shell (not the reader) to authenticated users', async () => {
@@ -190,7 +211,8 @@ describe('home page + search toggle', () => {
     await repo.put('welcome', { title: 'Welcome', content: '# Welcome\n\nhi' })
     const res = await app.inject({ method: 'GET', url: '/' })
     expect(res.statusCode).toBe(200)
-    expect(res.body).toContain('<h1>Welcome</h1>')
+    expect(res.body).toContain('<span class="wn-h1">')
+    expect(res.body).toContain('>Welcome<')
     // /all still shows the index
     const all = await app.inject({ method: 'GET', url: '/all' })
     expect(all.body).toContain('All pages')
@@ -236,7 +258,7 @@ describe('home page + search toggle', () => {
     // Landing at / still serves the home page (reader) without the link.
     const home = await app.inject({ method: 'GET', url: '/' })
     expect(home.statusCode).toBe(200)
-    expect(home.body).toContain('<h1>hi</h1>')
+    expect(home.body).toContain('class="wn-h1"')
     expect(home.body).not.toContain('href="/all"')
 
     // …and a regular page hides it too.

@@ -1,8 +1,12 @@
 // ─── Viewer document layout ──────────────────────────────────────────────────
-// Semantic, dependency-free HTML shell for the anonymous read path. Only two
-// progressive-enhancement islands (create button, search form) — no editor.
+// Dependency-free HTML shell for the anonymous read path. The article body is
+// the single-engine render (core static renderer), so the page embeds the
+// editor's own token + content stylesheets (src/core/styles.ts) — the reader
+// is the editor, read-only. VIEW_CSS below is chrome only (bar, crumbs,
+// index/search/admin); it must not restyle anything the editor classes own.
 
 import type { SessionUser } from '../auth/session'
+import { EDITOR_TOKENS_CSS, EDITOR_CONTENT_CSS } from '../../core/styles'
 
 export function escapeHtml(text: string): string {
   return text
@@ -29,18 +33,15 @@ nav.wn-crumbs a { color: var(--wn-muted); text-decoration: none; }
 nav.wn-crumbs a:hover { color: var(--wn-accent); }
 nav.wn-crumbs span[aria-current] { color: var(--wn-fg); }
 main { max-width: 46rem; margin: 0 auto; padding: 2rem 1.2rem 5rem; }
-.wn-article h1, .wn-article h2, .wn-article h3 { line-height: 1.25; margin: 1.6em 0 .5em; }
-.wn-article a { color: var(--wn-accent); }
-.wn-wiki-link { text-decoration-style: dotted; }
-.wn-article pre, .wn-article code { background: var(--wn-code-bg); border-radius: 4px; }
-.wn-article code { padding: .1em .3em; font-size: .9em; }
-.wn-article pre code { display: block; padding: .8em 1em; overflow-x: auto; }
-.wn-article blockquote { border-left: 3px solid var(--wn-border); margin: 1em 0;
-  padding: .2em 1em; color: var(--wn-muted); }
-.wn-article table { border-collapse: collapse; } .wn-article th, .wn-article td {
-  border: 1px solid var(--wn-border); padding: .3em .7em; }
-.wn-article hr { border: 0; border-top: 1px solid var(--wn-border); margin: 2em 0; }
-.wn-task { margin-right: .4em; }
+/* Article typography mirrors the editor surface (.wn-editor) — the wn-*
+   content rules come from EDITOR_CONTENT_CSS; the article element carries
+   .wn-root so EDITOR_TOKENS_CSS custom properties resolve inside it. */
+.wn-article {
+  font: var(--wn-font-size-body, 16px)/var(--wn-line-height, 1.65) var(--wn-font-family, serif);
+  color: var(--wn-color-fg, #23211d);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 ul.wn-page-list { list-style: none; padding: 0; } ul.wn-page-list li { padding: .15rem 0; }
 .wn-status h1 { font-size: 1.6rem; }
 .wn-create button { font: inherit; padding: .4em 1.1em; border-radius: 6px;
@@ -68,9 +69,6 @@ ul.wn-page-list { list-style: none; padding: 0; } ul.wn-page-list li { padding: 
   .wn-view-actions a { padding: .45em .35em; }
   main { padding: 1.2rem .9rem 4rem; }
   .wn-article { overflow-wrap: break-word; }
-  .wn-article h1 { font-size: 1.55rem; }
-  .wn-article table { display: block; overflow-x: auto; }
-  .wn-article pre code { padding: .7em .8em; }
   ul.wn-page-list a { display: inline-block; padding: .35em 0; }
   .wn-search-form { flex-wrap: wrap; }
   .wn-search-form input { flex: 1 1 100%; }
@@ -173,7 +171,7 @@ export function renderLayout(opts: LayoutOptions): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
 <link rel="icon" href="data:,">
-<style>${VIEW_CSS}</style>
+<style>${EDITOR_TOKENS_CSS}${EDITOR_CONTENT_CSS}${VIEW_CSS}</style>
 </head>
 <body class="wn-view">
 <header class="wn-view-bar">
