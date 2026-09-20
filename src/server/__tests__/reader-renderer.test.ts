@@ -83,7 +83,6 @@ describe('grammar degradation (accepted: editor subset is the whole grammar)', (
   // markdown-it-era syntax that the single engine does not parse: it must
   // survive as VISIBLE literal source (never silently vanish, never execute).
   const literals = [
-    ['fenced code', '```js\nconst x = 1\n```', '```js'],
     ['table row', '| a | b |', '| a | b |'],
     ['task checkbox', '- [ ] todo', '[ ] todo'],
     ['h4 heading', '#### deep', '#### deep'],
@@ -105,6 +104,38 @@ describe('grammar degradation (accepted: editor subset is the whole grammar)', (
     expect(html).not.toContain('<ol')
     expect(html).not.toContain('type="checkbox"')
     expect(html).not.toContain('<h4')
+  })
+
+  it('fenced code renders as a styled verbatim block', () => {
+    const html = render.render('```js\nconst x = 1\n```')
+    expect(html).toContain('<div class="wn-code-block" data-block="code-block">')
+    expect(html).toContain('class="wn-code-fence"')
+    expect(html).toContain('>```js</div>')
+    expect(html).toContain('class="wn-code-line">const x = 1</div>')
+    expect(html).not.toContain('<pre') // div shape preserved (pivot decision)
+  })
+
+  it('nothing inside a fence is parsed', () => {
+    const html = render.render('```\n**bold** [[wiki]] [l](u)\n```')
+    expect(html).not.toContain('wn-bold')
+    expect(html).not.toContain('wn-wiki-link')
+    expect(html).not.toContain('<a ')
+    expect(html).toContain('**bold** [[wiki]] [l](u)')
+  })
+
+  it('HTML inside a fence is escaped, not executed (B4 vector)', () => {
+    const html = render.render('```\n<script>alert(1)</script>\n```')
+    expect(html).not.toContain('<script>')
+    expect(html).toContain('&lt;script&gt;')
+  })
+
+  it('unclosed fence runs to EOF; blank fence lines keep the <br> placeholder', () => {
+    const html = render.render('```\nno close')
+    expect(html).toContain('data-block="code-block"')
+    const blank = render.render('```\n\nx\n```')
+    expect(blank).toContain(
+      '<div data-line="1" data-block="code-block" class="wn-code-line"><br></div>',
+    )
   })
 
   it('images render styled (restored grammar)', () => {

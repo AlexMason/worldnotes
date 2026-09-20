@@ -101,6 +101,9 @@ export function buildDocument(text: string, plugins: ContentPlugin[]): DocModel 
 }
 
 function verbatimTokens(line: string): Token[] {
+  // Empty region line → NO tokens, mirroring how tokenizeLine yields [] for
+  // empty lines so both renderers emit their <br> placeholder identically.
+  if (line === '') return []
   return [{ type: 'text', raw: line, groups: [line] }]
 }
 

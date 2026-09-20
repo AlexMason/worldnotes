@@ -138,6 +138,20 @@ export const EDITOR_CONTENT_CSS = `
   margin: 1em 0;
 }
 
+/* Code blocks (fenced) — block-pass regions. Lines keep byte-exact
+   source text; the wrapper styles them. No <pre>: div[data-line] shape. */
+.wn-code-block {
+  background: var(--wn-color-code-bg, #f0ede6);
+  border-radius: var(--wn-radius-code, 4px);
+  padding: .6em .9em;
+  margin: .5em 0;
+  font-family: var(--wn-font-mono, monospace);
+  font-size: var(--wn-font-size-small, 14px);
+  line-height: 1.5;
+}
+.wn-code-fence { color: var(--wn-color-punct, #a39b8d); }
+.wn-code-line { color: var(--wn-color-code, #23211d); }
+
 /* Wiki link — mirrors the viewer (dotted underline, no pill) */
 .wn-wiki-link {
   color: var(--wn-color-wiki-link, #1a5fb4);

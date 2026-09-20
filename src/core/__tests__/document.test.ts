@@ -146,9 +146,9 @@ describe('buildDocument — block scan', () => {
     })
   })
 
-  it('blank lines are preserved as single empty tokens in regions', () => {
+  it('blank lines in regions yield no tokens (both surfaces emit <br>)', () => {
     const doc = buildDocument('>> a\n\n<<', [blockPlugin([verbatimDef])])
-    expect(doc.lines[1]).toEqual([{ type: 'text', raw: '', groups: [''] }])
+    expect(doc.lines[1]).toEqual([])
   })
 })
 

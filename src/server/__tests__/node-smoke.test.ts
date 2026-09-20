@@ -46,6 +46,15 @@ describe('core modules import in plain node (no DOM)', () => {
     expect(html).toContain('href="/a/b"')
   })
 
+  it('the block pass (fences, images) runs DOM-free under plain node', async () => {
+    const { createReaderRenderer } = await import('../render/reader')
+    const renderer = createReaderRenderer()
+    const html = renderer.render('```\n<x>\n```\n![d](/i.png)')
+    expect(html).toContain('data-block="code-block"')
+    expect(html).toContain('&lt;x&gt;') // escaped, no DOM needed
+    expect(html).toContain('<img class="wn-image-img" src="/i.png"')
+  })
+
   it('navigation helpers are DOM-free pure functions', () => {
     expect(parseWikiLink('projects/worldnotes|Notes')).toEqual({
       page: 'projects/worldnotes',

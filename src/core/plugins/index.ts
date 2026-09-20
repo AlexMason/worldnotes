@@ -5,6 +5,7 @@ export { linkPlugin } from './link'
 export { imagePlugin } from './image'
 export { strikethroughPlugin } from './strikethrough'
 export { listItemPlugin } from './listItem'
+export { codeBlockPlugin } from './codeBlock'
 
 /**
  * The default plugin set — everything you need for a fully functional
