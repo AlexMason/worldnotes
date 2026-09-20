@@ -13,6 +13,10 @@
 import { describe, it, expect } from 'vitest'
 import { extractContentText, rawNodeLength } from '../content-text'
 import { getLineOffset, setLineOffset, tryGetLineOffset } from '../caret-offset'
+import { renderLines } from '../line-renderer'
+import { defaultPlugins } from '../plugins/defaults'
+import { renderInlineContent } from '../renderer'
+import type { EditorContext } from '../types'
 
 function line(text: string, index: number): HTMLElement {
   const el = document.createElement('div')
@@ -146,4 +150,46 @@ describe('caret math through nested block wrappers', () => {
     setCaretAt(inner.firstChild!, 1)
     expect(getLineOffset(root)).toBe('abc\nde\n\n'.length + 1)
   })
+})
+
+// ─── Corpus property: render → extract must be the identity ────────────────
+// The load-bearing invariant for the block pass: whatever the editor DOM
+// looks like (wrappers, verbatim lines, table cells, hidden punct),
+// extractContentText must return the EXACT source text, and rawNodeLength
+// must agree with its length. Fences, tables, images, lists — all included.
+
+describe('extractContentText round-trips the rendered corpus', () => {
+  const CORPUS: string[] = [
+    '# Heading\n\ntext with **bold**, *it*, `code`, ~~struck~~',
+    '- bullet\n  - nested\n1. ordered\niv. roman\n* plus? + star',
+    '> quote [[Page]]\n\n---\n\nplain',
+    'link [Example](https://x.test) mail [m](mailto:a@b.c)',
+    'inline ![alt](/assets/i.png) image and ![bad](data:text/html,x) literal',
+    '```js\nconst **x** = `<i>` 1\n\nclose me\n```',
+    '```\nunclosed to EOF with | pipe | chars',
+    '| a | b |\n|:--|--:|\n| **x** | 2 |\n| ragged |',
+    'a | b\n--- | ---\n1 | ![img](/i.png)',
+    '  leading-space preserved\n\ttabs too',
+    'mixed: - item then ```\n| not | a | table |\n``` then | 1 | 2 |\n|---|---|',
+    '', // empty document
+    '\n\n', // pure blank lines
+  ]
+
+  for (const [i, text] of CORPUS.entries()) {
+    it(`corpus[${i}] renders losslessly through the block pass`, () => {
+      const ctx: EditorContext = {
+        navigate: () => undefined,
+        getTrail: () => [],
+        getCurrentPage: () => 'p',
+        getWorld: () => ({ p: text }),
+        getPageText: () => text,
+        setPageText: () => undefined,
+      }
+      ctx.renderInline = (t: string) => renderInlineContent(t, defaultPlugins, ctx)
+      const root = document.createElement('div')
+      renderLines(text, defaultPlugins, ctx, root)
+      expect(extractContentText(root), JSON.stringify(text)).toBe(text)
+      expect(rawNodeLength(root)).toBe(text.length)
+    })
+  }
 })

@@ -28,6 +28,8 @@ const FIXTURE = [
   '> a quoted **line**',
   '- plain item',
   '  - indented item with [[Some/Page]]',
+  '1. ordered item',
+  'iv. lower roman item',
   '---',
   'link [Example](https://example.com) and [us](mailto:a@b.c)',
   'image ![Diagram](https://x.test/a.png) inline',
