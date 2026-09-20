@@ -74,6 +74,18 @@ async function main(): Promise<void> {
         instance?.notify({ id: 'wn-save', message: 'Saved', type: 'success', duration: 1500 })
         document.title = composeDocTitle(slugDisplayName(page), cfg.siteName)
       },
+      onDeleted() {
+        // A blank save deleted the page. Stay put: the empty buffer plus the
+        // cleared store version mean the next non-blank save recreates it.
+        // Dismiss first — notify() ignores an id that is still on screen.
+        instance?.dismiss('wn-save')
+        instance?.notify({
+          id: 'wn-save',
+          message: 'Page deleted',
+          type: 'warning',
+          duration: 2500,
+        })
+      },
       onAuthLost() {
         const target = encodeURIComponent(window.location.pathname)
         instance?.notify({

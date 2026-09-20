@@ -230,15 +230,48 @@ describe('SSR pages', () => {
     const res = await app.inject({ method: 'GET', url: '/nope/missing' })
     expect(res.statusCode).toBe(404)
     expect(res.body).toContain('Page not found')
-    expect(res.body).toContain('wn-create-btn')
-    expect(res.body).toContain('data-slug="nope/missing"')
+    // Create is a plain link now: the row appears on first non-blank save
+    // (POST refuses blank content), so no zero-JS create script.
+    expect(res.body).toContain('class="wn-create-btn" href="/nope/missing"')
+    expect(res.body).not.toContain("method: 'POST'")
     expect(res.body).toContain('/oidc/login?returnTo=%2Fnope%2Fmissing')
+  })
+
+  it('blank API save deletes the page; reader and list follow', async () => {
+    await repo.put('doomed', { title: 'Doomed', content: 'was here' })
+    const before = await app.inject({ method: 'GET', url: '/doomed' })
+    expect(before.statusCode).toBe(200)
+
+    const blank = await app.inject({
+      method: 'PUT',
+      url: '/api/pages/doomed',
+      headers: { cookie: auth, 'if-match': '"1"' },
+      payload: { content: '  \n ' },
+    })
+    expect(blank.statusCode).toBe(204)
+
+    // SSR cache busted by the write: readers get the 404 create overlay.
+    const after = await app.inject({ method: 'GET', url: '/doomed' })
+    expect(after.statusCode).toBe(404)
+    expect(after.body).toContain('wn-create-btn')
+
+    const list = await app.inject({ method: 'GET', url: '/api/pages' })
+    expect(list.json().pages.map((p: { slug: string }) => p.slug)).not.toContain('doomed')
+
+    // Authenticated visits land in the editor as a fresh (uncreated) page.
+    const shell = await app.inject({
+      method: 'GET',
+      url: '/doomed',
+      headers: { cookie: auth },
+    })
+    expect(shell.statusCode).toBe(200)
+    expect(shell.body).toContain('"exists":false')
   })
 
   it('404s invalid slug shapes without the create overlay', async () => {
     const res = await app.inject({ method: 'GET', url: '/Bad%20Caps' })
     expect(res.statusCode).toBe(404)
-    expect(res.body).not.toContain('wn-create-btn')
+    expect(res.body).not.toContain('Create this page')
   })
 
   it('index lists pages and the search form', async () => {

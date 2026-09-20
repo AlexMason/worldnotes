@@ -90,8 +90,14 @@ state is the undo baseline). DOM input events extract raw markdown
 buffer. Debounced autosave calls `PageStore.save(page, content)`; the HTTP
 store PUTs `{content}` with `If-Match: "<version>"` and handles 409 (conflict
 toast with _Load theirs_), 404 (create-on-save), and 401 (auth-expired toast).
-Undo granularity is per input batch (snapshot), not per character — an
-accepted trade-off after removing Yjs.
+**No-blank-pages invariant (route-level):** a PUT whose content is
+whitespace-only deletes the page (version-guarded `deleteIfMatch` → 204, so
+a stale client can never destroy newer content); blank/absent POSTs are
+refused (400). The editor stays on the deleted page with a _Page deleted_
+toast — the store drops the tracked version, so undoing or typing again
+recreates the page through the create path; a blank save of a never-created
+page performs no network at all. Undo granularity is per input batch
+(snapshot), not per character — an accepted trade-off after removing Yjs.
 
 ## Routing
 

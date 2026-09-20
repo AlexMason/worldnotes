@@ -4,6 +4,7 @@
 
 import type {
   CreateResult,
+  DeleteResult,
   PageListItem,
   PageRecord,
   PagesRepository,
@@ -72,6 +73,15 @@ export function createMemoryPagesRepository(
       if (pages.has(slug))
         return { ok: false, reason: 'exists', current: { version: pages.get(slug)!.version } }
       return { ok: true, record: snapshot(slug, title, content, by) }
+    },
+
+    async deleteIfMatch(slug, ifMatch): Promise<DeleteResult> {
+      const prev = pages.get(slug)
+      if (!prev) return { ok: false, reason: 'missing' }
+      if (prev.version !== ifMatch)
+        return { ok: false, reason: 'conflict', current: { version: prev.version, updatedAt: prev.updatedAt } }
+      pages.delete(slug)
+      return { ok: true }
     },
 
     async delete(slug) {

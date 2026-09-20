@@ -6,6 +6,7 @@ import type { FastifyInstance } from 'fastify'
 import { requireAuth, requireSameOrigin } from '../auth/session'
 import type { PagesRepository } from '../db/repository'
 import { validateSlug, slugDisplayName } from '../../shared/slug'
+import { isBlankContent } from '../../shared/content'
 import { extractTitle } from '../render/title'
 
 const MAX_CONTENT_BYTES = 1_000_000 // 1 MB
@@ -81,6 +82,11 @@ export async function registerPageApiRoutes(
     if (!validated.ok) return reply.code(400).send({ error: validated.error })
 
     const content = typeof body.content === 'string' ? body.content : ''
+    // No-blank-pages invariant (route-level): a page comes into existence
+    // only when it first holds content — blank or absent content is refused.
+    if (isBlankContent(content)) {
+      return reply.code(400).send({ error: 'cannot create an empty page' })
+    }
     if (Buffer.byteLength(content, 'utf8') > MAX_CONTENT_BYTES) {
       return reply.code(413).send({ error: 'content exceeds size limit' })
     }
@@ -125,6 +131,24 @@ export async function registerPageApiRoutes(
     const ifMatch = parseIfMatch(req.headers['if-match'] as string | undefined)
     if (ifMatch === null) {
       return reply.code(428).send({ error: 'If-Match header with a version is required' })
+    }
+
+    // Blank content means "all content deleted": the save REMOVES the page
+    // (version-guarded, so a stale client can never destroy newer content).
+    // A blank PUT never recreates — hence before the title-derivation get().
+    if (isBlankContent(body.content)) {
+      const deleted = await deps.pages.deleteIfMatch(validated.slug, ifMatch)
+      if (deleted.ok === false) {
+        if (deleted.reason === 'missing') {
+          return reply.code(404).send({ error: 'page not found' })
+        }
+        return reply
+          .code(409)
+          .header('etag', etagOf(deleted.current.version))
+          .send({ error: 'version conflict', current: deleted.current })
+      }
+      deps.onWrite?.(validated.slug)
+      return reply.code(204).send()
     }
 
     // Title: explicit > derived from new content > existing

@@ -13,6 +13,9 @@ function stubFetch(...stubs: Stub[]): ReturnType<typeof vi.fn> {
   const fn = vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ url: url, ...init } as unknown as Request)
     const stub = stubs.shift() ?? { status: 500 }
+    // 204 (and any null body) must be a REAL empty-body response —
+    // Response.json() cannot produce null-status bodies.
+    if (stub.body === null) return new Response(null, { status: stub.status })
     return Response.json(stub.body ?? {}, { status: stub.status })
   })
   const f = fn as unknown as ReturnType<typeof vi.fn>
@@ -149,5 +152,133 @@ describe('createApiPageStore', () => {
     const secondPut = recordedCalls(fn)[3]!
     expect(secondPut.init?.method).toBe('PUT')
     expect((secondPut.init?.headers as Record<string, string>)['if-match']).toBe('"7"')
+  })
+
+  describe('blank saves delete the page', () => {
+    it('204 clears the tracked version and fires onDeleted, not onSaved', async () => {
+      const onSaved = vi.fn()
+      const onDeleted = vi.fn()
+      const fn = stubFetch(
+        { status: 200, body: { slug: 'a', title: 'A', content: 'x', version: 1 } }, // load
+        { status: 204, body: null }, // blank save → server deleted the row
+      )
+      const store = createApiPageStore({ onConflict: vi.fn(), onSaved, onDeleted })
+
+      await store.load('a')
+      await store.save('a', '  \n ')
+
+      const put = recordedCalls(fn)[1]!
+      expect(put.init?.method).toBe('PUT')
+      expect((put.init?.headers as Record<string, string>)['if-match']).toBe('"1"')
+      expect(onDeleted).toHaveBeenCalledWith('a')
+      expect(onSaved).not.toHaveBeenCalled()
+      expect(store.versionOf('a')).toBeNull()
+    })
+
+    it('blank PUT that finds no row (404) clears the version without recreating', async () => {
+      const onDeleted = vi.fn()
+      const fn = stubFetch(
+        { status: 200, body: { slug: 'a', title: 'A', content: 'x', version: 1 } }, // load
+        { status: 404, body: { error: 'page not found' } }, // already gone
+      )
+      const store = createApiPageStore({ onConflict: vi.fn(), onDeleted })
+
+      await store.load('a')
+      await store.save('a', '')
+
+      // Exactly two fetches: load + PUT — no POST recreate attempt.
+      expect(fn).toHaveBeenCalledTimes(2)
+      expect(store.versionOf('a')).toBeNull()
+      expect(onDeleted).not.toHaveBeenCalled() // quiet: page vanished elsewhere
+    })
+
+    it('blank save of a never-created page performs no network at all', async () => {
+      const fn = stubFetch()
+      const store = createApiPageStore({ onConflict: vi.fn(), onDeleted: vi.fn() })
+
+      await store.save('fresh', '   ')
+
+      expect(fn).not.toHaveBeenCalled()
+    })
+
+    it('blank save conflicts flow through the normal 409 handling', async () => {
+      const onConflict = vi.fn()
+      const onDeleted = vi.fn()
+      stubFetch(
+        { status: 200, body: { slug: 'a', title: 'A', content: 'x', version: 1 } }, // load
+        { status: 409, body: { error: 'version conflict', current: { version: 5 } } }, // blank PUT
+        { status: 200, body: { slug: 'a', title: 'A', content: 'theirs', version: 5 } }, // refetch
+      )
+      const store = createApiPageStore({ onConflict, onDeleted })
+
+      await store.load('a')
+      await store.save('a', '')
+
+      expect(onConflict).toHaveBeenCalledWith('a', expect.objectContaining({ version: 5 }))
+      expect(onDeleted).not.toHaveBeenCalled()
+      expect(store.versionOf('a')).toBe(5)
+    })
+
+    it('a late 204 cannot wipe a version a newer save established', async () => {
+      const onDeleted = vi.fn()
+      const snapshot = { slug: 'a', title: 'A', content: 'typed', version: 2 }
+      let releaseBlank: ((r: Response) => void) | null = null
+      const fn = vi.fn(async (url: string, init?: RequestInit) => {
+        if ((init?.method ?? 'GET') === 'PUT' && (init?.body as string)?.includes('   ')) {
+          // blank save: hangs until the test releases it
+          return new Promise<Response>((resolve) => {
+            releaseBlank = resolve
+          })
+        }
+        return Response.json(snapshot, { status: 200 })
+      })
+      vi.stubGlobal('fetch', fn)
+      const store = createApiPageStore({ onConflict: vi.fn(), onDeleted })
+
+      await store.load('a') // version 1
+      const blank = store.save('a', '   ') // in flight, holds token 1
+      await store.save('a', 'typed') // newer save advances to version 2
+      releaseBlank!(new Response(null, { status: 204 }))
+      await blank
+
+      expect(onDeleted).not.toHaveBeenCalled()
+      expect(store.versionOf('a')).toBe(2)
+    })
+
+    it('after a blank delete, the next non-blank save recreates via POST', async () => {
+      const onSaved = vi.fn()
+      const fn = stubFetch(
+        { status: 200, body: { slug: 'a', title: 'A', content: 'x', version: 1 } }, // load
+        { status: 204, body: null }, // blank save → deleted
+        { status: 201, body: { slug: 'a', title: 'A', content: 'undo!', version: 1 } }, // POST recreate
+        { status: 200, body: { slug: 'a', title: 'A', content: 'undo!', version: 1 } }, // snapshot
+      )
+      const store = createApiPageStore({ onConflict: vi.fn(), onSaved, onDeleted: vi.fn() })
+
+      await store.load('a')
+      await store.save('a', '')
+      await store.save('a', 'undo!') // e.g. after Ctrl+Z
+
+      const post = recordedCalls(fn)[2]!
+      expect(post.init?.method).toBe('POST')
+      expect(store.versionOf('a')).toBe(1)
+      expect(onSaved).toHaveBeenCalledWith('a', 'undo!')
+    })
+
+    it('a create racing an existing page reports a conflict, not success', async () => {
+      const onSaved = vi.fn()
+      const onConflict = vi.fn()
+      stubFetch(
+        { status: 409, body: { error: 'page exists', current: { version: 1 } } }, // POST
+        { status: 200, body: { slug: 'a', title: 'A', content: 'theirs', version: 3 } }, // snapshot
+      )
+      const store = createApiPageStore({ onConflict, onSaved })
+
+      await store.save('a', 'mine')
+
+      expect(onSaved).not.toHaveBeenCalled()
+      expect(onConflict).toHaveBeenCalledWith('a', expect.objectContaining({ version: 3 }))
+      expect(store.versionOf('a')).toBe(3)
+    })
   })
 })

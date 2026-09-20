@@ -5,6 +5,7 @@
 
 import type { PageStore } from '../core/types'
 import { slugify, validateSlug } from '../shared/slug'
+import { isBlankContent } from '../shared/content'
 
 export interface PageSnapshotDto {
   slug: string
@@ -17,6 +18,8 @@ export interface ApiPageStoreEvents {
   /** Server held a newer version. `server === null` when the page vanished. */
   onConflict(page: string, server: PageSnapshotDto | null): void
   onSaved?(page: string, content: string): void
+  /** A blank save deleted the page server-side. */
+  onDeleted?(page: string): void
   onAuthLost?(): void
 }
 
@@ -50,6 +53,20 @@ export function createApiPageStore(
   const versions = new Map<string, number>()
   for (const { slug, version } of seed) versions.set(normalize(slug), version)
 
+  // Saves are not serialized (debounce clears timers, Ctrl+S bypasses them).
+  // Each save stamps a token so a late-resolving blank-delete cannot drop a
+  // version that a newer save just established.
+  const saveTokens = new Map<string, number>()
+  let lastToken = 0
+  function beginSave(page: string): number {
+    const token = ++lastToken
+    saveTokens.set(page, token)
+    return token
+  }
+  function isLatestSave(page: string, token: number): boolean {
+    return saveTokens.get(page) === token
+  }
+
   async function put(page: string, content: string): Promise<Response> {
     const version = versions.get(page)
     return fetch(apiUrl(page), {
@@ -69,7 +86,10 @@ export function createApiPageStore(
     return (await res.json()) as PageSnapshotDto
   }
 
-  async function createWithContent(page: string, content: string): Promise<PageSnapshotDto | null> {
+  async function createWithContent(
+    page: string,
+    content: string,
+  ): Promise<{ snapshot: PageSnapshotDto; existed: boolean } | null> {
     const res = await fetch('/api/pages', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -79,9 +99,13 @@ export function createApiPageStore(
       events.onAuthLost?.()
       return null
     }
-    if (res.status === 400) return null // unfurlable name — caller shows save failure
+    if (res.status === 400) return null // unfurlable name or blank content — caller shows save failure
     if (res.ok || res.status === 409) {
-      return await fetchSnapshot(normalize(page))
+      const snapshot = await fetchSnapshot(normalize(page))
+      // 409: someone else holds the slug — the POST wrote nothing, but the
+      // (ok:true) response alone would read as “saved”. Report `existed` so
+      // the caller can surface a conflict instead of a false success.
+      return snapshot ? { snapshot, existed: res.status === 409 } : null
     }
     throw new Error(`create page failed: ${res.status}`)
   }
@@ -100,25 +124,57 @@ export function createApiPageStore(
 
     async save(rawPage, content) {
       const page = normalize(rawPage)
+      const token = beginSave(page)
+      const blank = isBlankContent(content)
+
       if (versions.get(page) === undefined) {
-        // Page never loaded through the store (fresh creation flow):
-        // create it with this content, then save normally.
+        // Nothing tracked: either a never-created page (blank buffer — no
+        // row exists to delete, and POST would refuse it: stay silent) or
+        // the fresh-creation flow: create it with this content.
+        if (blank) return
         const created = await createWithContent(page, content)
         if (created) {
-          versions.set(page, created.version)
-          events.onSaved?.(page, content)
+          versions.set(page, created.snapshot.version)
+          if (created.existed) {
+            // Slug already existed — our content was NOT written. Surface a
+            // conflict (with the live snapshot) instead of a false "Saved".
+            events.onConflict(page, created.snapshot)
+          } else {
+            events.onSaved?.(page, content)
+          }
         }
         return
       }
 
       let res = await put(page, content)
 
+      if (res.status === 204) {
+        // Blank save deleted the row server-side. Drop the tracked version
+        // so the next non-blank save recreates the page — unless a newer
+        // save for this page has since started (it owns the map now).
+        if (isLatestSave(page, token)) {
+          versions.delete(page)
+          events.onDeleted?.(page)
+        }
+        return
+      }
+
       if (res.status === 404) {
+        if (blank) {
+          // Page already gone (deleted elsewhere) — a blank PUT must not
+          // recreate it. Forget the stale version, quietly.
+          if (isLatestSave(page, token)) versions.delete(page)
+          return
+        }
         // deleted underneath us — recreate
         const created = await createWithContent(page, content)
         if (created) {
-          versions.set(page, created.version)
-          events.onSaved?.(page, content)
+          versions.set(page, created.snapshot.version)
+          if (created.existed) {
+            events.onConflict(page, created.snapshot)
+          } else {
+            events.onSaved?.(page, content)
+          }
         }
         return
       }

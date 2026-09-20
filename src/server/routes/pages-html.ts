@@ -142,13 +142,12 @@ export async function registerPageHtmlRoutes(
           body:
             `<div class="wn-status"><h1>Page not found</h1>` +
             `<p>No page exists at <code>${escapeHtml(pageUrl(slug))}</code> yet.</p>` +
-            `<div class="wn-create" data-slug="${escapeHtml(slug)}">` +
-            `<button id="wn-create-btn" type="button">Create this page</button>` +
-            `<span id="wn-create-hint" hidden><a href="/oidc/login?returnTo=${encodeURIComponent(
+            `<div class="wn-create">` +
+            `<a class="wn-create-btn" href="${escapeHtml(pageUrl(slug))}">Create this page</a>` +
+            ` <span class="wn-create-hint"><a href="/oidc/login?returnTo=${encodeURIComponent(
               pageUrl(slug),
             )}">Log in to create</a></span>` +
             `</div></div>`,
-          createForSlug: slug,
           trail: home ? [{ href: '/', label: 'Home' }] : trailFor(slug),
           ...chrome(req.user, getSettings()),
         })

@@ -3,6 +3,7 @@
 import type { SqlPool } from './pool'
 import type {
   CreateResult,
+  DeleteResult,
   PageListItem,
   PageRecord,
   PagesRepository,
@@ -134,6 +135,28 @@ export function createPgPagesRepository(pool: SqlPool): PagesRepository {
           }
         }
         throw e
+      }
+    },
+
+    async deleteIfMatch(slug, ifMatch): Promise<DeleteResult> {
+      const removed = await pool.query(
+        'DELETE FROM pages WHERE slug = $1 AND version = $2 RETURNING slug',
+        [slug, ifMatch],
+      )
+      if ((removed.rowCount ?? 0) > 0) return { ok: true }
+
+      const current = await pool.query(
+        'SELECT version, EXTRACT(EPOCH FROM updated_at) * 1000 AS updated_at_ms FROM pages WHERE slug = $1',
+        [slug],
+      )
+      if (!current.rows[0]) return { ok: false, reason: 'missing' }
+      return {
+        ok: false,
+        reason: 'conflict',
+        current: {
+          version: Number(current.rows[0].version),
+          updatedAt: Number(current.rows[0].updated_at_ms),
+        },
       }
     },
 

@@ -105,4 +105,20 @@ describe.skipIf(!url)('PagesRepository on Postgres', () => {
     expect(await repo.delete('temp')).toBe(true)
     expect(await repo.delete('temp')).toBe(false)
   })
+
+  it('deleteIfMatch: conflict keeps the row, correct version removes it, gone is missing', async () => {
+    await repo.put('guarded', { title: 'G', content: 'v1' })
+    await repo.put('guarded', { title: 'G', content: 'v2' }) // version 2
+
+    const stale = await repo.deleteIfMatch('guarded', 1)
+    expect(stale).toMatchObject({ ok: false, reason: 'conflict' })
+    if (!stale.ok && stale.reason === 'conflict') expect(stale.current.version).toBe(2)
+    expect(await repo.get('guarded')).not.toBeNull()
+
+    expect(await repo.deleteIfMatch('guarded', 2)).toEqual({ ok: true })
+    expect(await repo.get('guarded')).toBeNull()
+
+    // Row already removed — classifies as missing, never conflict.
+    expect(await repo.deleteIfMatch('guarded', 2)).toMatchObject({ ok: false, reason: 'missing' })
+  })
 })

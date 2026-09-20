@@ -45,7 +45,8 @@ main { max-width: 46rem; margin: 0 auto; padding: 2rem 1.2rem 5rem; }
 }
 ul.wn-page-list { list-style: none; padding: 0; } ul.wn-page-list li { padding: .15rem 0; }
 .wn-status h1 { font-size: 1.6rem; }
-.wn-create button { font: inherit; padding: .4em 1.1em; border-radius: 6px;
+.wn-create-btn { display: inline-block; text-decoration: none; font: inherit;
+  padding: .4em 1.1em; border-radius: 6px;
   border: 1px solid var(--wn-accent); background: transparent; color: var(--wn-accent);
   cursor: pointer; }
 .wn-search-form { display: flex; gap: .4rem; } .wn-search-form input { font: inherit;
@@ -76,7 +77,7 @@ ul.wn-page-list { list-style: none; padding: 0; } ul.wn-page-list li { padding: 
   ul.wn-page-list a { display: inline-block; padding: .35em 0; }
   .wn-search-form { flex-wrap: wrap; }
   .wn-search-form input { flex: 1 1 100%; }
-  .wn-search-form input, .wn-search-form button, .wn-create button {
+  .wn-search-form input, .wn-search-form button, .wn-create-btn {
     min-height: 44px; /* comfortable touch targets */ }
 }
 `.trim()
@@ -92,8 +93,6 @@ export interface LayoutOptions {
   searchEnabled?: boolean
   /** Show the "All pages" affordance; defaults to true. */
   allPagesEnabled?: boolean
-  /** Slug offered by the create overlay on 404. */
-  createForSlug?: string
   /** Extra inline scripts appended after the built-in ones. */
   scripts?: string
   /** Site branding: tab-title suffix + breadcrumb home label ('' = none). */
@@ -106,30 +105,6 @@ export interface LayoutOptions {
   headerHtml?: string
   footerHtml?: string
 }
-
-const CREATE_SCRIPT = `
-(function () {
-  var btn = document.getElementById('wn-create-btn');
-  if (!btn) return;
-  btn.addEventListener('click', async function () {
-    var slug = btn.closest('.wn-create').dataset.slug;
-    btn.disabled = true;
-    var res = await fetch('/api/pages', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ slug: slug }),
-    });
-    if (res.status === 401) {
-      btn.hidden = true;
-      document.getElementById('wn-create-hint').hidden = false;
-      return;
-    }
-    if (res.ok || res.status === 409) { window.location = '/' + slug; return; }
-    btn.disabled = false;
-    btn.textContent = 'Create failed — try logging in';
-  });
-})();
-`
 
 const SEARCH_SCRIPT = `
 (function () {
@@ -175,7 +150,6 @@ export function renderLayout(opts: LayoutOptions): string {
   }
 
   const scripts =
-    (opts.createForSlug ? `<script>${CREATE_SCRIPT}</script>` : '') +
     (opts.searchEnabled !== false ? `<script>${SEARCH_SCRIPT}</script>` : '') +
     (opts.scripts ? `<script>${opts.scripts}</script>` : '')
 
