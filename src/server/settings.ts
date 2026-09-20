@@ -21,6 +21,7 @@ const KEY_ALL_PAGES = 'all_pages_enabled'
 const KEY_SITE_NAME = 'site_name'
 const KEY_HEADER_HTML = 'header_html'
 const KEY_FOOTER_HTML = 'footer_html'
+const KEY_FAVICON = 'favicon_media_id'
 
 export const DEFAULT_SITE_NAME = 'WorldNotes'
 export const SITE_NAME_MAX = 200
@@ -43,6 +44,8 @@ export interface AppSettings {
   headerHtml: string
   /** Raw admin-trusted HTML rendered inside `<main>` after the body. */
   footerHtml: string
+  /** Media row overriding the bundled favicon set; null = bundled defaults. */
+  faviconMediaId: number | null
 }
 
 export interface SettingsPatch {
@@ -52,6 +55,7 @@ export interface SettingsPatch {
   siteName?: string
   headerHtml?: string
   footerHtml?: string
+  faviconMediaId?: number | null
 }
 
 export interface SettingsService {
@@ -74,6 +78,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   siteName: DEFAULT_SITE_NAME,
   headerHtml: '',
   footerHtml: '',
+  faviconMediaId: null,
 }
 
 function parseBool(value: string | undefined, fallback: boolean): boolean {
@@ -119,6 +124,13 @@ function normalizeHomeSlug(homeRaw: string): string | null {
   return validated.ok ? validated.slug : null
 }
 
+/** Stored favicon media id: ''/corrupt/non-positive → bundled default. */
+function parseFaviconId(raw: string | undefined): number | null {
+  if (raw === undefined || raw.trim() === '') return null
+  const id = Number(raw)
+  return Number.isInteger(id) && id >= 1 ? id : null
+}
+
 /** Normalize raw key/value rows into validated settings. */
 export function parseSettings(raw: Record<string, string>): AppSettings {
   return {
@@ -130,6 +142,7 @@ export function parseSettings(raw: Record<string, string>): AppSettings {
       headerHtml: raw[KEY_HEADER_HTML],
       footerHtml: raw[KEY_FOOTER_HTML],
     }),
+    faviconMediaId: parseFaviconId(raw[KEY_FAVICON]),
   }
 }
 
@@ -141,6 +154,7 @@ function serialize(settings: AppSettings): Record<string, string> {
     [KEY_SITE_NAME]: settings.siteName,
     [KEY_HEADER_HTML]: settings.headerHtml,
     [KEY_FOOTER_HTML]: settings.footerHtml,
+    [KEY_FAVICON]: settings.faviconMediaId === null ? '' : String(settings.faviconMediaId),
   }
 }
 
@@ -184,6 +198,11 @@ export async function createSettingsService(repo: SettingsRepository): Promise<S
           }
         }
       }
+      if (patch.faviconMediaId !== undefined && patch.faviconMediaId !== null) {
+        if (!Number.isInteger(patch.faviconMediaId) || patch.faviconMediaId < 1) {
+          throw new Error('faviconMediaId must be a positive integer or null')
+        }
+      }
 
       const next: AppSettings = {
         searchEnabled: patch.searchEnabled ?? current.searchEnabled,
@@ -194,6 +213,8 @@ export async function createSettingsService(repo: SettingsRepository): Promise<S
           headerHtml: patch.headerHtml ?? current.headerHtml,
           footerHtml: patch.footerHtml ?? current.footerHtml,
         }),
+        faviconMediaId:
+          patch.faviconMediaId === undefined ? current.faviconMediaId : patch.faviconMediaId,
       }
 
       // With the index disabled, `/` must still have a landing page.

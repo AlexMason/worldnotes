@@ -24,6 +24,14 @@ describe('loadConfig', () => {
     process.env = { ...REAL_ENV }
   })
 
+  it('defaults the cache, debounce and media knobs when unset', () => {
+    const config = loadConfig(baseEnv())
+    expect(config.env.CACHE_MAX_ENTRIES).toBe(200)
+    expect(config.env.CACHE_TTL_SECONDS).toBe(55)
+    expect(config.env.AUTOSAVE_DEBOUNCE_MS).toBe(1500)
+    expect(config.env.MEDIA_MAX_BYTES).toBe(2_097_152)
+  })
+
   it('accepts a complete OIDC configuration', () => {
     const config = loadConfig(baseEnv())
     expect(config.oidc).toEqual({

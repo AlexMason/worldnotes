@@ -38,6 +38,11 @@ const EnvSchema = z.object({
 
   // Editor client autosave debounce
   AUTOSAVE_DEBOUNCE_MS: z.coerce.number().int().positive().default(1500),
+
+  // Upload media (favicon overrides today, editor images later): the only
+  // effective body ceiling for multipart requests — Fastify's JSON bodyLimit
+  // never sees a streamed upload. Default fits icons; raise for photos.
+  MEDIA_MAX_BYTES: z.coerce.number().int().positive().default(2_097_152),
 })
 
 export type Env = z.infer<typeof EnvSchema>
