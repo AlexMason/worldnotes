@@ -114,6 +114,8 @@ describe('cursor-in-block expansion (D3)', () => {
       leftSidepanel: document.createElement('div'),
       rightSidepanel: document.createElement('div'),
       actions: document.createElement('div'),
+      nav: document.createElement('nav'),
+      menu: document.createElement('details'),
     } as EditorDOM
   }
 

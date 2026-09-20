@@ -72,6 +72,36 @@ describe('admin settings', () => {
     expect(res.body).toContain('value="welcome"')
   })
 
+  it('renders the nav-page field and persists navSlug round-trip', async () => {
+    const empty = await app.inject({ method: 'GET', url: '/admin', headers: { cookie: auth } })
+    expect(empty.body).toContain('name="navSlug"')
+    expect(empty.body).toContain('Nav page')
+
+    const put = await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: auth, 'content-type': 'application/json' },
+      payload: { navSlug: 'navigation' },
+    })
+    expect(put.statusCode).toBe(200)
+    expect(put.json()).toMatchObject({ navSlug: 'navigation' })
+
+    const res = await app.inject({ method: 'GET', url: '/admin', headers: { cookie: auth } })
+    // The missing nav page must not fail silently — the form names the state.
+    expect(res.body).toContain('No nav links found on')
+    const value = res.body.match(/name="navSlug" value="([^"]*)"/)
+    expect(value?.[1]).toBe('navigation')
+
+    const bad = await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: auth, 'content-type': 'application/json' },
+      payload: { navSlug: 'Bad Slug' },
+    })
+    expect(bad.statusCode).toBe(400)
+    expect((bad.json() as { error: string }).error).toContain('invalid nav slug')
+  })
+
   it('shows search enabled by default', async () => {
     const res = await app.inject({ method: 'GET', url: '/admin', headers: { cookie: auth } })
     expect(res.body).toContain('<input type="checkbox" name="searchEnabled" checked>')
@@ -89,6 +119,7 @@ describe('admin settings', () => {
     expect(res.json()).toEqual({
       searchEnabled: false,
       homeSlug: 'blog/intro',
+      navSlug: null,
       allPagesEnabled: true,
       siteName: 'WorldNotes',
       headerHtml: '',
@@ -98,6 +129,7 @@ describe('admin settings', () => {
     expect(settingsRepo.dump()).toEqual({
       search_enabled: 'false',
       home_slug: 'blog/intro',
+      nav_slug: '',
       all_pages_enabled: 'true',
       site_name: 'WorldNotes',
       header_html: '',
@@ -147,7 +179,7 @@ describe('admin settings', () => {
       payload: { siteName: 'x'.repeat(201) },
     })
     expect(tooLong.statusCode).toBe(400)
-    expect(tooLong.json()).toMatchObject({ error: /exceeds 200/ })
+    expect((tooLong.json() as { error: string }).error).toContain('exceeds 200')
 
     const wrongType = await app.inject({
       method: 'PUT',
@@ -156,7 +188,7 @@ describe('admin settings', () => {
       payload: { headerHtml: 42 },
     })
     expect(wrongType.statusCode).toBe(400)
-    expect(wrongType.json()).toMatchObject({ error: /must be a string/ })
+    expect((wrongType.json() as { error: string }).error).toContain('must be a string')
   })
 
   it('renders the all-pages checkbox and honours its state', async () => {
@@ -164,6 +196,8 @@ describe('admin settings', () => {
     expect(on.body).toContain('<input type="checkbox" name="allPagesEnabled" checked>')
 
     // Disabling without a home page is rejected with an explanatory error.
+    // (homeSlug '' clears the field on the write path — the service then
+    // refuses an index-less site with no landing page.)
     const bad = await app.inject({
       method: 'PUT',
       url: '/api/settings',
@@ -171,7 +205,7 @@ describe('admin settings', () => {
       payload: { allPagesEnabled: false, homeSlug: '' },
     })
     expect(bad.statusCode).toBe(400)
-    expect(bad.json()).toMatchObject({ error: /home page is required/ })
+    expect((bad.json() as { error: string }).error).toContain('home page is required')
 
     const ok = await app.inject({
       method: 'PUT',
@@ -237,7 +271,7 @@ describe('admin settings', () => {
         payload: { faviconMediaId: 9999 },
       })
       expect(bad.statusCode).toBe(400)
-      expect(bad.json()).toMatchObject({ error: /unknown media id/ })
+      expect((bad.json() as { error: string }).error).toContain('unknown media id')
 
       const ok = await app.inject({
         method: 'PUT',

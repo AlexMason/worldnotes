@@ -8,8 +8,9 @@ import type { FastifyInstance, FastifyReply } from 'fastify'
 import type { ServerConfig } from '../config'
 import type { PagesRepository } from '../db/repository'
 import type { SessionUser } from '../auth/session'
+import type { NavLink } from '../../shared/dto'
 import { validateSlug, slugDisplayName } from '../../shared/slug'
-import { INDEX_CACHE_KEY, type RenderCache } from '../cache'
+import { INDEX_CACHE_KEY, hashEtag, type RenderCache } from '../cache'
 import { escapeHtml, searchFormHtml } from '../render/layout'
 import type { LayoutOptions } from '../render/layout'
 import { editorShellHtml } from '../render/editor-shell'
@@ -28,6 +29,9 @@ export interface PageHtmlDeps {
   /** Settings revision — mixed into reader ETags so chrome-only changes
    *  (branding, toggles) bust browser revalidation of cached pages. */
   getSettingsRevision: () => number
+  /** Links extracted from the configured nav page (async: the parse may
+   *  need to fetch the nav page, though the render cache usually answers). */
+  getNavLinks: () => Promise<NavLink[]>
 }
 
 interface PageCacheValue {
@@ -40,12 +44,6 @@ interface CacheEntry {
   etag: string
 }
 
-function hashEtag(html: string): string {
-  let h = 5381
-  for (let i = 0; i < html.length; i++) h = ((h << 5) + h + html.charCodeAt(i)) | 0
-  return `"${(h >>> 0).toString(36)}"`
-}
-
 function pageUrl(slug: string): string {
   return `/${slug.split('/').map(encodeURIComponent).join('/')}`
 }
@@ -56,6 +54,7 @@ export async function registerPageHtmlRoutes(
 ): Promise<void> {
   const { config, pages, cache, render, layout, assetPrefix, autosaveMs, getSettings } = deps
   const getSettingsRevision = deps.getSettingsRevision
+  const getNavLinks = deps.getNavLinks
   const MAX_AGE = 'public, max-age=60, stale-while-revalidate=300'
 
   function respond(reply: FastifyReply, entry: CacheEntry, status = 200): FastifyReply {
@@ -85,13 +84,14 @@ export async function registerPageHtmlRoutes(
     return crumbs
   }
 
-  function chrome(user: SessionUser | null, settings: AppSettings) {
+  function chrome(user: SessionUser | null, settings: AppSettings, navLinks: NavLink[]) {
     return {
       user,
       authDisabled: config.authDisabled,
       searchEnabled: settings.searchEnabled,
       allPagesEnabled: settings.allPagesEnabled,
       siteName: settings.siteName,
+      navLinks,
       headerHtml: settings.headerHtml,
       footerHtml: settings.footerHtml,
       faviconMediaId: settings.faviconMediaId,
@@ -106,6 +106,7 @@ export async function registerPageHtmlRoutes(
     slug: string,
     home = false,
   ): Promise<FastifyReply> {
+    const navLinks = await getNavLinks()
     if (req.user) {
       const settings = getSettings()
       const page = await pages.get(slug)
@@ -116,6 +117,7 @@ export async function registerPageHtmlRoutes(
         homeSlug: settings.homeSlug,
         allPagesEnabled: settings.allPagesEnabled,
         siteName: settings.siteName,
+        navLinks,
         headerHtml: settings.headerHtml,
         footerHtml: settings.footerHtml,
         faviconMediaId: settings.faviconMediaId,
@@ -139,19 +141,15 @@ export async function registerPageHtmlRoutes(
     } else {
       const page = await pages.get(slug)
       if (!page) {
+        // No create/login affordance on the anonymous 404 (locked decision:
+        // login is a known route, not a public button — see docs/api.md).
         const html = layout({
           title: 'Page not found',
           body:
             `<div class="wn-status"><h1>Page not found</h1>` +
-            `<p>No page exists at <code>${escapeHtml(pageUrl(slug))}</code> yet.</p>` +
-            `<div class="wn-create">` +
-            `<a class="wn-create-btn" href="${escapeHtml(pageUrl(slug))}">Create this page</a>` +
-            ` <span class="wn-create-hint"><a href="/oidc/login?returnTo=${encodeURIComponent(
-              pageUrl(slug),
-            )}">Log in to create</a></span>` +
-            `</div></div>`,
+            `<p>No page exists at <code>${escapeHtml(pageUrl(slug))}</code> yet.</p></div>`,
           trail: home ? [{ href: '/', label: 'Home' }] : trailFor(slug),
-          ...chrome(req.user, getSettings()),
+          ...chrome(req.user, getSettings(), navLinks),
         })
         return respond(reply, { html, etag: hashEtag(html) }, 404)
       }
@@ -168,12 +166,16 @@ export async function registerPageHtmlRoutes(
       title,
       body: articleHtml,
       trail: home ? [{ href: '/', label: 'Home' }] : trailFor(slug),
-      ...chrome(req.user, getSettings()),
+      ...chrome(req.user, getSettings(), navLinks),
     })
-    // ETag covers article bytes AND the settings revision: cached entries are
-    // article-only, but the served document embeds chrome (branding bands,
-    // nav toggles) that re-renders per request.
-    return respond(reply, { html, etag: hashEtag(`${articleHtml}\n${getSettingsRevision()}`) })
+    // ETag covers article bytes, the settings revision AND the nav links:
+    // cached entries are article-only, but the served document embeds chrome
+    // (branding bands, nav toggles, nav-page links) that re-renders per
+    // request — a nav-page edit must bust browser revalidation of every page.
+    return respond(reply, {
+      html,
+      etag: hashEtag(`${articleHtml}\n${getSettingsRevision()}\n${JSON.stringify(navLinks)}`),
+    })
   }
 
   // ── Index (served at /all, and at / when no home page is configured) ─────
@@ -183,6 +185,7 @@ export async function registerPageHtmlRoutes(
     req: { user: SessionUser | null },
   ): Promise<FastifyReply> {
     const settings = getSettings()
+    const navLinks = await getNavLinks()
     const cached = cache.get<string>(INDEX_CACHE_KEY)
     let listHtml = cached?.value
     if (!listHtml) {
@@ -201,7 +204,7 @@ export async function registerPageHtmlRoutes(
       body: `<h1>All pages</h1>${searchFormHtml(settings.searchEnabled)}<ul class="wn-page-list">${
         listHtml || '<li><em>No pages yet.</em></li>'
       }</ul>`,
-      ...chrome(req.user, settings),
+      ...chrome(req.user, settings, navLinks),
     })
     return reply
       .header('content-type', 'text/html; charset=utf-8')
@@ -223,7 +226,7 @@ export async function registerPageHtmlRoutes(
       const html = layout({
         title: 'Not found',
         body: `<div class="wn-status"><h1>Page not found</h1><p>There is no landing page here yet.</p></div>`,
-        ...chrome(req.user, settings),
+        ...chrome(req.user, settings, await getNavLinks()),
       })
       return respond(reply, { html, etag: hashEtag(html) }, 404)
     }
@@ -237,7 +240,7 @@ export async function registerPageHtmlRoutes(
         title: 'Not found',
         body: `<div class="wn-status"><h1>Page not found</h1><p>The all-pages listing is disabled.</p></div>`,
         trail: [{ href: '/', label: 'Home' }],
-        ...chrome(req.user, settings),
+        ...chrome(req.user, settings, await getNavLinks()),
       })
       return respond(reply, { html, etag: hashEtag(html) }, 404)
     }
@@ -269,7 +272,7 @@ export async function registerPageHtmlRoutes(
         { href: '/', label: 'Home' },
         { href: '/search', label: 'Search' },
       ],
-      ...chrome(req.user, settings),
+      ...chrome(req.user, settings, await getNavLinks()),
     })
     return reply
       .header('content-type', 'text/html; charset=utf-8')
@@ -288,7 +291,7 @@ export async function registerPageHtmlRoutes(
         { href: '/', label: 'Home' },
         { href: '/search', label: 'Search' },
       ],
-      ...chrome(req.user, settings),
+      ...chrome(req.user, settings, await getNavLinks()),
     })
     return reply
       .header('content-type', 'text/html; charset=utf-8')
@@ -309,7 +312,7 @@ export async function registerPageHtmlRoutes(
       const html = layout({
         title: 'Not found',
         body: `<div class="wn-status"><h1>Page not found</h1><p>That address is not a valid page path.</p></div>`,
-        ...chrome(req.user, getSettings()),
+        ...chrome(req.user, getSettings(), await getNavLinks()),
       })
       return respond(reply, { html, etag: hashEtag(html) }, 404)
     }

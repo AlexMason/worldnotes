@@ -90,6 +90,8 @@ function mockDOM(): EditorDOM {
   return {
     container,
     actions,
+    nav: actions.parentElement ?? document.createElement('nav'),
+    menu: document.createElement('details'),
     breadcrumb,
     toolbar,
     editorWrap,

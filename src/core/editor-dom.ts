@@ -77,15 +77,19 @@ const EDITOR_CHROME_CSS = `
   align-items: center;
   gap: var(--wn-gap-breadcrumb, 0);
   font-size: var(--wn-font-size-small, 14px);
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
+  position: relative; /* anchor for the crumb-more dropdown */
 }
 
 .wn-crumb {
   color: var(--wn-color-fg-muted, #6f6a61);
   cursor: pointer;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 18ch; /* per-crumb width backstop (viewer parity) */
   padding: 3px 6px;
   border-radius: 4px;
   transition: var(--wn-transition-color, color 0.15s);
@@ -98,9 +102,62 @@ const EDITOR_CHROME_CSS = `
   font-size: 13px;
   padding: 0 1px;
   user-select: none;
+  flex: 0 0 auto;
 }
 
-/* Header actions — mirrors the viewer .wn-view-actions */
+/* Deep-trail middle collapse — mirrors the viewer .wn-crumb-more */
+.wn-crumb-more { position: relative; display: inline-flex; flex: 0 0 auto; }
+.wn-crumb-more > summary {
+  list-style: none;
+  cursor: pointer;
+  color: var(--wn-color-fg-muted, #6f6a61);
+  padding: 0 .2em; line-height: 1;
+}
+.wn-crumb-more > summary::-webkit-details-marker { display: none; }
+.wn-crumb-more[open] > summary { color: var(--wn-color-accent, #1a5fb4); }
+.wn-crumb-drop {
+  position: absolute; top: calc(100% + .35rem); left: 0; z-index: 40;
+  display: flex; flex-direction: column; gap: .2rem; min-width: 10rem;
+  background: var(--wn-color-bg, #fbfaf7);
+  border: 1px solid var(--wn-color-border, #e3ded4); border-radius: 6px;
+  padding: .4rem .7rem; box-shadow: 0 4px 12px rgb(0 0 0 / 12%);
+}
+.wn-crumb-drop .wn-crumb { cursor: pointer; white-space: nowrap; max-width: none; }
+
+/* Header actions — mirrors the viewer .wn-view-actions. The hamburger
+   (<details> wrapping ONLY its summary) shows under the shared 640px
+   breakpoint; :has() hides the SIBLING actions until it opens — the UA
+   never hides the actions div, so non-:has() browsers keep them visible. */
+.wn-nav {
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
+  position: relative;
+}
+.wn-nav .wn-menu { display: none; }
+.wn-nav .wn-menu summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: .4em .5em;
+  border: 1px solid var(--wn-color-border, #e3ded4);
+  border-radius: 6px;
+  color: var(--wn-color-fg, #23211d);
+}
+.wn-nav .wn-menu summary::-webkit-details-marker { display: none; }
+.wn-nav .wn-menu[open] summary { color: var(--wn-color-accent, #1a5fb4); }
+.wn-nav-link {
+  display: block;
+  max-width: 16ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .wn-actions {
   display: flex;
   gap: .8rem;
@@ -298,11 +355,25 @@ const EDITOR_CHROME_CSS = `
 /* Mobile — mirrors the viewer breakpoint */
 @media (max-width: 640px) {
   .wn-header { flex-wrap: wrap; row-gap: .4rem; padding: .5rem .9rem; }
-  .wn-breadcrumb { flex: 1 1 100%; order: 2; overflow-x: auto; scrollbar-width: none; }
+  /* crumbs + menu share ONE row: the trail shrinks (per-crumb ellipsis,
+     then horizontal scroll as the final fallback), the button never does */
+  .wn-breadcrumb { flex: 1 1 auto; min-width: 0; order: 1; overflow-x: auto; scrollbar-width: none; }
   .wn-breadcrumb::-webkit-scrollbar { display: none; }
+  .wn-breadcrumb:has(.wn-crumb-more[open]) { overflow: visible; }
   .wn-crumb { padding: 8px 8px; }
-  .wn-actions { margin-left: auto; }
-  .wn-actions a { padding: .45em .35em; }
+  .wn-nav { order: 2; flex: 0 0 auto; margin-left: auto; flex-wrap: nowrap; }
+  .wn-nav .wn-menu { display: block; }
+  .wn-nav .wn-menu summary { min-height: 44px; /* comfortable touch targets */ }
+  .wn-nav:has(.wn-menu:not([open])) .wn-actions { display: none; }
+  .wn-nav .wn-actions {
+    position: absolute; top: calc(100% + .35rem); right: .9rem; z-index: 60;
+    flex-direction: column; align-items: stretch; gap: .1rem;
+    min-width: 13rem; max-height: 70vh; overflow-y: auto;
+    background: var(--wn-color-bg, #fbfaf7);
+    border: 1px solid var(--wn-color-border, #e3ded4); border-radius: 8px;
+    padding: .5rem .9rem; box-shadow: 0 6px 16px rgb(0 0 0 / 15%);
+  }
+  .wn-actions a { display: block; padding: .45em .35em; min-height: 44px; }
   .wn-toolbar { flex-wrap: wrap; row-gap: 4px; padding: .4rem .9rem; }
   .wn-editor-wrap { padding: 1.2rem .9rem 4rem; }
   .wn-body { flex-direction: column; }
@@ -358,6 +429,8 @@ export interface EditorDOM {
   container: HTMLElement
   header: HTMLElement
   breadcrumb: HTMLElement
+  nav: HTMLElement
+  menu: HTMLElement
   actions: HTMLElement
   toolbar: HTMLElement
   editorWrap: HTMLElement
@@ -407,6 +480,14 @@ export function createEditorDOM(container: HTMLElement, theme?: string): EditorD
 
   const header = el('div', 'wn-header')
   const breadcrumb = el('div', 'wn-breadcrumb')
+  const nav = el('nav', 'wn-nav')
+  nav.setAttribute('aria-label', 'Site')
+  const menu = document.createElement('details')
+  menu.className = 'wn-menu'
+  const menuSummary = document.createElement('summary')
+  menuSummary.setAttribute('aria-label', 'Site menu')
+  menuSummary.textContent = '\u2630'
+  menu.appendChild(menuSummary)
   const actions = el('div', 'wn-actions')
   const toolbar = el('div', 'wn-toolbar')
   const body = el('div', 'wn-body')
@@ -424,7 +505,9 @@ export function createEditorDOM(container: HTMLElement, theme?: string): EditorD
   editorDiv.spellcheck = false
 
   header.appendChild(breadcrumb)
-  header.appendChild(actions)
+  nav.appendChild(menu)
+  nav.appendChild(actions)
+  header.appendChild(nav)
 
   editorCol.appendChild(placeholder)
   editorCol.appendChild(editorDiv)
@@ -444,6 +527,8 @@ export function createEditorDOM(container: HTMLElement, theme?: string): EditorD
     container,
     header,
     breadcrumb,
+    nav,
+    menu,
     actions,
     toolbar,
     editorWrap,

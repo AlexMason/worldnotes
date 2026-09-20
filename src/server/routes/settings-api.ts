@@ -37,6 +37,9 @@ export async function registerSettingsApiRoutes(
     ) {
       return reply.code(400).send({ error: 'homeSlug must be a string or null' })
     }
+    if (body.navSlug !== undefined && body.navSlug !== null && typeof body.navSlug !== 'string') {
+      return reply.code(400).send({ error: 'navSlug must be a string or null' })
+    }
     for (const field of ['siteName', 'headerHtml', 'footerHtml'] as const) {
       if (body[field] !== undefined && typeof body[field] !== 'string') {
         return reply.code(400).send({ error: `${field} must be a string` })
@@ -58,6 +61,7 @@ export async function registerSettingsApiRoutes(
     const patch: SettingsPatch = {}
     if (body.searchEnabled !== undefined) patch.searchEnabled = body.searchEnabled as boolean
     if (body.homeSlug !== undefined) patch.homeSlug = body.homeSlug as string | null
+    if (body.navSlug !== undefined) patch.navSlug = body.navSlug as string | null
     if (body.allPagesEnabled !== undefined) patch.allPagesEnabled = body.allPagesEnabled as boolean
     if (body.siteName !== undefined) patch.siteName = body.siteName as string
     if (body.headerHtml !== undefined) patch.headerHtml = body.headerHtml as string

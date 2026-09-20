@@ -41,6 +41,8 @@ function createTestDOM(): EditorDOM {
   return {
     container,
     actions,
+    nav: actions.parentElement ?? document.createElement('nav'),
+    menu: document.createElement('details'),
     breadcrumb,
     toolbar,
     editorWrap,
@@ -306,6 +308,51 @@ describe('createEditorRender: renderBreadcrumb()', () => {
     const crumbs = dom.breadcrumb.querySelectorAll('.wn-crumb')
     expect(crumbs[0].textContent).toBe('Acme KB')
     expect(crumbs[1].textContent).toBe('About')
+  })
+
+  // Deep trails (navigation history) collapse their middle under an
+  // accessible ellipsis dropdown — Home / … / parent / current.
+  it('collapses trails beyond the visible box budget', () => {
+    const render = createEditorRender(dom, plugins, state, {})
+
+    state.setTrail(['home', 'a', 'a/b', 'a/b/c', 'a/b/c/d'])
+    render.renderBreadcrumb()
+
+    const more = dom.breadcrumb.querySelector('.wn-crumb-more')
+    expect(more).not.toBeNull()
+    expect(more!.querySelector('summary')!.getAttribute('aria-label')).toBe(
+      'Hidden breadcrumb levels',
+    )
+    // hidden middles are inside the dropdown
+    const dropCrumbs = more!.querySelectorAll('.wn-crumb')
+    expect(Array.from(dropCrumbs).map((c) => c.textContent)).toEqual(['A', 'B'])
+    // visible: root + last two, last one active
+    const visible = dom.breadcrumb.querySelectorAll(':scope > .wn-crumb')
+    expect(Array.from(visible).map((c) => c.textContent)).toEqual(['Home', 'C', 'D'])
+    expect(visible[2].className).toContain('wn-crumb--active')
+  })
+
+  it('collapsed dropdown crumbs keep original trail indices for truncate+navigate', () => {
+    const onBreadcrumbNavigate = vi.fn()
+    const render = createEditorRender(dom, plugins, state, { onBreadcrumbNavigate })
+
+    const trail = ['home', 'a', 'a/b', 'a/b/c', 'a/b/c/d']
+    state.setTrail(trail)
+    render.renderBreadcrumb()
+
+    // Click the FIRST hidden crumb (index 1 = 'a') → truncate to ['home','a']
+    const dropCrumbs = dom.breadcrumb.querySelectorAll('.wn-crumb-more .wn-crumb')
+    expect(dropCrumbs[0].textContent).toBe('A')
+    dropCrumbs[0].dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(state.getTrail()).toEqual(['home', 'a'])
+    expect(onBreadcrumbNavigate).toHaveBeenCalledWith('a')
+  })
+
+  it('exactly-at-budget trails stay uncollapsed', () => {
+    const render = createEditorRender(dom, plugins, state, {})
+    state.setTrail(['home', 'a', 'b', 'c'])
+    render.renderBreadcrumb()
+    expect(dom.breadcrumb.querySelector('.wn-crumb-more')).toBeNull()
   })
 })
 

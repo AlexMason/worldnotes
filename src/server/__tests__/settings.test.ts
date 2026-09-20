@@ -44,6 +44,13 @@ describe('parseSettings', () => {
     expect(parseSettings({ home_slug: 'Bad Slug!' }).homeSlug).toBeNull()
     expect(parseSettings({ home_slug: 'UPPER' }).homeSlug).toBeNull()
   })
+
+  it('parses nav_slug with the same policy as home_slug', () => {
+    expect(parseSettings({ nav_slug: 'nav' }).navSlug).toBe('nav')
+    expect(parseSettings({ nav_slug: '  ' }).navSlug).toBeNull()
+    expect(parseSettings({ nav_slug: 'Bad Slug!' }).navSlug).toBeNull()
+    expect(parseSettings({}).navSlug).toBeNull()
+  })
 })
 
 describe('createSettingsService', () => {
@@ -58,6 +65,7 @@ describe('createSettingsService', () => {
     expect(s).toEqual({
       searchEnabled: false,
       homeSlug: 'welcome',
+      navSlug: null,
       allPagesEnabled: false,
       siteName: 'WorldNotes',
       headerHtml: '',
@@ -75,6 +83,7 @@ describe('createSettingsService', () => {
     expect(next).toEqual({
       searchEnabled: false,
       homeSlug: 'blog/intro',
+      navSlug: null,
       allPagesEnabled: true,
       siteName: 'WorldNotes',
       headerHtml: '',
@@ -85,12 +94,35 @@ describe('createSettingsService', () => {
     expect(await repo.getAll()).toEqual({
       search_enabled: 'false',
       home_slug: 'blog/intro',
+      nav_slug: '',
       all_pages_enabled: 'true',
       site_name: 'WorldNotes',
       header_html: '',
       footer_html: '',
       favicon_media_id: '',
     })
+  })
+
+  it('persists a nav page and clears it with an empty field', async () => {
+    const repo = createMemorySettingsRepository()
+    const svc = await createSettingsService(repo)
+    const next = await svc.update({ navSlug: 'navigation' })
+    expect(next.navSlug).toBe('navigation')
+    expect((await repo.getAll()).nav_slug).toBe('navigation')
+    expect((await svc.update({ navSlug: '  ' })).navSlug).toBeNull()
+    expect((await repo.getAll()).nav_slug).toBe('')
+  })
+
+  it('rejects an invalid nav_slug on the write path', async () => {
+    const svc = await createSettingsService(createMemorySettingsRepository())
+    await expect(svc.update({ navSlug: 'Bad Slug' })).rejects.toThrow(/invalid nav slug/)
+  })
+
+  it('clears home_slug from an empty string (admin form blanks the field)', async () => {
+    const repo = createMemorySettingsRepository({ home_slug: 'welcome' })
+    const svc = await createSettingsService(repo)
+    expect((await svc.update({ homeSlug: '' })).homeSlug).toBeNull()
+    expect((await repo.getAll()).home_slug).toBe('')
   })
 
   it('rejects disabling the all-pages listing without a home page', async () => {

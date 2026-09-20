@@ -18,6 +18,7 @@ import { registerAdminRoutes } from './routes/admin'
 import { registerPageHtmlRoutes } from './routes/pages-html'
 import { registerEditRoutes } from './routes/edit'
 import { createRenderCache, INDEX_CACHE_KEY } from './cache'
+import { createNavLinksService } from './render/nav'
 import { createReaderRenderer } from './render/reader'
 import { renderLayout } from './render/layout'
 import type { OidcRelyingParty } from './auth/oidc'
@@ -54,11 +55,6 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     maxEntries: deps.config.env.CACHE_MAX_ENTRIES,
     ttlMs: deps.config.env.CACHE_TTL_SECONDS * 1000,
   })
-  const invalidate = (slug: string): void => {
-    cache.invalidate(`p:${slug}`)
-    cache.invalidate(INDEX_CACHE_KEY)
-    deps.onPageWrite?.(slug)
-  }
 
   await registerSessions(app, {
     secrets: deps.config.sessionSecrets,
@@ -75,6 +71,23 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const settingsRepo = deps.settings ?? createMemorySettingsRepository()
   const settingsService = await createSettingsService(settingsRepo)
   const mediaRepo = deps.media ?? createMemoryMediaRepository()
+
+  // Nav-page links: memoized over the shared render cache (a write to the
+  // nav page is a chrome write — evicted by the same hook that busts the
+  // article cache; a nav_slug change is self-busting via the key + settings
+  // revision, which reader ETags already mix in).
+  const navLinks = createNavLinksService({
+    pages: deps.pages,
+    settings: settingsService,
+    cache,
+  })
+
+  const invalidate = (slug: string): void => {
+    cache.invalidate(`p:${slug}`)
+    cache.invalidate(INDEX_CACHE_KEY)
+    navLinks.onPageWrite(slug)
+    deps.onPageWrite?.(slug)
+  }
 
   // Client bundle assets (present once `vite build` ran; skipped in tests)
   const assetsDir = deps.clientAssetsDir ?? null
@@ -122,6 +135,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     config: deps.config,
     settings: settingsService,
     media: mediaRepo,
+    nav: navLinks,
   })
   await registerMediaRoutes(app, {
     media: mediaRepo,
@@ -147,6 +161,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     autosaveMs: deps.config.env.AUTOSAVE_DEBOUNCE_MS,
     getSettings: () => settingsService.get(),
     getSettingsRevision: () => settingsService.getRevision(),
+    getNavLinks: () => navLinks.links(),
   })
 
   app.get('/healthz', async () => ({ ok: true }))

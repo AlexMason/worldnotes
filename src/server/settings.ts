@@ -3,8 +3,8 @@
 // memory (single-instance assumption, same as the render cache), and exposes a
 // validated, typed view. Reads re-validate/normalize so a corrupt stored row
 // degrades to defaults and never breaks the read path. Writes run the SAME
-// normalizer (`normalizeSettings`) before persisting, so the in-memory view
-// never diverges from what a restart would parse.
+// slug coercion (`coercePageSlug`) and field normalizers before persisting, so
+// the in-memory view never diverges from what a restart would parse.
 //
 // SECURITY: `headerHtml`/`footerHtml` are raw, admin-trusted HTML. They are
 // stored and re-emitted verbatim into every page (see render/layout.ts and
@@ -17,6 +17,7 @@ import { validateSlug } from '../shared/slug'
 
 const KEY_SEARCH = 'search_enabled'
 const KEY_HOME = 'home_slug'
+const KEY_NAV = 'nav_slug'
 const KEY_ALL_PAGES = 'all_pages_enabled'
 const KEY_SITE_NAME = 'site_name'
 const KEY_HEADER_HTML = 'header_html'
@@ -36,6 +37,9 @@ export interface AppSettings {
   searchEnabled: boolean
   /** Slug rendered at `/`; null = show the index listing. */
   homeSlug: string | null
+  /** Page whose top-level list links render as site-nav links in the
+   *  header chrome (reader + editor); null = no custom nav. */
+  navSlug: string | null
   /** Show the page index at `/all` and the "All pages" nav affordances. */
   allPagesEnabled: boolean
   /** Site branding name: tab-title suffix + breadcrumb home label. */
@@ -51,6 +55,7 @@ export interface AppSettings {
 export interface SettingsPatch {
   searchEnabled?: boolean
   homeSlug?: string | null
+  navSlug?: string | null
   allPagesEnabled?: boolean
   siteName?: string
   headerHtml?: string
@@ -74,6 +79,7 @@ export interface SettingsService {
 export const DEFAULT_SETTINGS: AppSettings = {
   searchEnabled: true,
   homeSlug: null,
+  navSlug: null,
   allPagesEnabled: true,
   siteName: DEFAULT_SITE_NAME,
   headerHtml: '',
@@ -117,11 +123,29 @@ function normalizeBranding(
   }
 }
 
-function normalizeHomeSlug(homeRaw: string): string | null {
-  const trimmed = homeRaw.trim()
+/** Read path: stored page-slug rows degrade to `null` when empty/corrupt. */
+function normalizePageSlug(raw: string): string | null {
+  const trimmed = raw.trim()
   if (trimmed === '') return null
   const validated = validateSlug(trimmed)
   return validated.ok ? validated.slug : null
+}
+
+/**
+ * Write-path page-slug coercion: `''`/whitespace/`null` clear to `null`
+ * (the admin form blanks a field to unset it), a non-empty value must
+ * validate or the write is rejected with an operator-facing message.
+ * (The READ path degrades corrupt stored rows instead — see
+ * `normalizePageSlug` — but a rejected form submit must never silently
+ * discard what the operator typed.)
+ */
+function coercePageSlug(value: string | null, field: string): string | null {
+  if (value === null) return null
+  const trimmed = value.trim()
+  if (trimmed === '') return null
+  const validated = validateSlug(trimmed)
+  if (!validated.ok) throw new Error(`invalid ${field} slug: ${validated.error}`)
+  return validated.slug
 }
 
 /** Stored favicon media id: ''/corrupt/non-positive → bundled default. */
@@ -135,7 +159,8 @@ function parseFaviconId(raw: string | undefined): number | null {
 export function parseSettings(raw: Record<string, string>): AppSettings {
   return {
     searchEnabled: parseBool(raw[KEY_SEARCH], true),
-    homeSlug: normalizeHomeSlug(raw[KEY_HOME] ?? ''),
+    homeSlug: normalizePageSlug(raw[KEY_HOME] ?? ''),
+    navSlug: normalizePageSlug(raw[KEY_NAV] ?? ''),
     allPagesEnabled: parseBool(raw[KEY_ALL_PAGES], true),
     ...normalizeBranding({
       siteName: raw[KEY_SITE_NAME],
@@ -150,6 +175,7 @@ function serialize(settings: AppSettings): Record<string, string> {
   return {
     [KEY_SEARCH]: settings.searchEnabled ? 'true' : 'false',
     [KEY_HOME]: settings.homeSlug ?? '',
+    [KEY_NAV]: settings.navSlug ?? '',
     [KEY_ALL_PAGES]: settings.allPagesEnabled ? 'true' : 'false',
     [KEY_SITE_NAME]: settings.siteName,
     [KEY_HEADER_HTML]: settings.headerHtml,
@@ -178,10 +204,11 @@ export async function createSettingsService(repo: SettingsRepository): Promise<S
       if (patch.allPagesEnabled !== undefined && typeof patch.allPagesEnabled !== 'boolean') {
         throw new Error('allPagesEnabled must be a boolean')
       }
-      if (patch.homeSlug !== undefined && patch.homeSlug !== null) {
-        const validated = validateSlug(patch.homeSlug)
-        if (!validated.ok) throw new Error(`invalid home slug: ${validated.error}`)
-      }
+      // Page-slug fields coerce before merging: blank clears, invalid rejects.
+      const homeSlug =
+        patch.homeSlug === undefined ? current.homeSlug : coercePageSlug(patch.homeSlug, 'home')
+      const navSlug =
+        patch.navSlug === undefined ? current.navSlug : coercePageSlug(patch.navSlug, 'nav')
       for (const field of ['siteName', 'headerHtml', 'footerHtml'] as const) {
         const value = patch[field]
         if (value !== undefined && typeof value !== 'string') {
@@ -206,7 +233,8 @@ export async function createSettingsService(repo: SettingsRepository): Promise<S
 
       const next: AppSettings = {
         searchEnabled: patch.searchEnabled ?? current.searchEnabled,
-        homeSlug: patch.homeSlug === undefined ? current.homeSlug : patch.homeSlug,
+        homeSlug,
+        navSlug,
         allPagesEnabled: patch.allPagesEnabled ?? current.allPagesEnabled,
         ...normalizeBranding({
           siteName: patch.siteName ?? current.siteName,

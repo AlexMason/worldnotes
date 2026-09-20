@@ -8,7 +8,7 @@
 import { escapeHtml } from './layout'
 import { iconTagsHtml } from './icons'
 import { composeDocTitle } from '../../shared/doc-title'
-import type { EditorShellConfig } from '../../shared/dto'
+import type { EditorShellConfig, NavLink } from '../../shared/dto'
 import { slugDisplayName } from '../../shared/slug'
 
 export interface EditorShellOptions {
@@ -22,6 +22,9 @@ export interface EditorShellOptions {
   allPagesEnabled: boolean
   /** Site branding: tab-title suffix + breadcrumb root label ('' = none). */
   siteName: string
+  /** Links extracted from the configured nav page; rendered by the client
+   *  into the header actions (mirrors the reader chrome). */
+  navLinks?: NavLink[]
   /** Media row overriding the bundled favicon set; null = defaults. */
   faviconMediaId: number | null
   /**
@@ -60,6 +63,7 @@ export function editorShellHtml(slug: string, opts: EditorShellOptions): string 
     allPagesEnabled: opts.allPagesEnabled,
     homeSlug: opts.homeSlug,
     siteName: opts.siteName,
+    navLinks: opts.navLinks ?? [],
     headerHtml: opts.headerHtml,
     footerHtml: opts.footerHtml,
     userName: opts.userName,

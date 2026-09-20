@@ -154,6 +154,9 @@ async function main(): Promise<void> {
         window.history.pushState(null, '', pageUrlPath(slug))
         document.title = composeDocTitle(slugDisplayName(slug), cfg.siteName)
       }
+      // A navigation happened (any way) — do not leave an open menu hovering
+      // over the new page on mobile.
+      container.querySelector('details[open]')?.removeAttribute('open')
     },
   })
 
@@ -164,9 +167,23 @@ async function main(): Promise<void> {
   const editorWrap = container.querySelector<HTMLElement>('.wn-editor-wrap')
   if (editorWrap) insertSiteBands(editorWrap, cfg.headerHtml, cfg.footerHtml)
 
-  // Header actions — mirror the viewer chrome (Search / All pages / Admin / sign-out)
+  // Header actions — mirror the viewer chrome (nav links / Search / All
+  // pages / Admin / sign-out). No login affordance: sign-in is a known route.
   const actions = container.querySelector('.wn-actions')
   if (actions) {
+    for (const link of cfg.navLinks ?? []) {
+      const a = document.createElement('a')
+      a.href = link.href
+      a.className = 'wn-nav-link'
+      a.textContent = link.label
+      // Internal link → SPA navigate (keeps the debounced autosave buffer,
+      // the sanctioned divergence for in-wiki links on the edit surface).
+      a.addEventListener('click', (e) => {
+        e.preventDefault()
+        instance?.navigate(link.slug)
+      })
+      actions.appendChild(a)
+    }
     if (cfg.searchEnabled) {
       const search = document.createElement('a')
       search.href = '/search'

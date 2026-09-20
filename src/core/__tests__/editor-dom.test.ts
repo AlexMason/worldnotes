@@ -375,13 +375,22 @@ describe('new UI slots (header, body, sidepanels, footer)', () => {
     expect(children[3]).toBe(dom.footer)
   })
 
-  it('.wn-header contains breadcrumb and actions', () => {
+  it('.wn-header contains breadcrumb and site nav; nav holds menu + actions', () => {
     const dom = createEditorDOM(container)
 
     const headerChildren = Array.from(dom.header.children)
     expect(headerChildren).toHaveLength(2)
     expect(headerChildren[0]).toBe(dom.breadcrumb)
-    expect(headerChildren[1]).toBe(dom.actions)
+    expect(headerChildren[1]).toBe(dom.nav)
+
+    const navChildren = Array.from(dom.nav.children)
+    expect(navChildren).toHaveLength(2)
+    expect(navChildren[0]).toBe(dom.menu) // <details> wrapping ONLY its summary
+    expect(navChildren[1]).toBe(dom.actions)
+    expect(dom.menu.tagName).toBe('DETAILS')
+    expect(dom.menu.children).toHaveLength(1)
+    expect(dom.menu.children[0]!.tagName).toBe('SUMMARY')
+    expect(dom.nav.getAttribute('aria-label')).toBe('Site')
   })
 
   it('.wn-body contains left-sidepanel, editor-wrap, right-sidepanel in order', () => {

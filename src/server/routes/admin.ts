@@ -10,6 +10,7 @@ import type { FastifyInstance } from 'fastify'
 import { requireAuth } from '../auth/session'
 import { renderLayout, escapeHtml } from '../render/layout'
 import type { SettingsService } from '../settings'
+import type { NavLinksService } from '../render/nav'
 import type { MediaRepository } from '../db/media-repository'
 import type { ServerConfig } from '../config'
 
@@ -17,6 +18,7 @@ export interface AdminDeps {
   config: ServerConfig
   settings: SettingsService
   media: MediaRepository
+  nav: NavLinksService
 }
 
 const ADMIN_SCRIPT = `
@@ -28,6 +30,7 @@ const ADMIN_SCRIPT = `
     var checkbox = form.querySelector('[name=searchEnabled]');
     var allPagesCheckbox = form.querySelector('[name=allPagesEnabled]');
     var homeInput = form.querySelector('[name=homeSlug]');
+    var navInput = form.querySelector('[name=navSlug]');
     var siteNameInput = form.querySelector('[name=siteName]');
     var headerInput = form.querySelector('[name=headerHtml]');
     var footerInput = form.querySelector('[name=footerHtml]');
@@ -38,6 +41,7 @@ const ADMIN_SCRIPT = `
         searchEnabled: checkbox.checked,
         allPagesEnabled: allPagesCheckbox.checked,
         homeSlug: homeInput.value.trim(),
+        navSlug: navInput.value.trim(),
         siteName: siteNameInput.value,
         headerHtml: headerInput.value,
         footerHtml: footerInput.value,
@@ -102,10 +106,11 @@ const ICON_SCRIPT = `
 `
 
 export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps): Promise<void> {
-  const { config, settings, media } = deps
+  const { config, settings, media, nav } = deps
 
   app.get('/admin', { preHandler: [requireAuth] }, async (req, reply) => {
     const s = settings.get()
+    const navLinks = await nav.links()
     // Icon state: override row healthy → thumbnail; row missing (dangling
     // two-step/restore) → name the state so the operator knows to re-upload.
     let iconState = '<p class="wn-admin-msg">Using the bundled default icons.</p>'
@@ -130,6 +135,17 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
       `<label>Home page (slug; blank shows the page index)<input type="text" name="homeSlug" value="${escapeHtml(
         s.homeSlug ?? '',
       )}" placeholder="e.g. home"></label>` +
+      `<label>Nav page (slug; its top-level list links appear in the site header)` +
+      `<input type="text" name="navSlug" value="${escapeHtml(
+        s.navSlug ?? '',
+      )}" placeholder="e.g. nav"></label>` +
+      // Silent-empty nav is a support magnet: name the state when the page
+      // yields nothing (missing page, or no top-level links found).
+      (s.navSlug && navLinks.length === 0
+        ? `<p class="wn-admin-msg">No nav links found on \u201c${escapeHtml(s.navSlug)}\u201d \u2014
+           the page must exist and its top-level list items must contain page
+           links.</p>`
+        : '') +
       `<label>Site name (tab title + breadcrumb home label)<input type="text" name="siteName" value="${escapeHtml(
         s.siteName,
       )}" placeholder="WorldNotes"></label>` +
@@ -163,6 +179,9 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
       searchEnabled: s.searchEnabled,
       allPagesEnabled: s.allPagesEnabled,
       siteName: s.siteName,
+      // Nav links are escaped chrome (unlike the raw bands omitted here):
+      // they can never deface or bury the recovery form.
+      navLinks,
       faviconMediaId: s.faviconMediaId,
       scripts: ADMIN_SCRIPT + ICON_SCRIPT,
     })

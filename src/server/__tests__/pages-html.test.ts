@@ -50,9 +50,10 @@ describe('SSR pages', () => {
     expect(res.body).toContain('<title>Hello There — WorldNotes</title>')
     // breadcrumb from slug segments
     expect(res.body).toContain('/blog')
-    // anonymous: no edit affordance, has login link
+    // anonymous: no edit affordance, and no login affordance in chrome
+    // (locked decision — sign-in is a known route, not a public button)
     expect(res.body).not.toContain('/edit/blog/hello')
-    expect(res.body).toContain('/oidc/login')
+    expect(res.body).not.toContain('/oidc/login')
     // responsive mobile chrome (M1)
     expect(res.body).toContain('@media (max-width: 640px)')
     expect(res.body).toContain('min-height: 44px')
@@ -232,11 +233,12 @@ describe('SSR pages', () => {
     const res = await app.inject({ method: 'GET', url: '/nope/missing' })
     expect(res.statusCode).toBe(404)
     expect(res.body).toContain('Page not found')
-    // Create is a plain link now: the row appears on first non-blank save
-    // (POST refuses blank content), so no zero-JS create script.
-    expect(res.body).toContain('class="wn-create-btn" href="/nope/missing"')
-    expect(res.body).not.toContain("method: 'POST'")
-    expect(res.body).toContain('/oidc/login?returnTo=%2Fnope%2Fmissing')
+    // Login affordances are gone from chrome; the create CTA linked to the
+    // same URL and rescued only by the removed login hint, so the whole
+    // create block is dropped for anonymous visitors (it is a dead end).
+    expect(res.body).not.toContain('wn-create-btn')
+    expect(res.body).not.toContain('/oidc/login')
+    expect(res.body).toContain('No page exists at')
   })
 
   it('blank API save deletes the page; reader and list follow', async () => {
@@ -252,10 +254,12 @@ describe('SSR pages', () => {
     })
     expect(blank.statusCode).toBe(204)
 
-    // SSR cache busted by the write: readers get the 404 create overlay.
+    // SSR cache busted by the write: readers get the plain 404 (no create
+    // block, no login hint).
     const after = await app.inject({ method: 'GET', url: '/doomed' })
     expect(after.statusCode).toBe(404)
-    expect(after.body).toContain('wn-create-btn')
+    expect(after.body).not.toContain('wn-create-btn')
+    expect(after.body).toContain('No page exists at')
 
     const list = await app.inject({ method: 'GET', url: '/api/pages' })
     expect(list.json().pages.map((p: { slug: string }) => p.slug)).not.toContain('doomed')
@@ -505,5 +509,111 @@ describe('favicon icon chrome', () => {
     })
     const after = await app.inject({ method: 'GET', url: '/etag' })
     expect(after.headers.etag).not.toBe(before.headers.etag)
+  })
+})
+
+describe('SSR chrome: nav page, hamburger, breadcrumb collapse', () => {
+  let config: ServerConfig
+  let repo: ReturnType<typeof createMemoryPagesRepository>
+  let settingsRepo: ReturnType<typeof createMemorySettingsRepository>
+  let app: Awaited<ReturnType<typeof buildApp>>
+  let auth: string
+
+  beforeEach(async () => {
+    config = loadConfig(baseEnv)
+    repo = createMemoryPagesRepository()
+    settingsRepo = createMemorySettingsRepository({ nav_slug: 'nav' })
+    app = await buildApp({
+      config,
+      pages: repo,
+      settings: settingsRepo,
+      relyingParty: null,
+    })
+    auth = editorCookie(config)
+  })
+
+  it('renders nav-page links inside the site nav before the built-in actions', async () => {
+    await repo.put('nav', { title: 'Nav', content: '- [[welcome|Welcome]]\n- [[deep/page|Deep]]' })
+    await repo.put('welcome', { title: 'Welcome', content: '# Hi' })
+    const res = await app.inject({ method: 'GET', url: '/welcome' })
+    const body: string = res.body
+    expect(body).toContain('<nav class="wn-nav" aria-label="Site">')
+    expect(body).toContain('class="wn-nav-link" href="/welcome"')
+    expect(body).toContain('>Welcome<')
+    // before built-ins:
+    expect(body.indexOf('wn-nav-link')).toBeLessThan(body.indexOf('>Search<'))
+    expect(body.indexOf('href="/deep/page"')).toBeLessThan(body.indexOf('>Search<'))
+  })
+
+  it('emits the zero-JS hamburger toggle markup', async () => {
+    await repo.put('anything', { title: 'A', content: 'x' })
+    const res = await app.inject({ method: 'GET', url: '/anything' })
+    expect(res.body).toContain('<details class="wn-menu"><summary aria-label="Site menu">')
+    // actions are a SIBLING of the details (never UA-hidden)
+    expect(res.body).toContain('.wn-nav:has(.wn-menu:not([open])) .wn-view-actions')
+  })
+
+  it('authenticated chrome keeps Admin/Sign-out and never links /oidc/login', async () => {
+    // Authed visitors on /{slug} get the editor shell — server-rendered
+    // chrome is asserted through /admin, which renders the same layout.
+    const res = await app.inject({
+      method: 'GET',
+      url: '/admin',
+      headers: { cookie: auth },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toContain('/oidc/logout')
+    expect(res.body).toContain('Sign out (')
+    expect(res.body).not.toContain('/oidc/login')
+  })
+
+  it('collapses deep breadcrumb trails under an accessible ellipsis', async () => {
+    await repo.put('a/b/c/d/e', { title: 'E', content: 'deep' })
+    const res = await app.inject({ method: 'GET', url: '/a/b/c/d/e' })
+    expect(res.body).toContain('class="wn-crumb-more"')
+    expect(res.body).toContain('aria-label="Hidden breadcrumb levels"')
+    // hidden middles live in the dropdown; the last two stay visible; the
+    // current crumb keeps aria-current
+    expect(res.body).toContain('<div class="wn-crumb-drop"><a href="/a">A</a>')
+    expect(res.body).toContain('<a href="/a/b/c/d">D</a>')
+    expect(res.body).toContain('<span aria-current="page">E</span>')
+  })
+
+  it('leaves short trails uncollapsed', async () => {
+    await repo.put('a/b/c', { title: 'C', content: 'shallow' })
+    const res = await app.inject({ method: 'GET', url: '/a/b/c' })
+    expect(res.body).not.toContain('class="wn-crumb-more"')
+  })
+
+  it('a nav-page edit busts another page\u2019s ETag', async () => {
+    await repo.put('nav', { title: 'Nav', content: '- [[one]]' })
+    await repo.put('target', { title: 'T', content: 'body bytes' })
+    const before = await app.inject({ method: 'GET', url: '/target' })
+
+    await app.inject({
+      method: 'PUT',
+      url: '/api/pages/nav',
+      headers: { cookie: auth, 'if-match': '"1"' },
+      payload: { content: '- [[two]]' },
+    })
+    // Article cache for /target is untouched; only the nav parse was evicted.
+    const after = await app.inject({ method: 'GET', url: '/target' })
+    expect(after.headers.etag).not.toBe(before.headers.etag)
+    expect(after.body).toContain('href="/two"')
+    expect(after.body).not.toContain('href="/one"')
+  })
+
+  it('embeds nav links in the editor shell config', async () => {
+    await repo.put('nav', { title: 'Nav', content: '- [[welcome|Welcome]]' })
+    await repo.put('welcome', { title: 'Welcome', content: '# Hi' })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/welcome',
+      headers: { cookie: auth },
+    })
+    const cfgMatch = res.body.match(/id="wn-config"[^>]*>(.*?)<\/script>/s)
+    expect(cfgMatch).not.toBeNull()
+    const cfg = JSON.parse(JSON.parse(cfgMatch![1]) as string)
+    expect(cfg.navLinks).toEqual([{ slug: 'welcome', href: '/welcome', label: 'Welcome' }])
   })
 })

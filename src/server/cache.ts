@@ -24,6 +24,14 @@ export interface RenderCache {
 
 export const INDEX_CACHE_KEY = '__index__'
 
+/** djb2 → base36 quoted etag. Shared by the SSR routes (article + nav-link
+ *  freshness mixing) and the nav links service (cache-entry identity). */
+export function hashEtag(html: string): string {
+  let h = 5381
+  for (let i = 0; i < html.length; i++) h = ((h << 5) + h + html.charCodeAt(i)) | 0
+  return `"${(h >>> 0).toString(36)}"`
+}
+
 export function createRenderCache(opts: RenderCacheOptions): RenderCache {
   const store = new Map<string, CacheEntry>() // Map iteration order = insertion order = LRU
 
