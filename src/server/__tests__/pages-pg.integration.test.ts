@@ -8,9 +8,9 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { createPool } from '../db/pool'
-import { runMigrations } from '../db/migrate'
 import { createPgPagesRepository } from '../db/pages-pg'
 import { createPgSettingsRepository } from '../db/settings-pg'
+import { migrateWithRetry } from './helpers/migrate'
 
 const url = process.env.WN_TEST_PG_URL
 const here = dirname(fileURLToPath(import.meta.url))
@@ -23,10 +23,10 @@ describe.skipIf(!url)('PagesRepository on Postgres', () => {
 
   beforeAll(async () => {
     pool = createPool(url as string)
-    const applied = await runMigrations(pool, migrationsDir)
+    const applied = await migrateWithRetry(pool, migrationsDir)
     expect(applied.length).toBeGreaterThanOrEqual(0)
     // second run must be idempotent
-    expect(await runMigrations(pool, migrationsDir)).toEqual([])
+    expect(await migrateWithRetry(pool, migrationsDir)).toEqual([])
     repo = createPgPagesRepository(pool)
     await pool.query('DELETE FROM pages WHERE slug <> $1', ['home'])
   })
