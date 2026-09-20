@@ -7,6 +7,15 @@ describe('parseSettings', () => {
     expect(parseSettings({})).toEqual(DEFAULT_SETTINGS)
   })
 
+  it('parses favicon_media_id; corrupt/empty/non-positive degrades to null', () => {
+    expect(parseSettings({ favicon_media_id: '7' }).faviconMediaId).toBe(7)
+    expect(parseSettings({ favicon_media_id: '' }).faviconMediaId).toBeNull()
+    expect(parseSettings({ favicon_media_id: 'banana' }).faviconMediaId).toBeNull()
+    expect(parseSettings({ favicon_media_id: '0' }).faviconMediaId).toBeNull()
+    expect(parseSettings({ favicon_media_id: '-3' }).faviconMediaId).toBeNull()
+    expect(parseSettings({ favicon_media_id: '1.5' }).faviconMediaId).toBeNull()
+  })
+
   it('parses search_enabled true/false', () => {
     expect(parseSettings({ search_enabled: 'true' }).searchEnabled).toBe(true)
     expect(parseSettings({ search_enabled: 'false' }).searchEnabled).toBe(false)
@@ -53,6 +62,7 @@ describe('createSettingsService', () => {
       siteName: 'WorldNotes',
       headerHtml: '',
       footerHtml: '',
+      faviconMediaId: null,
     })
     s.searchEnabled = true
     expect(svc.get().searchEnabled).toBe(false)
@@ -69,6 +79,7 @@ describe('createSettingsService', () => {
       siteName: 'WorldNotes',
       headerHtml: '',
       footerHtml: '',
+      faviconMediaId: null,
     })
     expect(svc.get()).toEqual(next)
     expect(await repo.getAll()).toEqual({
@@ -78,6 +89,7 @@ describe('createSettingsService', () => {
       site_name: 'WorldNotes',
       header_html: '',
       footer_html: '',
+      favicon_media_id: '',
     })
   })
 
@@ -162,6 +174,30 @@ describe('createSettingsService', () => {
     await expect(svc.update({ footerHtml: {} as unknown as string })).rejects.toThrow(
       /must be a string/,
     )
+  })
+
+  it('round-trips faviconMediaId and clears it back to bundled defaults', async () => {
+    const repo = createMemorySettingsRepository()
+    const svc = await createSettingsService(repo)
+    const next = await svc.update({ faviconMediaId: 42 })
+    expect(next.faviconMediaId).toBe(42)
+    expect(await repo.getAll()).toMatchObject({ favicon_media_id: '42' })
+    // boot-read of the stored row sees the same value the live view holds
+    const reloaded = await createSettingsService(repo)
+    expect(reloaded.get().faviconMediaId).toBe(42)
+    await reloaded.update({ faviconMediaId: null })
+    expect(reloaded.get().faviconMediaId).toBeNull()
+  })
+
+  it('rejects non-integer / non-positive faviconMediaId patches', async () => {
+    const svc = await createSettingsService(createMemorySettingsRepository())
+    await expect(svc.update({ faviconMediaId: 0 })).rejects.toThrow(/positive integer or null/)
+    await expect(svc.update({ faviconMediaId: -2 })).rejects.toThrow(/positive integer or null/)
+    await expect(svc.update({ faviconMediaId: 1.5 })).rejects.toThrow(/positive integer or null/)
+    await expect(svc.update({ faviconMediaId: '7' as unknown as number })).rejects.toThrow(
+      /positive integer or null/,
+    )
+    expect(svc.get().faviconMediaId).toBeNull()
   })
 
   it('bumps the revision on every successful update only', async () => {

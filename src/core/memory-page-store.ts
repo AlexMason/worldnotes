@@ -12,9 +12,7 @@ export interface MemoryPageStore extends PageStore {
   seed(pages: Record<string, string>): void
 }
 
-export function createMemoryPageStore(
-  initial: Record<string, string> = {},
-): MemoryPageStore {
+export function createMemoryPageStore(initial: Record<string, string> = {}): MemoryPageStore {
   const map = new Map<string, string>(Object.entries(initial))
 
   return {

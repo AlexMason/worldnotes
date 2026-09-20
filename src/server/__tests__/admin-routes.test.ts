@@ -5,7 +5,9 @@ import { loadConfig, type ServerConfig } from '../config'
 import { buildApp } from '../app'
 import { createMemoryPagesRepository } from '../db/pages-memory'
 import { createMemorySettingsRepository } from '../db/settings-memory'
+import { createMemoryMediaRepository } from '../db/media-memory'
 import { seal } from '../auth/session'
+import { pngBytes } from './helpers/media-fixtures'
 
 const baseEnv = {
   NODE_ENV: 'test',
@@ -30,16 +32,19 @@ function editorCookie(config: ServerConfig): string {
 describe('admin settings', () => {
   let config: ServerConfig
   let settingsRepo: ReturnType<typeof createMemorySettingsRepository>
+  let mediaRepo: ReturnType<typeof createMemoryMediaRepository>
   let app: Awaited<ReturnType<typeof buildApp>>
   let auth: string
 
   beforeEach(async () => {
     config = loadConfig(baseEnv)
     settingsRepo = createMemorySettingsRepository()
+    mediaRepo = createMemoryMediaRepository()
     app = await buildApp({
       config,
       pages: createMemoryPagesRepository(),
       settings: settingsRepo,
+      media: mediaRepo,
       relyingParty: null,
     })
     auth = editorCookie(config)
@@ -88,6 +93,7 @@ describe('admin settings', () => {
       siteName: 'WorldNotes',
       headerHtml: '',
       footerHtml: '',
+      faviconMediaId: null,
     })
     expect(settingsRepo.dump()).toEqual({
       search_enabled: 'false',
@@ -96,6 +102,7 @@ describe('admin settings', () => {
       site_name: 'WorldNotes',
       header_html: '',
       footer_html: '',
+      favicon_media_id: '',
     })
   })
 
@@ -195,5 +202,111 @@ describe('admin settings', () => {
       payload: { searchEnabled: 'yes' },
     })
     expect(badBool.statusCode).toBe(400)
+  })
+
+  describe('favicon override', () => {
+    async function uploadPng(size = 32): Promise<number> {
+      const boundary = 'wn-boundary'
+      const file = pngBytes(size, size)
+      const payload = Buffer.concat([
+        Buffer.from(
+          `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="i.png"\r\nContent-Type: image/png\r\n\r\n`,
+        ),
+        file,
+        Buffer.from(`\r\n--${boundary}--\r\n`),
+      ])
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/media',
+        headers: {
+          cookie: auth,
+          'content-type': `multipart/form-data; boundary=${boundary}`,
+        },
+        payload,
+      })
+      expect(res.statusCode).toBe(201)
+      return res.json().id
+    }
+
+    it('sets an override and rejects unknown ids', async () => {
+      const id = await uploadPng()
+      const bad = await app.inject({
+        method: 'PUT',
+        url: '/api/settings',
+        headers: { cookie: auth, 'content-type': 'application/json' },
+        payload: { faviconMediaId: 9999 },
+      })
+      expect(bad.statusCode).toBe(400)
+      expect(bad.json()).toMatchObject({ error: /unknown media id/ })
+
+      const ok = await app.inject({
+        method: 'PUT',
+        url: '/api/settings',
+        headers: { cookie: auth, 'content-type': 'application/json' },
+        payload: { faviconMediaId: id },
+      })
+      expect(ok.statusCode).toBe(200)
+      expect(ok.json().faviconMediaId).toBe(id)
+      expect(await mediaRepo.get(id)).not.toBeNull()
+    })
+
+    it('replacing and clearing the override delete the old row', async () => {
+      const first = await uploadPng()
+      await app.inject({
+        method: 'PUT',
+        url: '/api/settings',
+        headers: { cookie: auth, 'content-type': 'application/json' },
+        payload: { faviconMediaId: first },
+      })
+      const second = await uploadPng(64)
+      await app.inject({
+        method: 'PUT',
+        url: '/api/settings',
+        headers: { cookie: auth, 'content-type': 'application/json' },
+        payload: { faviconMediaId: second },
+      })
+      expect(await mediaRepo.get(first)).toBeNull() // replaced → deleted
+      expect(await mediaRepo.get(second)).not.toBeNull()
+
+      await app.inject({
+        method: 'PUT',
+        url: '/api/settings',
+        headers: { cookie: auth, 'content-type': 'application/json' },
+        payload: { faviconMediaId: null },
+      })
+      expect(await mediaRepo.get(second)).toBeNull() // cleared → deleted
+    })
+
+    it('the admin page shows the override, the upload control and the main form is independent', async () => {
+      const id = await uploadPng()
+      await app.inject({
+        method: 'PUT',
+        url: '/api/settings',
+        headers: { cookie: auth, 'content-type': 'application/json' },
+        payload: { faviconMediaId: id },
+      })
+      const res = await app.inject({ method: 'GET', url: '/admin', headers: { cookie: auth } })
+      expect(res.body).toContain('Custom icon in use')
+      expect(res.body).toContain(`src="/media/${id}"`)
+      expect(res.body).toContain('id="wn-icon-upload"')
+      expect(res.body).toContain('id="wn-icon-remove"')
+      expect(res.body).toContain('faviconMediaId') // icon script present
+    })
+
+    it('a dangling override (row lost after being set) surfaces a recovery note', async () => {
+      const id = await uploadPng()
+      await app.inject({
+        method: 'PUT',
+        url: '/api/settings',
+        headers: { cookie: auth, 'content-type': 'application/json' },
+        payload: { faviconMediaId: id },
+      })
+      // Simulate a partial restore / manual DB surgery: the setting survives,
+      // the row doesn't. The admin page must name the state, not 500.
+      await mediaRepo.delete(id)
+      const res = await app.inject({ method: 'GET', url: '/admin', headers: { cookie: auth } })
+      expect(res.statusCode).toBe(200)
+      expect(res.body).toContain('which is missing')
+    })
   })
 })

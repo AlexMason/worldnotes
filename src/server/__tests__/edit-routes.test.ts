@@ -27,7 +27,10 @@ describe('/edit redirects', () => {
     app = await buildApp({ config, pages: createMemoryPagesRepository(), relyingParty: null })
     auth =
       'wn_session=' +
-      seal({ exp: Math.floor(Date.now() / 1000) + 300, sub: 'u1', name: 'Ed' }, config.sessionSecrets)
+      seal(
+        { exp: Math.floor(Date.now() / 1000) + 300, sub: 'u1', name: 'Ed' },
+        config.sessionSecrets,
+      )
   })
 
   it('redirects /edit/{slug} to the page (anonymous readers)', async () => {
@@ -43,7 +46,11 @@ describe('/edit redirects', () => {
   })
 
   it('redirects /edit/{slug} to the page for editors too', async () => {
-    const res = await app.inject({ method: 'GET', url: '/edit/blog/post', headers: { cookie: auth } })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/edit/blog/post',
+      headers: { cookie: auth },
+    })
     expect(res.statusCode).toBe(302)
     expect(res.headers.location).toBe('/blog/post')
   })
@@ -73,7 +80,10 @@ describe('editor at /{slug}', () => {
     app = await buildApp({ config, pages: createMemoryPagesRepository(), relyingParty: null })
     auth =
       'wn_session=' +
-      seal({ exp: Math.floor(Date.now() / 1000) + 300, sub: 'u1', name: 'Ed' }, config.sessionSecrets)
+      seal(
+        { exp: Math.floor(Date.now() / 1000) + 300, sub: 'u1', name: 'Ed' },
+        config.sessionSecrets,
+      )
   })
 
   it('serves the editor shell to authenticated users at /{slug}', async () => {
@@ -86,9 +96,16 @@ describe('editor at /{slug}', () => {
     expect(res.body).toContain('viewport-fit=cover')
     expect(res.body).toContain('client.js')
     const cfg = JSON.parse(
-      JSON.parse(/<script id="wn-config" type="application\/json">(.+?)<\/script>/.exec(res.body)![1]!) as string,
+      JSON.parse(
+        /<script id="wn-config" type="application\/json">(.+?)<\/script>/.exec(res.body)![1]!,
+      ) as string,
     )
-    expect(cfg).toMatchObject({ slug: 'blog/post', autosaveMs: 1234, searchEnabled: true, authDisabled: false })
+    expect(cfg).toMatchObject({
+      slug: 'blog/post',
+      autosaveMs: 1234,
+      searchEnabled: true,
+      authDisabled: false,
+    })
     expect(cfg.userName).toBe('Ed')
   })
 
@@ -107,7 +124,12 @@ describe('editor at /{slug}', () => {
     const page = JSON.parse(
       /<script id="wn-page" type="application\/json">(.+?)<\/script>/.exec(res.body)![1]!,
     )
-    expect(page).toMatchObject({ slug: 'blog/post', content: '# Hi\n\nbody', version: 1, exists: true })
+    expect(page).toMatchObject({
+      slug: 'blog/post',
+      content: '# Hi\n\nbody',
+      version: 1,
+      exists: true,
+    })
   })
 
   it('marks a missing page as non-existent in the embed', async () => {

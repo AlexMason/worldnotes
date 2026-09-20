@@ -5,7 +5,9 @@ import { loadConfig, type ServerConfig } from '../config'
 import { buildApp } from '../app'
 import { createMemoryPagesRepository } from '../db/pages-memory'
 import { createMemorySettingsRepository } from '../db/settings-memory'
+import { createMemoryMediaRepository } from '../db/media-memory'
 import { seal } from '../auth/session'
+import { pngBytes } from './helpers/media-fixtures'
 
 const baseEnv = {
   NODE_ENV: 'test',
@@ -426,5 +428,82 @@ describe('home page + search toggle', () => {
     await repo.put('page', { title: 'P', content: 'x' })
     const res = await app.inject({ method: 'GET', url: '/page' })
     expect(res.headers.vary).toContain('Cookie')
+  })
+})
+
+describe('favicon icon chrome', () => {
+  let config: ServerConfig
+  let repo: ReturnType<typeof createMemoryPagesRepository>
+  let mediaRepo: ReturnType<typeof createMemoryMediaRepository>
+  let app: Awaited<ReturnType<typeof buildApp>>
+  let auth: string
+
+  beforeEach(async () => {
+    config = loadConfig(baseEnv)
+    repo = createMemoryPagesRepository()
+    mediaRepo = createMemoryMediaRepository()
+    app = await buildApp({
+      config,
+      pages: repo,
+      media: mediaRepo,
+      relyingParty: null,
+    })
+    auth = editorCookie(config)
+  })
+
+  it('emits the bundled icon tag set by default in reader and editor heads', async () => {
+    await repo.put('page', { title: 'P', content: 'x' })
+    const reader = await app.inject({ method: 'GET', url: '/page' })
+    expect(reader.body).toContain(
+      '<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">',
+    )
+    expect(reader.body).toContain('<link rel="manifest" href="/icons/site.webmanifest">')
+    expect(reader.body).not.toContain('href="data:,"')
+
+    const editor = await app.inject({ method: 'GET', url: '/page', headers: { cookie: auth } })
+    expect(editor.body).toContain('sizes="32x32" href="/icons/favicon-32x32.png"')
+    expect(editor.body).not.toContain('href="data:,"')
+  })
+
+  it('emits override tags when the favicon is set, in both heads', async () => {
+    const { id } = await mediaRepo.insert({
+      mediaType: 'image/png',
+      width: 64,
+      height: 64,
+      data: pngBytes(64, 64),
+    })
+    await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: auth, 'content-type': 'application/json' },
+      payload: { faviconMediaId: id },
+    })
+    await repo.put('page', { title: 'P', content: 'x' })
+    const res = await app.inject({ method: 'GET', url: '/page' })
+    expect(res.body).toContain('<link rel="icon" href="/media/1">')
+    expect(res.body).toContain('<link rel="apple-touch-icon" href="/media/1">')
+    expect(res.body).not.toContain('site.webmanifest') // bundled set omitted under override
+
+    const editor = await app.inject({ method: 'GET', url: '/page', headers: { cookie: auth } })
+    expect(editor.body).toContain('<link rel="icon" href="/media/1">')
+  })
+
+  it('favicon change busts the anonymous reader ETag', async () => {
+    await repo.put('etag', { title: 'E', content: 'same bytes' })
+    const before = await app.inject({ method: 'GET', url: '/etag' })
+    const { id } = await mediaRepo.insert({
+      mediaType: 'image/png',
+      width: 1,
+      height: 1,
+      data: pngBytes(),
+    })
+    await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: auth, 'content-type': 'application/json' },
+      payload: { faviconMediaId: id },
+    })
+    const after = await app.inject({ method: 'GET', url: '/etag' })
+    expect(after.headers.etag).not.toBe(before.headers.etag)
   })
 })

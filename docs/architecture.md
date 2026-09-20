@@ -16,11 +16,12 @@ Browser (anonymous)                  Browser (authenticated)
 │ OIDC RP (state+PKCE+nonce) ── AES-GCM cookie sessions           │
 │ /api/pages CRUD ── requireAuth + same-origin ── PagesRepository │
 │ /api/settings ── SettingsRepository ── key/value table          │
-│ @fastify/static /assets/* (dist/client)                         │
+│ /api/media upload ── MediaRepository (pg bytea) ── /media/{id}  │
+│ @fastify/static /assets/* (dist/client) · /icons/* (public)     │
 └──────────────────────────────────────────────────────────────────┘
                               │ pg pool + advisory-locked migrations
                               ▼
-                     PostgreSQL `pages`, `settings`
+                     PostgreSQL `pages`, `settings`, `media`
 ```
 
 ## Source layout
@@ -66,6 +67,21 @@ Boundary rules (enforced by tooling):
   that invariant and writable only via `PUT /api/settings` (authenticated —
   see `docs/api.md` trust model). The `/admin` page omits the bands so
   broken branding can never hide the recovery form.
+- **Favicon & uploads are server chrome, not renderer grammar:** the icon
+  `<link>` tags come from `render/icons.ts`, fed by the `faviconMediaId`
+  setting, and are emitted synchronously in BOTH the reader head
+  (`render/layout.ts`) and the editor shell head — never client-side, so
+  `EditorShellConfig` (shared `dto.ts`) is unchanged. Uploaded images live in
+  the Postgres `media` table (`MediaRepository` pg/memory pair) served
+  immutably at `/media/{id}`; the upload gate (`media-types.ts`) trusts magic
+  bytes and declared dimensions, never the client's content type. The
+  `public/icons/` set ships in the Docker image; `/favicon.ico` and
+  `/apple-touch-icon.png` are explicit routes (registered before the SSR
+  catch-all, which would otherwise 404 them as invalid slugs) reading
+  `node:fs` directly — NOT `reply.sendFile`, which is only decorated when the
+  `/assets/` static mount registers (never in tests). `@fastify/static` is
+  skip-override, so the second mount uses `decorateReply: false` (a duplicate
+  `sendFile` decorator would throw at boot). No core/rendering change.
 - **Text fidelity:** region lines render byte-exact DOM text — fences, pipes
   and separator dashes stay present as text (dimmed/zero-sized by CSS), so
   `extractContentText` round-trips with no `data-raw` on lines. `data-raw`
@@ -103,25 +119,29 @@ page performs no network at all. Undo granularity is per input batch
 
 Public, no query strings anywhere:
 
-| Route                                     | Handler                                                             | Auth                   |
-| ----------------------------------------- | ------------------------------------------------------------------- | ---------------------- | ---- | ----- |
-| `GET /`                                   | configured home page, else the index listing                        | anon ok                |
-| `GET /all`                                | index (page list + search form island)                              | anon ok                |
-| `GET /search`, `GET /search/{terms}`      | search form + ILIKE results                                         | anon ok                |
-| `GET /admin`                              | settings form (search, home page, branding; bands omitted)          | editors                |
-| `GET /edit`, `GET /edit/{slug}`           | legacy 302s → `/`, `/{slug}`                                        | —                      |
-| `GET /{slug}` (catch-all, last)           | editor shell (auth) / SSR article (anon); miss → 404 create overlay | mixed                  |
-| `GET /api/pages`, `GET /api/pages/{slug}` | JSON reads + ETags                                                  | anon ok                |
-| `POST/PUT/DELETE /api/pages[/{slug}]`     | writes; `requireSameOrigin` + `requireAuth`                         | editors                |
-| `PUT /api/settings`                       | instance settings write; `requireSameOrigin` + `requireAuth`        | editors                |
-| `GET /oidc/login                          | callback                                                            | logout`, `GET /api/me` | auth | mixed |
-| `GET /assets/*`                           | built client bundle                                                 | anon ok                |
-| `GET /healthz`                            | liveness                                                            | anon ok                |
+| Route                                           | Handler                                                             | Auth                   |
+| ----------------------------------------------- | ------------------------------------------------------------------- | ---------------------- | ---- | ----- |
+| `GET /`                                         | configured home page, else the index listing                        | anon ok                |
+| `GET /all`                                      | index (page list + search form island)                              | anon ok                |
+| `GET /search`, `GET /search/{terms}`            | search form + ILIKE results                                         | anon ok                |
+| `GET /admin`                                    | settings form (search, home page, branding; bands omitted)          | editors                |
+| `GET /edit`, `GET /edit/{slug}`                 | legacy 302s → `/`, `/{slug}`                                        | —                      |
+| `GET /{slug}` (catch-all, last)                 | editor shell (auth) / SSR article (anon); miss → 404 create overlay | mixed                  |
+| `GET /api/pages`, `GET /api/pages/{slug}`       | JSON reads + ETags                                                  | anon ok                |
+| `POST/PUT/DELETE /api/pages[/{slug}]`           | writes; `requireSameOrigin` + `requireAuth`                         | editors                |
+| `PUT /api/settings`                             | instance settings write; `requireSameOrigin` + `requireAuth`        | editors                |
+| `POST /api/media`                               | multipart upload; sniff + size/dimension caps                       | editors (`onRequest`)  |
+| `GET /media/{id}`                               | stored bytes, immutable cache + hardening headers                   | anon ok                |
+| `GET /favicon.ico`, `GET /apple-touch-icon.png` | blind-request favicon (override row or bundled `public/icons/`)     | anon ok                |
+| `GET /oidc/login                                | callback                                                            | logout`, `GET /api/me` | auth | mixed |
+| `GET /assets/*`                                 | built client bundle                                                 | anon ok                |
+| `GET /healthz`                                  | liveness                                                            | anon ok                |
 
 Slugs are lowercase `[a-z0-9-]` segments (`blog/post-name`), validated by a
 shared `validateSlug()` **and** a DB `CHECK` constraint. Nesting is cosmetic:
 no parent must exist; breadcrumbs derive from segments. First segments
-`api, oidc, edit, search, assets, static, healthz, favicon.ico, all, admin`
+`api, oidc, edit, search, assets, static, healthz, favicon.ico, icons, media,
+all, admin`
 are reserved.
 
 ## Auth

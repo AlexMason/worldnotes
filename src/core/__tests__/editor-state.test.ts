@@ -103,7 +103,9 @@ describe('createEditorState', () => {
 
   it('toContext returns EditorContext with navigate, trail, world, and page text accessors', () => {
     const state = createEditorState({ initialPage: 'start' })
-    const ctx = state.toContext((_page: string) => { /* noop */ })
+    const ctx = state.toContext((_page: string) => {
+      /* noop */
+    })
 
     expect(typeof ctx.navigate).toBe('function')
     expect(typeof ctx.getTrail).toBe('function')
@@ -115,7 +117,9 @@ describe('createEditorState', () => {
 
   it('context getPageText/setPageText round-trip through buffers', () => {
     const state = createEditorState({})
-    const ctx = state.toContext(() => { /* noop */ })
+    const ctx = state.toContext(() => {
+      /* noop */
+    })
     ctx.setPageText('p', '# P')
     expect(ctx.getPageText('p')).toBe('# P')
     expect(state.getPageBuffers().getPageText('p')).toBe('# P')
@@ -124,7 +128,9 @@ describe('createEditorState', () => {
   it('context reflects current trail state', () => {
     const state = createEditorState({ initialPage: 'home' })
     state.pushTrail('sub')
-    const ctx = state.toContext(() => { /* noop */ })
+    const ctx = state.toContext(() => {
+      /* noop */
+    })
     expect(ctx.getTrail()).toEqual(['home', 'sub'])
     expect(ctx.getCurrentPage()).toBe('sub')
   })

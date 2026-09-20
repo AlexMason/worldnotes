@@ -65,13 +65,11 @@ export function createPgPagesRepository(pool: SqlPool): PagesRepository {
            FROM pages ORDER BY updated_at DESC LIMIT $1`,
         [limit],
       )
-      return res.rows.map(
-        (r: { slug: string; title: string; updated_at_ms: string | number }) => ({
-          slug: r.slug,
-          title: r.title,
-          updatedAt: Number(r.updated_at_ms),
-        }),
-      ) as PageListItem[]
+      return res.rows.map((r: { slug: string; title: string; updated_at_ms: string | number }) => ({
+        slug: r.slug,
+        title: r.title,
+        updatedAt: Number(r.updated_at_ms),
+      })) as PageListItem[]
     },
 
     async put(slug, { title, content, by = null }) {

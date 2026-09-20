@@ -50,14 +50,8 @@ function createMockStorage(): PageStore {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function setCaretAtLineStart(editorDiv: HTMLElement, lineIndex: number): void {
-  const allLines = Array.from(
-    editorDiv.querySelectorAll('[data-line]'),
-  ) as HTMLElement[]
-  allLines.sort(
-    (a, b) =>
-      parseInt(a.dataset.line ?? '0', 10) -
-      parseInt(b.dataset.line ?? '0', 10),
-  )
+  const allLines = Array.from(editorDiv.querySelectorAll('[data-line]')) as HTMLElement[]
+  allLines.sort((a, b) => parseInt(a.dataset.line ?? '0', 10) - parseInt(b.dataset.line ?? '0', 10))
   let offset = 0
   for (let i = 0; i < lineIndex; i++) {
     offset += (allLines[i].textContent ?? '').length + 1 // +1 for \n separator

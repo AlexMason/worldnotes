@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { createMemoryPagesRepository } from '../db/pages-memory'
 
-function page(slug: string, over: Partial<{ title: string; content: string; version: number }> = {}) {
+function page(
+  slug: string,
+  over: Partial<{ title: string; content: string; version: number }> = {},
+) {
   return {
     slug,
     title: over.title ?? slug,
@@ -81,8 +84,7 @@ describe('memory PagesRepository', () => {
 
     const stale = await repo.deleteIfMatch('v', 1)
     expect(stale).toMatchObject({ ok: false, reason: 'conflict' })
-    if (!stale.ok && stale.reason === 'conflict')
-      expect(stale.current.version).toBe(2)
+    if (!stale.ok && stale.reason === 'conflict') expect(stale.current.version).toBe(2)
     expect(await repo.get('v')).not.toBeNull()
 
     expect(await repo.deleteIfMatch('v', 2)).toEqual({ ok: true })

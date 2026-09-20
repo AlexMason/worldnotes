@@ -27,7 +27,7 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
   return {
     getPageBuffers: () => pageBuffers,
     getTrail: () => [...trail],
-    getCurrentPage: () => trail.length <= 1 ? trail[0] : trail.slice(1).join('/'),
+    getCurrentPage: () => (trail.length <= 1 ? trail[0] : trail.slice(1).join('/')),
     getWorld: () => pageBuffers.getWorld(),
     pushTrail: (page: string) => {
       trail.push(page)
@@ -59,7 +59,7 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
     toContext: (navigate: (page: string) => void): EditorContext => ({
       navigate,
       getTrail: () => [...trail],
-      getCurrentPage: () => trail.length <= 1 ? trail[0] : trail.slice(1).join('/'),
+      getCurrentPage: () => (trail.length <= 1 ? trail[0] : trail.slice(1).join('/')),
       getWorld: () => pageBuffers.getWorld(),
       getPageText: (pg: string) => pageBuffers.getPageText(pg),
       setPageText: (pg: string, content: string) => pageBuffers.setPageText(pg, content),
@@ -87,7 +87,21 @@ function mockDOM(): EditorDOM {
   container.appendChild(toolbar)
   container.appendChild(editorWrap)
 
-  return { container, actions, breadcrumb, toolbar, editorWrap, editorDiv, placeholder, overlay: document.createElement('div'), header: document.createElement('div'), body: document.createElement('div'), footer: document.createElement('div'), leftSidepanel: document.createElement('div'), rightSidepanel: document.createElement('div') }
+  return {
+    container,
+    actions,
+    breadcrumb,
+    toolbar,
+    editorWrap,
+    editorDiv,
+    placeholder,
+    overlay: document.createElement('div'),
+    header: document.createElement('div'),
+    body: document.createElement('div'),
+    footer: document.createElement('div'),
+    leftSidepanel: document.createElement('div'),
+    rightSidepanel: document.createElement('div'),
+  }
 }
 
 function mockRender(): EditorRenderAPI {
@@ -360,7 +374,7 @@ describe('createEditorNavigation', () => {
       const trackingRender: EditorRenderAPI = {
         render: vi.fn(),
         renderBreadcrumb: vi.fn(),
-            checkSelectChange: vi.fn(),
+        checkSelectChange: vi.fn(),
       }
       const nav = createEditorNavigation(state, storage, dom, options)
       nav.setRenderAPI(trackingRender)
@@ -403,7 +417,7 @@ describe('createEditorNavigation', () => {
 
     it('does not redirect when page is found in storage', async () => {
       const s = mockState(['home'])
-      const st = mockStorage({ 'exists': '# Exists\n\ncontent' })
+      const st = mockStorage({ exists: '# Exists\n\ncontent' })
       const nav = createEditorNavigation(s, st, dom, {})
       nav.setRenderAPI(render)
 
@@ -424,8 +438,6 @@ describe('createEditorNavigation', () => {
       expect(s.getPendingRequestedPage()).toBeNull()
       expect(s.getTrail()).toContain('cached')
     })
-
-
 
     it('clears pendingRequestedPage when navigating from 404 to an existing page', async () => {
       const s = mockState(['home'])
@@ -456,10 +468,11 @@ describe('createEditorNavigation', () => {
       expect(s.getWorld()['404']).toContain('Page Not Found')
     })
 
-
     it('propagates load errors from the page store', async () => {
       const errorStorage: PageStore = {
-        load: async () => { throw new Error('network down') },
+        load: async () => {
+          throw new Error('network down')
+        },
         save: () => Promise.resolve(),
       }
       const s = mockState(['home'])
@@ -488,7 +501,7 @@ describe('createEditorNavigation', () => {
       const realState = createEditorState({ initialPage: 'blog', homeSlug: 'welcome' })
       expect(realState.getTrail()).toEqual(['welcome', 'blog'])
 
-      const st = mockStorage({ 'welcome': '# Welcome\n', 'blog/post': '# Post\n' })
+      const st = mockStorage({ welcome: '# Welcome\n', 'blog/post': '# Post\n' })
       const nav = createEditorNavigation(realState, st, mockDOM(), { homeSlug: 'welcome' })
       nav.setRenderAPI(mockRender())
 

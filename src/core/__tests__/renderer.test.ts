@@ -135,11 +135,7 @@ describe('renderInlineContent', () => {
   })
 
   it('renders mixed inline content (wikilink + text + bold)', () => {
-    const fragment = renderInlineContent(
-      '[[test]] and **bold**',
-      [wikiLinkPlugin, boldPlugin],
-      ctx,
-    )
+    const fragment = renderInlineContent('[[test]] and **bold**', [wikiLinkPlugin, boldPlugin], ctx)
     expect(fragment.childNodes).toHaveLength(3)
 
     const linkEl = fragment.childNodes[0] as HTMLElement

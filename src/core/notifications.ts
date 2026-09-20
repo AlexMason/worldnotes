@@ -25,9 +25,7 @@ const TYPE_ICONS: Record<string, string> = {
 
 let idCounter = 0
 
-export function createNotificationSystem(
-  rootEl: HTMLElement,
-): NotificationSystem {
+export function createNotificationSystem(rootEl: HTMLElement): NotificationSystem {
   const containers = new Map<string, HTMLElement>()
   const toasts: ToastState[] = []
 
@@ -53,10 +51,7 @@ export function createNotificationSystem(
       toast.classList.add(`wn-toast--${toastType}`)
     }
     toast.setAttribute('data-toast-id', toastId)
-    toast.setAttribute(
-      'aria-live',
-      toastType === 'error' ? 'assertive' : 'polite',
-    )
+    toast.setAttribute('aria-live', toastType === 'error' ? 'assertive' : 'polite')
 
     const icon = document.createElement('span')
     icon.className = 'wn-toast__icon'

@@ -26,18 +26,22 @@ authenticated OIDC account may edit.
 Reads are public (cached); writes require the session cookie **and** a
 same-origin `Origin` (CSRF guard) and are rate-unlimited but size-capped.
 
-| Verb                         | Path   | Auth                                                                                                                               | Notes                                                       |
-| ---------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `GET /api/pages[?q=&limit=]` | —      | no                                                                                                                                 | list/search (ILIKE), newest first, default limit 100        |
-| `GET /api/pages/{slug}`      | —      | no                                                                                                                                 | `{slug,title,content,version,updatedAt,updatedBy}` + `ETag` |
-| `POST /api/pages`            | editor | body `{slug, title?, content}` — **content required and non-blank** (400 otherwise); title defaults to the first `#` heading, else humanized slug; 409 on exists                       |
+| Verb                         | Path   | Auth                                                                                                                                                                         | Notes                                                       |
+| ---------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `GET /api/pages[?q=&limit=]` | —      | no                                                                                                                                                                           | list/search (ILIKE), newest first, default limit 100        |
+| `GET /api/pages/{slug}`      | —      | no                                                                                                                                                                           | `{slug,title,content,version,updatedAt,updatedBy}` + `ETag` |
+| `POST /api/pages`            | editor | body `{slug, title?, content}` — **content required and non-blank** (400 otherwise); title defaults to the first `#` heading, else humanized slug; 409 on exists             |
 | `PUT /api/pages/{slug}`      | editor | body `{content, title?}` **requires `If-Match: "<version>"`**; 409 `{current:{version}}` on stale, 428 without header, 404 unknown. **Blank content DELETES the page** → 204 |
-| `DELETE /api/pages/{slug}`   | editor | 204 / 404                                                                                                                          |
+| `DELETE /api/pages/{slug}`   | editor | 204 / 404                                                                                                                                                                    |
 
 Slugs: lowercase, hyphen-separated segments joined by `/`
 (`blog/post-name`), max 255 chars, reserved first segments
-(`api, oidc, edit, search, assets, static, healthz, all, admin`) rejected at the
-API _and_ by a DB `CHECK`. Titles keep case; slugs don't.
+(`api, oidc, edit, search, assets, static, healthz, favicon.ico, icons, media,
+all, admin`) rejected at the
+API _and_ by a DB `CHECK`. Titles keep case; slugs don't. (`icons`/`media`
+back the bundled icon set and the media store below; `004_media.sql` aborts
+if an existing page already uses those prefixes, so they never get silently
+shadowed.)
 
 ### Conflict semantics (autosave)
 
@@ -74,9 +78,9 @@ overlay appears.
 Instance-wide settings (any authenticated user), persisted in a `settings`
 key/value table and editable from `GET /admin`.
 
-| Verb                | Path   | Auth                                                                                                                                                                                                                                     | Notes |
-| ------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| `PUT /api/settings` | editor | body `{searchEnabled?: boolean, homeSlug?: string\|null, allPagesEnabled?: boolean, siteName?: string, headerHtml?: string, footerHtml?: string}`; `homeSlug` blank/`null` clears it; invalid slugs 400; returns the normalized settings |
+| Verb                | Path   | Auth                                                                                                                                                                                                                                                                                                                                           | Notes |
+| ------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `PUT /api/settings` | editor | body `{searchEnabled?: boolean, homeSlug?: string\|null, allPagesEnabled?: boolean, siteName?: string, headerHtml?: string, footerHtml?: string, faviconMediaId?: number\|null}`; `homeSlug` blank/`null` clears it; invalid slugs 400; `faviconMediaId` must reference an existing media row (400 otherwise); returns the normalized settings |
 
 - `searchEnabled` (default `true`) — hides the search form/links everywhere;
   `/search` and `/search/{terms}` remain functional.
@@ -90,6 +94,18 @@ key/value table and editable from `GET /admin`.
   editor the same HTML rides the embedded config and the client inserts the
   bands around the content column (reader placement parity). Max 20 000
   chars each; scripts inside them execute for anonymous readers.
+- `faviconMediaId` (default `null`) — id of a `media` row that overrides the
+  bundled default icon set. When set, both page heads emit
+  `<link rel="icon">` + `<link rel="apple-touch-icon">` pointing at the
+  extensionless `/media/{id}` URL (no manifest link — an installed PWA keeps
+  the bundled icons until the override is cleared); the blind `/favicon.ico`
+  and `/apple-touch-icon.png` requests follow the override too, self-healing
+  to the bundled bytes if the referenced row is gone. Upload via
+  `POST /api/media` (below); setting a new id **deletes the row the setting
+  previously pointed at**, so a replace or clear leaves no orphan behind. A
+  partial restore can leave the setting pointing at a deleted row — harmless
+  (dead image link), and the `/admin` page names the state with a recovery
+  note.
 
 **Trust model:** there is no role concept — _any authenticated user_ (anyone
 the configured OIDC issuer admits) can write these settings, including the
@@ -101,7 +117,44 @@ The `/admin` page deliberately renders the bands nowhere — broken branding
 cannot bury the recovery form.
 
 Reader `ETag`s mix in a settings revision, so branding/toggle changes bust
-browser revalidation even when the article bytes are unchanged.
+browser revalidation even when the article bytes are unchanged — including a
+favicon change (the head `<link>` tags are part of the cached chrome).
+
+## Media
+
+Uploaded images live in Postgres (`media` table), not on disk — the Docker
+image stays disposable and `pg_dump` covers them. Rows are **immutable**: a
+new upload gets a new id, which is what lets `/media/{id}` cache forever.
+Reusing the store for editor-inserted images is the planned next consumer.
+
+| Verb              | Path    | Auth                                                                                                      | Notes                                                                                                                                                                     |
+| ----------------- | ------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/media` | editor  | `requireSameOrigin` + `requireAuth` at `onRequest` (auth runs before the multipart parser touches a byte) | `multipart/form-data`, one `file` part; returns `{id, url, mediaType, sizeBytes, width, height}` (201)                                                                    |
+| `GET /media/{id}` | anon ok | —                                                                                                         | serves the stored bytes; `public, max-age=31536000, immutable`, strong ETag `"m{id}"` (304 revalidation), `nosniff` + `CSP: default-src 'none'` + `X-Frame-Options: DENY` |
+
+**Content sniffing, not declared types:** the stored `media_type` comes from
+magic bytes — PNG, JPEG, GIF, WebP, ICO are accepted; anything else (SVG
+included, so no script-in-content vector) is a 415 regardless of what the
+client claimed. Declared pixel dimensions are parsed from the header and
+capped at 8192 px per side / 40 MP total, so a tiny "decompression bomb"
+cannot become a permanently cached decoder-DoS. Size is capped by
+`MEDIA_MAX_BYTES` (default 2 MiB); over-cap is a 413. `limits.fileSize` is
+the only effective multipart body ceiling (Fastify's JSON `bodyLimit` does
+not apply to streamed uploads).
+
+**Public & enumerable:** `GET /media/{id}` needs no auth (anonymous readers
+fetch the favicon), and ids are sequential bigserials — a media row is
+effectively public-by-guessing the moment any HTML references it, and the
+editor iteration inherits this posture. Treat uploaded images as public;
+delete/clear to retract.
+
+- `GET /favicon.ico` and `GET /apple-touch-icon.png` (anon ok) — blind
+  browser requests that ignore the head `<link>` tags. They follow the
+  current favicon (override row, or the bundled `public/icons/` file),
+  served `public, max-age=3600` (no `immutable`/ETag — ≤1h staleness after a
+  settings change, since these URLs are mutable; browsers that _do_ parse the
+  head tags see changes immediately from fresh page HTML). No bundled dir and
+  no override → 404.
 
 ## HTML routes
 
@@ -118,7 +171,11 @@ public, max-age=60, stale-while-revalidate=300`, `Vary: Cookie`, 304
 - `GET /admin` — admin settings form (authenticated only).
 - `GET /edit` / `GET /edit/{slug}` — 302 redirects to `/` / `/{slug}`
   (legacy paths).
-- `GET /assets/*` — client bundle; `GET /healthz` — liveness.
+- `GET /assets/*` — client bundle; `GET /icons/*` — the bundled default icon
+  set (`public/icons/`, shipped in the image, `max-age=1h` not immutable —
+  filenames are stable across deploys while bytes change);
+  `GET /favicon.ico`, `GET /apple-touch-icon.png` and `GET /media/{id}` —
+  favicon and uploaded media (see **Media**); `GET /healthz` — liveness.
 
 ## Viewer markdown
 
@@ -169,4 +226,5 @@ See `.env.example`; every knob is parsed and validated in
 `src/server/config.ts`: `NODE_ENV LOG_LEVEL PORT HOST DATABASE_URL OIDC_ISSUER
 OIDC_CLIENT_ID OIDC_CLIENT_SECRET OIDC_REDIRECT_URL
 OIDC_CLOCK_TOLERANCE_SECONDS SESSION_SECRETS SESSION_MAX_AGE_SECONDS
-CACHE_MAX_ENTRIES CACHE_TTL_SECONDS AUTOSAVE_DEBOUNCE_MS AUTH_DISABLED`.
+CACHE_MAX_ENTRIES CACHE_TTL_SECONDS AUTOSAVE_DEBOUNCE_MS MEDIA_MAX_BYTES
+AUTH_DISABLED`.

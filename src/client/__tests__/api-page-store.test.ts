@@ -32,7 +32,10 @@ describe('createApiPageStore', () => {
   beforeEach(() => vi.unstubAllGlobals())
 
   it('load fetches by slug-folded path and records the version', async () => {
-    const fn = stubFetch({ status: 200, body: { slug: 'blog/post', title: 'P', content: 'hello', version: 3 } })
+    const fn = stubFetch({
+      status: 200,
+      body: { slug: 'blog/post', title: 'P', content: 'hello', version: 3 },
+    })
     const store = createApiPageStore({ onConflict: vi.fn() })
 
     await expect(store.load('Blog/Post')).resolves.toBe('hello')
@@ -109,10 +112,9 @@ describe('createApiPageStore', () => {
       body: { slug: 'a/b', title: 'B', content: 'x', version: 6 }, // PUT response
     })
     // Seed keys fold through normalize, just like load/save keys.
-    const store = createApiPageStore(
-      { onConflict: vi.fn(), onSaved },
-      [{ slug: 'A/B', version: 5 }],
-    )
+    const store = createApiPageStore({ onConflict: vi.fn(), onSaved }, [
+      { slug: 'A/B', version: 5 },
+    ])
 
     await store.save('a/b', 'x')
 

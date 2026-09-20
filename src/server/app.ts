@@ -5,12 +5,15 @@ import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastif
 import type { ServerConfig } from './config'
 import type { PagesRepository } from './db/repository'
 import type { SettingsRepository } from './db/settings-repository'
+import type { MediaRepository } from './db/media-repository'
 import { createMemorySettingsRepository } from './db/settings-memory'
+import { createMemoryMediaRepository } from './db/media-memory'
 import { createSettingsService } from './settings'
 import { registerSessions } from './auth/session'
 import { registerAuthRoutes } from './auth/routes'
 import { registerPageApiRoutes } from './routes/pages-api'
 import { registerSettingsApiRoutes } from './routes/settings-api'
+import { registerMediaRoutes } from './routes/media'
 import { registerAdminRoutes } from './routes/admin'
 import { registerPageHtmlRoutes } from './routes/pages-html'
 import { registerEditRoutes } from './routes/edit'
@@ -19,6 +22,7 @@ import { createReaderRenderer } from './render/reader'
 import { renderLayout } from './render/layout'
 import type { OidcRelyingParty } from './auth/oidc'
 import fastifyStatic from '@fastify/static'
+import fastifyMultipart from '@fastify/multipart'
 import { existsSync } from 'node:fs'
 
 export interface AppDeps {
@@ -33,6 +37,10 @@ export interface AppDeps {
   onPageWrite?: (slug: string) => void
   /** Directory holding the built client bundle (dist/client); absent in tests. */
   clientAssetsDir?: string | null
+  /** Directory holding the bundled default icon set (public/icons). */
+  bundledIconsDir?: string | null
+  /** Uploaded-media store; defaults to an in-memory store in tests. */
+  media?: MediaRepository
   /** Fastify logger; omitted = silent (tests). Bootstrap passes real config. */
   logger?: FastifyServerOptions['logger']
 }
@@ -66,14 +74,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   const settingsRepo = deps.settings ?? createMemorySettingsRepository()
   const settingsService = await createSettingsService(settingsRepo)
-
-  await registerSettingsApiRoutes(app, { settings: settingsService })
-  await registerAdminRoutes(app, { config: deps.config, settings: settingsService })
-
-  await registerPageApiRoutes(app, {
-    pages: deps.pages,
-    onWrite: invalidate,
-  })
+  const mediaRepo = deps.media ?? createMemoryMediaRepository()
 
   // Client bundle assets (present once `vite build` ran; skipped in tests)
   const assetsDir = deps.clientAssetsDir ?? null
@@ -86,6 +87,52 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       maxAge: '1h',
     })
   }
+
+  // Bundled default icon set (ships in the image). decorateReply MUST stay
+  // false: @fastify/static is skip-override, so a second decorator of
+  // reply.sendFile on the root instance would throw FST_ERR_DEC_ALREADY_PRESENT.
+  // No immutable — filenames are stable across deploys while bytes change.
+  const iconsDir = deps.bundledIconsDir ?? null
+  const iconsMounted = iconsDir !== null && existsSync(iconsDir)
+  if (iconsMounted) {
+    await app.register(fastifyStatic, {
+      root: iconsDir,
+      prefix: '/icons/',
+      immutable: false,
+      maxAge: '1h',
+      decorateReply: false,
+    })
+  }
+
+  // Multipart upload parsing; per-request ceilings enforced here (the route
+  // maps violations to 413/400). Guards run at onRequest, so an unauthenticated
+  // caller never reaches this parser.
+  await app.register(fastifyMultipart, {
+    limits: {
+      fileSize: deps.config.env.MEDIA_MAX_BYTES,
+      files: 1,
+      fields: 0,
+      parts: 1,
+      headerPairs: 20,
+    },
+  })
+
+  await registerSettingsApiRoutes(app, { settings: settingsService, media: mediaRepo })
+  await registerAdminRoutes(app, {
+    config: deps.config,
+    settings: settingsService,
+    media: mediaRepo,
+  })
+  await registerMediaRoutes(app, {
+    media: mediaRepo,
+    settings: settingsService,
+    iconsDir: iconsMounted ? iconsDir : null,
+  })
+
+  await registerPageApiRoutes(app, {
+    pages: deps.pages,
+    onWrite: invalidate,
+  })
 
   await registerEditRoutes(app)
 

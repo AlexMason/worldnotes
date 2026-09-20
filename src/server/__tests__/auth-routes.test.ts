@@ -47,9 +47,7 @@ describe('auth routes (OIDC)', () => {
     const login = await app.inject({ method: 'GET', url: '/oidc/login?returnTo=/blog/one' })
     expect(login.statusCode).toBe(302)
     const authUrl = new URL(login.headers.location as string)
-    expect(authUrl.pathname).toBe(
-      new URL(ISSUER).pathname + '/protocol/openid-connect/auth',
-    )
+    expect(authUrl.pathname).toBe(new URL(ISSUER).pathname + '/protocol/openid-connect/auth')
     const state = authUrl.searchParams.get('state')!
     expect(authUrl.searchParams.get('code_challenge_method')).toBe('S256')
 
@@ -82,9 +80,17 @@ describe('auth routes (OIDC)', () => {
     expect(sessionCookie).not.toBeNull()
 
     // 3. authenticated /api/me
-    const me = await app.inject({ method: 'GET', url: '/api/me', headers: { cookie: sessionCookie! } })
+    const me = await app.inject({
+      method: 'GET',
+      url: '/api/me',
+      headers: { cookie: sessionCookie! },
+    })
     expect(me.statusCode).toBe(200)
-    expect(me.json().user).toEqual({ sub: 'user-42', email: 'alice@example.com', name: 'Alice Example' })
+    expect(me.json().user).toEqual({
+      sub: 'user-42',
+      email: 'alice@example.com',
+      name: 'Alice Example',
+    })
 
     // 4. logout clears the session cookie
     const out = await app.inject({ method: 'GET', url: '/oidc/logout' })
@@ -131,7 +137,11 @@ describe('auth routes (OIDC)', () => {
       headers: { cookie: pending },
     })
     const session = cookieOf(cb.headers['set-cookie'] as never, 'wn_session')!
-    const out = await app.inject({ method: 'GET', url: '/oidc/logout', headers: { cookie: session } })
+    const out = await app.inject({
+      method: 'GET',
+      url: '/oidc/logout',
+      headers: { cookie: session },
+    })
     expect(out.statusCode).toBe(302)
     await app.close()
   })
@@ -173,7 +183,11 @@ describe('auth routes (OIDC)', () => {
     const app = await buildApp({ config, pages: createMemoryPagesRepository(), relyingParty: rp })
     const login = await app.inject({ method: 'GET', url: '/oidc/login' })
     const pendingCookie = cookieOf(login.headers['set-cookie'] as never, 'wn_oidc_pending')!
-    const cb = await app.inject({ method: 'GET', url: '/oidc/callback', headers: { cookie: pendingCookie } })
+    const cb = await app.inject({
+      method: 'GET',
+      url: '/oidc/callback',
+      headers: { cookie: pendingCookie },
+    })
     expect(cb.statusCode).toBe(401)
     expect(cb.body).toContain('Authentication failed')
     await app.close()

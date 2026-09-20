@@ -77,9 +77,9 @@ describe('sameOriginOrMissing', () => {
   })
 
   it('rejects cross-origin', () => {
-    expect(
-      sameOriginOrMissing(req({ origin: 'https://evil.test', host: 'notes.example' })),
-    ).toBe(false)
+    expect(sameOriginOrMissing(req({ origin: 'https://evil.test', host: 'notes.example' }))).toBe(
+      false,
+    )
     expect(sameOriginOrMissing(req({ origin: 'not a url', host: 'notes.example' }))).toBe(false)
   })
 })

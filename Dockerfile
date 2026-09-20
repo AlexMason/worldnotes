@@ -15,5 +15,8 @@ RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
 COPY src ./src
 COPY migrations ./migrations
+# Bundled default icon set (served at /icons/*; uploads live in Postgres,
+# so no volume is needed).
+COPY public ./public
 EXPOSE 3000
 CMD ["npm", "start"]

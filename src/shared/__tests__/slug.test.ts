@@ -44,6 +44,8 @@ describe('validateSlug', () => {
     expect(validateSlug('edit/home').ok).toBe(false)
     expect(validateSlug('all').ok).toBe(false)
     expect(validateSlug('admin').ok).toBe(false)
+    expect(validateSlug('icons/set').ok).toBe(false)
+    expect(validateSlug('media/1').ok).toBe(false)
     expect(validateSlug('blog/api-post').ok).toBe(true) // only first segment matters
   })
 })

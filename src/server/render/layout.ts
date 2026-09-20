@@ -8,6 +8,7 @@
 import type { SessionUser } from '../auth/session'
 import { EDITOR_TOKENS_CSS, EDITOR_CONTENT_CSS, SITE_BANDS_CSS } from '../../core/styles'
 import { composeDocTitle } from '../../shared/doc-title'
+import { iconTagsHtml } from './icons'
 
 export function escapeHtml(text: string): string {
   return text
@@ -97,6 +98,8 @@ export interface LayoutOptions {
   scripts?: string
   /** Site branding: tab-title suffix + breadcrumb home label ('' = none). */
   siteName?: string
+  /** Media row overriding the bundled favicon set; null/absent = defaults. */
+  faviconMediaId?: number | null
   /**
    * Raw admin-trusted HTML bands rendered inside `<main>` around the body.
    * Emitted verbatim (no escaping) — scripts inside execute for anonymous
@@ -163,7 +166,7 @@ export function renderLayout(opts: LayoutOptions): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
-<link rel="icon" href="data:,">
+${iconTagsHtml(opts.faviconMediaId ?? null)}
 <style>${EDITOR_TOKENS_CSS}${EDITOR_CONTENT_CSS}${VIEW_CSS}${SITE_BANDS_CSS}</style>
 </head>
 <body class="wn-view">

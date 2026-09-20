@@ -15,4 +15,3 @@ export function parseWikiLink(value: string): WikiLinkTarget {
   const display = pipeIndex === -1 ? pageDisplayName(page) : value.slice(pipeIndex + 1).trim()
   return { page, display: display || pageDisplayName(page) }
 }
-
