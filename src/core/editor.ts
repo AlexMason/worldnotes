@@ -8,7 +8,7 @@ import type {
 } from './types'
 import { createMemoryPageStore } from './memory-page-store'
 import { createPageBuffers } from './page-buffers'
-import { defaultPlugins } from './plugins/defaults'
+import { defaultPlugins, defaultUiPlugins } from './plugins/defaults'
 import { PluginRegistry } from './plugin-registry'
 import { createEditorState } from './editor-state'
 import { createEditorDOM } from './editor-dom'
@@ -39,6 +39,10 @@ export class EditorBuilder {
     // Register default plugins via registry (D-09: order preserved, conflict-free)
     for (const plugin of defaultPlugins) {
       this.registry.register(plugin)
+    }
+    // Built-in UI plugins (shortcuts help overlay)
+    for (const uiPlugin of defaultUiPlugins()) {
+      this.registry.register(uiPlugin)
     }
   }
 

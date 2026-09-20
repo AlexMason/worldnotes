@@ -28,7 +28,7 @@ Browser (anonymous)                  Browser (authenticated)
 
 | Directory     | Runs in        | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/core/`   | browser + node | The ONE render engine: line tokenizer + document-level **block pass** (`document.ts` — fenced code, pipe tables as multi-line regions), content plugins (each with an interactive `render()` and a static `renderToHTML()`; block plugins add a declarative `BlockDef`), interactive DOM renderer (`renderer.ts`/`line-renderer.ts`) + DOM-free static renderer (`static-renderer.ts`, used by the SSR read path), shared DOM↔source text model (`content-text.ts`), editor DOM/state/render/navigation/lifecycle, plugin registry, `PageBuffers` (content model), `PageStore` contract, editor stylesheets (`styles.ts`) |
+| `src/core/`   | browser + node | The ONE render engine: line tokenizer + document-level **block pass** (`document.ts` — fenced code, pipe tables as multi-line regions), content plugins (each with an interactive `render()` and a static `renderToHTML()`; block plugins add a declarative `BlockDef`), interactive DOM renderer (`renderer.ts`/`line-renderer.ts`) + DOM-free static renderer (`static-renderer.ts`, used by the SSR read path), shared DOM↔source text model (`content-text.ts`), editor DOM/state/render/navigation/lifecycle, editing shortcuts (`editor-keymap.ts` + pure `editor-text-ops.ts`/`editor-format.ts`), plugin registry, `PageBuffers` (content model), `PageStore` contract, editor stylesheets (`styles.ts`) |
 | `src/client/` | browser        | Editor bootstrap: `main.ts` mounts the editor over `api-page-store.ts` (fetch + versions + conflicts) and builds the header actions (Search / All pages / Admin / sign-out)                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `src/server/` | node           | Fastify app: config, auth (OIDC/sessions), DB (pool/migrations/repositories), render (reader adapter over core static renderer, layout, title extraction), routes, LRU cache                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `src/shared/` | both           | Env-agnostic code: `slug.ts` policy, `url-policy.ts`, `url-helpers.ts`, `dto.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -114,6 +114,34 @@ toast — the store drops the tracked version, so undoing or typing again
 recreates the page through the create path; a blank save of a never-created
 page performs no network at all. Undo granularity is per input batch
 (snapshot), not per character — an accepted trade-off after removing Yjs.
+
+## Keyboard handling
+
+Keydown flows through ONE ordered pipeline in
+`editor-lifecycle.ts`, with the binding table (single source for the help
+overlay + `docs/shortcuts.md`) exported from `editor-keymap.ts`:
+
+1. **Undo/redo** chords (`Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`).
+2. **Editing keymap** (`editor-keymap.ts`): line move/duplicate/delete,
+   word delete/motion, bold/italic/link wrapping, `Ctrl+S` save flush.
+   Selections map DOM ↔ raw offsets through the direction-biased
+   two-ended mapping in `caret-offset.ts` (`getSelectionOffsets` /
+   `setSelectionOffsets`; end-biased fallbacks so a range end on a line
+   boundary maps to covered text, never the next line's start). Ops
+   compute on pure document strings (`editor-text-ops.ts`,
+   `editor-format.ts`), commit via ONE `setPageText` (one undo step) and
+   restore caret-or-selection after the forced re-render. Un-mappable
+   selections and formatting inside block regions are consume-and-noop.
+3. **Plugin `onKeydown`** dispatch (syntax behavior: list-item Tab/Enter
+   continuation; unmodified chords only).
+4. **Plain-key fallbacks** (Tab insert, Enter newline, single-character
+   Backspace) — all modifier-guarded, so `Ctrl+Backspace` etc. can never
+   leak into the naive path.
+
+`Ctrl+/` + `Escape` are owned by the shortcuts-help overlay UIPlugin
+(document capture + stopPropagation), NOT the keymap — single owner, no
+double-toggle. See `docs/shortcuts.md` for the user-facing table and
+platform caveats.
 
 ## Routing
 

@@ -7,7 +7,7 @@ import type { EditorInstance } from '../core/types'
 import { insertSiteBands } from '../core/editor-dom'
 import { createApiPageStore } from './api-page-store'
 import { slugFromPath, pageUrlPath } from '../shared/url-helpers'
-import { slugify, validateSlug, slugDisplayName } from '../shared/slug'
+import { slugify, slugDisplayName } from '../shared/slug'
 import { composeDocTitle } from '../shared/doc-title'
 import type { EditorShellConfig } from '../shared/dto'
 
@@ -205,15 +205,10 @@ async function main(): Promise<void> {
     }
   })
 
-  // Ctrl+S forces an immediate save flush
-  window.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-      e.preventDefault()
-      const content = instance?.getContent() ?? ''
-      const validated = validateSlug(currentSlug)
-      if (validated.ok) void store.save(validated.slug, content)
-    }
-  })
+  // Ctrl+S is owned by the editor keymap (saveNow flush through the store's
+  // full save path — onError toast + onSave callback included). The old
+  // window-level handler here was removed: it double-fired with the keymap
+  // and bypassed onSave by calling store.save directly.
 }
 
 void main().catch((err) => {

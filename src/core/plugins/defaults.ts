@@ -1,4 +1,4 @@
-import type { ContentPlugin } from '../types'
+import type { ContentPlugin, UIPlugin } from '../types'
 import { wikiLinkPlugin } from './wikiLink'
 import { headingsPlugin } from './headings'
 import { boldPlugin, italicPlugin, inlineCodePlugin, blockquotePlugin, hrPlugin } from './inline'
@@ -8,6 +8,7 @@ import { strikethroughPlugin } from './strikethrough'
 import { listItemPlugin } from './listItem'
 import { codeBlockPlugin } from './codeBlock'
 import { tablePlugin } from './table'
+import { createShortcutsHelpPlugin } from './shortcuts-help'
 
 /**
  * The default plugin set loaded by createEditor() when no plugins are specified.
@@ -33,3 +34,12 @@ export const defaultPlugins: ContentPlugin[] = [
   strikethroughPlugin, // inline — ~~text~~ (no conflict with * patterns)
   inlineCodePlugin, // inline
 ]
+
+/**
+ * Built-in UI plugins, instantiated per editor (factory: the help overlay
+ * keeps per-instance DOM state, so the defaults list is built fresh at
+ * construction rather than shared at module scope).
+ */
+export function defaultUiPlugins(): UIPlugin[] {
+  return [createShortcutsHelpPlugin()]
+}
