@@ -75,6 +75,22 @@ describe('memory PagesRepository', () => {
     expect(await repo.delete('gone')).toBe(false)
   })
 
+  it('deleteIfMatch deletes only the guarded version', async () => {
+    const repo = createMemoryPagesRepository([page('v')])
+    await repo.put('v', { title: 'V', content: 'newer' }) // version 2
+
+    const stale = await repo.deleteIfMatch('v', 1)
+    expect(stale).toMatchObject({ ok: false, reason: 'conflict' })
+    if (!stale.ok && stale.reason === 'conflict')
+      expect(stale.current.version).toBe(2)
+    expect(await repo.get('v')).not.toBeNull()
+
+    expect(await repo.deleteIfMatch('v', 2)).toEqual({ ok: true })
+    expect(await repo.get('v')).toBeNull()
+
+    expect(await repo.deleteIfMatch('v', 2)).toMatchObject({ ok: false, reason: 'missing' })
+  })
+
   it('records are defensive copies', async () => {
     const repo = createMemoryPagesRepository()
     const rec = await repo.put('a', { title: 'A', content: 'x' })

@@ -30,8 +30,8 @@ same-origin `Origin` (CSRF guard) and are rate-unlimited but size-capped.
 | ---------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | `GET /api/pages[?q=&limit=]` | —      | no                                                                                                                                 | list/search (ILIKE), newest first, default limit 100        |
 | `GET /api/pages/{slug}`      | —      | no                                                                                                                                 | `{slug,title,content,version,updatedAt,updatedBy}` + `ETag` |
-| `POST /api/pages`            | editor | body `{slug, title?, content?}`; title defaults to the first `#` heading, else humanized slug; 409 on exists                       |
-| `PUT /api/pages/{slug}`      | editor | body `{content, title?}` **requires `If-Match: "<version>"`**; 409 `{current:{version}}` on stale, 428 without header, 404 unknown |
+| `POST /api/pages`            | editor | body `{slug, title?, content}` — **content required and non-blank** (400 otherwise); title defaults to the first `#` heading, else humanized slug; 409 on exists                       |
+| `PUT /api/pages/{slug}`      | editor | body `{content, title?}` **requires `If-Match: "<version>"`**; 409 `{current:{version}}` on stale, 428 without header, 404 unknown. **Blank content DELETES the page** → 204 |
 | `DELETE /api/pages/{slug}`   | editor | 204 / 404                                                                                                                          |
 
 Slugs: lowercase, hyphen-separated segments joined by `/`
@@ -48,6 +48,24 @@ PUT /api/pages/blog/post      If-Match: "7"
 200 {version: 8, …}           ← success
 409 {current:{version: 9}}    ← someone else saved; client offers reload/overwrite
 ```
+
+⚠️ **PUT is write-or-destroy.** A `PUT` whose `content` is blank (empty or
+whitespace-only) deletes the page when `If-Match` matches the live version
+(204, no body); a stale version still conflicts (409) exactly like an edit —
+a stale client can never blank out someone's newer content. `POST` refuses
+blank content (400), so pages only come into existence holding content.
+This is a route-level invariant, not a DB constraint: the repository layer
+still accepts blank writes (used by tests/seeds), and blank rows predating
+this behavior persist until something blanks or overwrites them. Custom
+tooling that PUTs `content: ""` to "clear a page" now destroys it.
+
+The editor mirrors this: an empty buffer on a never-created page saves with
+zero network; a "Page deleted" toast confirms a blank save; typing again
+(after undo or fresh input) recreates the page via the normal create path.
+Reader caches: a delete invalidates the server-side render cache
+immediately, but anonymous browsers may still serve the deleted page from
+their own `max-age=60` cache for up to a minute before the 404 create
+overlay appears.
 
 `updated_by` records the writer's OIDC `sub` (informational).
 
@@ -90,7 +108,10 @@ browser revalidation even when the article bytes are unchanged.
 - `GET /{slug}` — **authenticated**: the editor SPA shell (`no-store`);
   **anonymous**: server-rendered reading view (`ETag`, `Cache-Control:
 public, max-age=60, stale-while-revalidate=300`, `Vary: Cookie`, 304
-  revalidation). Unknown-but-valid slugs → 404 document with a create overlay.
+  revalidation). Unknown-but-valid slugs → 404 document with a create
+  overlay: “Create this page” links to the page (login first, via the hint);
+  the editor seeds a starter and the row is created on the first non-blank
+  save — the server never stores blank pages.
 - `GET /` — the configured home page, else the page index; `GET /all` — the
   page index (+ search box).
 - `GET /search/{terms}` — results (no query strings anywhere on public routes).

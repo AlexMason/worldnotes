@@ -144,6 +144,27 @@ describe('pages API', () => {
       })
       expect(big.statusCode).toBe(413)
     })
+
+    it('refuses to create blank pages (blank or omitted content)', async () => {
+      const blank = await app.inject({
+        method: 'POST',
+        headers: { cookie: auth },
+        url: '/api/pages',
+        payload: { slug: 'never', content: '   ' },
+      })
+      expect(blank.statusCode).toBe(400)
+      expect(blank.json()).toMatchObject({ error: 'cannot create an empty page' })
+
+      const omitted = await app.inject({
+        method: 'POST',
+        headers: { cookie: auth },
+        url: '/api/pages',
+        payload: { slug: 'never' },
+      })
+      expect(omitted.statusCode).toBe(400)
+      expect(await repo.get('never')).toBeNull()
+      expect(writes).toEqual([])
+    })
   })
 
   describe('PUT /api/pages/* (autosave)', () => {
@@ -234,6 +255,82 @@ describe('pages API', () => {
         headers: { cookie: auth, 'if-match': '"1"' },
       })
       expect(res.statusCode).toBe(404)
+    })
+
+    describe('blank content deletes the page (no-blank-pages invariant)', () => {
+      it('deletes on a matching version — empty and whitespace-only alike', async () => {
+        for (const blank of ['', '  \n ']) {
+          await repo.delete('page') // reset to a clean generation (v1 after put)
+          await repo.put('page', { title: 'P', content: 'v1' })
+          const res = await app.inject({
+            method: 'PUT',
+            url: '/api/pages/page',
+            payload: { content: blank },
+            headers: { cookie: auth, 'if-match': '"1"' },
+          })
+          expect(res.statusCode).toBe(204)
+          expect(await repo.get('page')).toBeNull()
+          expect(writes).toEqual(['page'])
+
+          const gone = await app.inject({ method: 'GET', url: '/api/pages/page' })
+          expect(gone.statusCode).toBe(404)
+          writes.length = 0
+        }
+      })
+
+      it('stale If-Match conflicts without deleting, and does not bump onWrite', async () => {
+        await repo.put('page', { title: 'P', content: 'v2' }) // bump to 2
+        const res = await app.inject({
+          method: 'PUT',
+          url: '/api/pages/page',
+          payload: { content: '' },
+          headers: { cookie: auth, 'if-match': '"1"' },
+        })
+        expect(res.statusCode).toBe(409)
+        expect(res.json()).toMatchObject({ current: { version: 2 } })
+        expect(res.headers.etag).toBe('"2"')
+        expect(await repo.get('page')).not.toBeNull()
+        expect(writes).toEqual([])
+      })
+
+      it('never recreates: blank PUT to a missing row 404s without creating', async () => {
+        const res = await app.inject({
+          method: 'PUT',
+          url: '/api/pages/ghost',
+          payload: { content: '   ' },
+          headers: { cookie: auth, 'if-match': '"1"' },
+        })
+        expect(res.statusCode).toBe(404)
+        expect(await repo.get('ghost')).toBeNull()
+        expect(writes).toEqual([])
+      })
+
+      it('guards run first: missing If-Match is 428, bad content/title still 400', async () => {
+        const noMatch = await app.inject({
+          method: 'PUT',
+          url: '/api/pages/page',
+          payload: { content: '' },
+          headers: { cookie: auth },
+        })
+        expect(noMatch.statusCode).toBe(428)
+
+        const badContent = await app.inject({
+          method: 'PUT',
+          url: '/api/pages/page',
+          payload: { content: 123 },
+          headers: { cookie: auth, 'if-match': '"1"' },
+        })
+        expect(badContent.statusCode).toBe(400)
+
+        const longTitle = await app.inject({
+          method: 'PUT',
+          url: '/api/pages/page',
+          payload: { content: '', title: 'x'.repeat(201) },
+          headers: { cookie: auth, 'if-match': '"1"' },
+        })
+        expect(longTitle.statusCode).toBe(400)
+        expect(await repo.get('page')).not.toBeNull() // title guard blocks the delete
+      })
     })
   })
 

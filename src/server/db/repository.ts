@@ -26,6 +26,11 @@ export type CreateResult =
   | { ok: true; record: PageRecord }
   | { ok: false; reason: 'exists'; current: { version: number } }
 
+export type DeleteResult =
+  | { ok: true }
+  | { ok: false; reason: 'conflict'; current: { version: number; updatedAt: number } }
+  | { ok: false; reason: 'missing' }
+
 export interface PagesRepository {
   /** Exact-match fetch. */
   get(slug: string): Promise<PageRecord | null>
@@ -44,7 +49,14 @@ export interface PagesRepository {
     slug: string,
     data: { title: string; content: string; by?: string | null },
   ): Promise<CreateResult>
-  /** @returns true when a row was deleted. */
+  /**
+   * Delete only if the page exists AND its version matches `ifMatch`.
+   * Guards the blank-save delete path: a stale client must never destroy
+   * content written after its snapshot. Unrelated to the unconditional
+   * {@link delete} used by the manual DELETE route.
+   */
+  deleteIfMatch(slug: string, ifMatch: number): Promise<DeleteResult>
+  /** Unconditional removal (manual delete route). @returns true when a row was deleted. */
   delete(slug: string): Promise<boolean>
   destroy(): Promise<void>
 }
