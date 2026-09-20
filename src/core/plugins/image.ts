@@ -9,10 +9,9 @@
 // and the visible caret desync, making the next Backspace destructive).
 // With DOM text == raw source, every existing text-node path works
 // untouched and this token needs NO data-raw at all — image fidelity rides
-// on the same rule every other punct marker uses.
-// The reader hides the punctuation through `.wn-article`-scoped CSS — a
-// sanctioned display divergence (see docs/theming.md; parity compares trees,
-// not computed styles).
+// on the same rule every other punct marker uses. The source spans are
+// hidden by CSS while collapsed (picture only, BOTH surfaces); the editor's
+// active-line raw rendering shows every character the moment you edit.
 
 import type { ContentPlugin, Token, EditorContext, StaticRenderContext } from '../types'
 import { escapeHTML, escapeAttr } from '../escape'

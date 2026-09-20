@@ -139,6 +139,9 @@ describe('cursor-in-block expansion (D3)', () => {
     expect(l3.textContent).toBe('<<')
     // and the region keeps its wrapper while expanded
     expect(l2.parentElement!.className).toBe('wn-test-verbatim')
+    // the wrapper is marked expanded (CSS hook for zero-height region parts,
+    // e.g. the table separator — user feedback)
+    expect((l2.parentElement as HTMLElement).dataset.expanded).toBe('true')
     expect(lines.length).toBe(5)
     dom.container.remove()
   })
@@ -150,6 +153,8 @@ describe('cursor-in-block expansion (D3)', () => {
     // THIS synthetic def identical text, but the cursor line is line 0:
     expect(dom.editorDiv.querySelector('[data-line="0"]')!.textContent).toBe('top')
     expect(l2.closest('.wn-test-verbatim')).not.toBeNull()
+    // NOT marked expanded while the cursor is outside the region
+    expect((l2.closest('.wn-test-verbatim') as HTMLElement).dataset.expanded).toBeUndefined()
     dom.container.remove()
   })
 })

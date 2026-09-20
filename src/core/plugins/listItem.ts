@@ -5,6 +5,7 @@ import {
   dedentLine,
   LIST_ITEM_RE,
   isBulletMarker,
+  nextMarker,
 } from '../editor-indentation'
 import { getLineOffset } from '../caret-offset'
 
@@ -197,7 +198,9 @@ function handleEnter(context: EditorContext): { cursorOffset: number } | false {
   const leftContent = parsed.content.slice(0, contentOffset)
   const rightContent = parsed.content.slice(contentOffset)
   const newFirstLine = prefix + leftContent
-  const newSecondLine = prefix + rightContent
+  // Continuation increments ordered markers (1.→2., a.→b., iv.→v.); the
+  // split-off line is the NEXT item, not a duplicate of the current one.
+  const newSecondLine = parsed.indent + nextMarker(parsed.marker) + ' ' + rightContent
 
   lines.splice(lineIndex, 1, newFirstLine, newSecondLine)
   const newRaw = lines.join('\n')

@@ -47,15 +47,17 @@ wn-article"` so the embedded `EDITOR_TOKENS_CSS` + `EDITOR_CONTENT_CSS`
 Restyling CONTENT means editing `src/core/styles.ts`
 (it changes the editor too — one engine, one look).
 
-**Sanctioned display divergences** (reader-only, `.wn-article`-scoped rules
-living in `EDITOR_CONTENT_CSS`): image punctuation/alt/src spans are hidden
-on the reader (`display:none`; the text nodes stay in the DOM — fidelity and
-caret math are CSS-independent) so readers see the rendered image alone.
-The editor keeps the punct convention there; the cursor-in-block expand
-rule keeps every source character reachable. Parity tests compare TREES, so
-style-scope divergence cannot hide a structural drift. Table pipes are
-hidden on BOTH surfaces while collapsed (cells own the layout) — expanded
-raw rows always show them.
+**Collapsed vs expanded** (editor, and collapsed everywhere on the reader):
+while a line is not the cursor's, its rendered form shows — image
+punctuation/alt/src spans and table pipes are hidden by CSS (`display:
+none`; the text nodes stay in the DOM — fidelity and caret math are
+CSS-independent) and the table separator collapses to a hairline. The
+moment the cursor enters the line (or, for blocks, ANY line of the
+region), line-renderer marks the wrapper `data-expanded="true"` and the
+whole region renders as plain raw source — every character visible,
+clickable, arrow-reachable (expanded state exists only in the editor DOM;
+the reader has no cursor). Parity tests compare collapsed TREES, so these
+remain display-only divergences.
 
 `VIEW_CSS` in `layout.ts` is chrome only:
 
@@ -86,5 +88,5 @@ stylesheet:
 - **Edit shell**: `viewport-fit=cover` + `100dvh` height chain so the editor
   fills the screen correctly around mobile browser URL bars and keyboards.
 
-Mobile *editing* beyond layout fit (touch caret behavior, keyboard UX) is a
+Mobile _editing_ beyond layout fit (touch caret behavior, keyboard UX) is a
 deliberate follow-up (roadmap M3); reading on phones is first-class today.

@@ -68,6 +68,17 @@ export function renderDocLines(
       wrapper = document.createElement('div')
       wrapper.className = region.def.wrapperClass
       wrapper.dataset.block = region.type
+      // Editor-only affordance: mark a region the cursor sits inside so CSS
+      // can restore the expanded appearance (e.g. the zero-height table
+      // separator regains its text — visible, clickable, arrow-reachable).
+      // The reader has no cursor and never sets it; parity compares collapsed
+      // state, so the attribute divergence is structurally invisible.
+      for (let l = region.startLine; l <= region.endLine; l++) {
+        if (activeLines?.has(l)) {
+          wrapper.dataset.expanded = 'true'
+          break
+        }
+      }
       editorDiv.appendChild(wrapper)
       openRegion = region
     }

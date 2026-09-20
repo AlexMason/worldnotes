@@ -169,6 +169,16 @@ export const EDITOR_CONTENT_CSS = `
 .wn-table-head .wn-table-cell { font-weight: 700; }
 .wn-table-edge { color: transparent; font-size: 0; } /* outer-pipe padding, fidelity-only */
 .wn-table-sep { font-size: 0; line-height: 0; border-bottom: 1px solid var(--wn-color-border, #e3ded4); }
+/* While the cursor is anywhere in the table the separator RESTORES its
+   text (user feedback: it was unselectable/invisible — zero-height lines
+   are neither clickable nor arrow-reachable). line-renderer marks the
+   wrapper data-expanded="true" in that state (editor DOM only). */
+.wn-table[data-expanded] .wn-table-sep {
+  font-size: var(--wn-font-size-small, 14px);
+  line-height: 1.5;
+  border-bottom: none;
+  color: var(--wn-color-punct, #a39b8d);
+}
 .wn-align-left { text-align: left; }
 .wn-align-center { text-align: center; }
 .wn-align-right { text-align: right; }
@@ -200,13 +210,15 @@ export const EDITOR_CONTENT_CSS = `
 }
 .wn-link:hover { color: var(--wn-color-accent-hover, #3f79c4); }
 
-/* Image — editor shows the punct-fidelity source (dimmed markers) plus the
-   rendered preview; the reader hides the source through the .wn-article-
-   scoped rules below (sanctioned display divergence — same tree). */
+/* Image — punct-fidelity source (dimmed markers) + the rendered preview.
+   While a line is COLLAPSED only the picture shows — on BOTH surfaces: the
+   source spans stay in the DOM (extractContentText / caret math are
+   CSS-independent) and the editor reveals them the instant the cursor's
+   line goes raw (same affordance as hidden table pipes). */
 .wn-image-img { max-width: 100%; height: auto; display: inline-block; vertical-align: middle; }
 .wn-image-alt { color: var(--wn-color-fg-muted, #6f6a61); }
 .wn-image-src { color: var(--wn-color-punct, #a39b8d); }
-.wn-article .wn-image > .wn-punct,
-.wn-article .wn-image-alt,
-.wn-article .wn-image-src { display: none; }
+.wn-image > .wn-punct,
+.wn-image-alt,
+.wn-image-src { display: none; }
 `

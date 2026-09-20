@@ -26,18 +26,18 @@ authenticated OIDC account may edit.
 Reads are public (cached); writes require the session cookie **and** a
 same-origin `Origin` (CSRF guard) and are rate-unlimited but size-capped.
 
-| Verb | Path | Auth | Notes |
-|---|---|---|---|
-| `GET /api/pages[?q=&limit=]` | — | no | list/search (ILIKE), newest first, default limit 100 |
-| `GET /api/pages/{slug}` | — | no | `{slug,title,content,version,updatedAt,updatedBy}` + `ETag` |
-| `POST /api/pages` | editor | body `{slug, title?, content?}`; title defaults to the first `#` heading, else humanized slug; 409 on exists |
-| `PUT /api/pages/{slug}` | editor | body `{content, title?}` **requires `If-Match: "<version>"`**; 409 `{current:{version}}` on stale, 428 without header, 404 unknown |
-| `DELETE /api/pages/{slug}` | editor | 204 / 404 |
+| Verb                         | Path   | Auth                                                                                                                               | Notes                                                       |
+| ---------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `GET /api/pages[?q=&limit=]` | —      | no                                                                                                                                 | list/search (ILIKE), newest first, default limit 100        |
+| `GET /api/pages/{slug}`      | —      | no                                                                                                                                 | `{slug,title,content,version,updatedAt,updatedBy}` + `ETag` |
+| `POST /api/pages`            | editor | body `{slug, title?, content?}`; title defaults to the first `#` heading, else humanized slug; 409 on exists                       |
+| `PUT /api/pages/{slug}`      | editor | body `{content, title?}` **requires `If-Match: "<version>"`**; 409 `{current:{version}}` on stale, 428 without header, 404 unknown |
+| `DELETE /api/pages/{slug}`   | editor | 204 / 404                                                                                                                          |
 
 Slugs: lowercase, hyphen-separated segments joined by `/`
 (`blog/post-name`), max 255 chars, reserved first segments
 (`api, oidc, edit, search, assets, static, healthz, all, admin`) rejected at the
-API *and* by a DB `CHECK`. Titles keep case; slugs don't.
+API _and_ by a DB `CHECK`. Titles keep case; slugs don't.
 
 ### Conflict semantics (autosave)
 
@@ -56,8 +56,8 @@ PUT /api/pages/blog/post      If-Match: "7"
 Instance-wide settings (any authenticated user), persisted in a `settings`
 key/value table and editable from `GET /admin`.
 
-| Verb | Path | Auth | Notes |
-|---|---|---|---|
+| Verb                | Path   | Auth                                                                                                                                             | Notes |
+| ------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----- |
 | `PUT /api/settings` | editor | body `{searchEnabled?: boolean, homeSlug?: string\|null}`; `homeSlug` blank/`null` clears it; invalid slugs 400; returns the normalized settings |
 
 - `searchEnabled` (default `true`) — hides the search form/links everywhere;
@@ -69,7 +69,7 @@ key/value table and editable from `GET /admin`.
 
 - `GET /{slug}` — **authenticated**: the editor SPA shell (`no-store`);
   **anonymous**: server-rendered reading view (`ETag`, `Cache-Control:
-  public, max-age=60, stale-while-revalidate=300`, `Vary: Cookie`, 304
+public, max-age=60, stale-while-revalidate=300`, `Vary: Cookie`, 304
   revalidation). Unknown-but-valid slugs → 404 document with a create overlay.
 - `GET /` — the configured home page, else the page index; `GET /all` — the
   page index (+ search box).
@@ -89,15 +89,20 @@ block regions wrapped in `div.wn-code-block` / `div.wn-table` with
 `data-block` provenance). Supported grammar: `#`–`###` headings,
 `**bold**`, `*italic*`, `~~strike~~`, backtick inline code, `> `
 blockquotes, list lines — bullets (`-`/`*`/`+`, displayed as `•`) **and
-ordered markers as typed** (`1.`, `a.`, `A.`, `i.`, `II.`, …; no
-auto-renumbering, no `<ol>` — indent is visual, not semantic) —, `---`
+ordered markers as typed** (`1.`, `a.`, `A.`, `i.`, `II.`, …) that
+**continue on Enter** (`1.`→`2.`, `a.`→`b.`, `i.`→`ii.`, `iv.`→`v.`;
+existing lines are never renumbered, no `<ol>` — indent is visual, not
+semantic) —, `---`
 rules, `[text](url)` links, `[[Page]]` / `[[a/b|Display]]` wiki links →
 `<a class="wn-wiki-link" href="/a/b">Display</a>` (targets that can't fold
-to a valid slug stay literal), **fenced code blocks** (``` … ```;
+to a valid slug stay literal), **fenced code blocks** (`…`;
 unclosed fences run to EOF; nothing inside is parsed), **pipe tables**
 (header + `|:---|` separator + rows; alignment honored; cells accept
 inline grammar; flex-div markup, never `<table>`), and **images**
-`![alt](src)` → `<img loading="lazy" referrerpolicy="no-referrer">`.
+`![alt](src)` → `<img loading="lazy" referrerpolicy="no-referrer">` —
+while a line is not being edited only the picture shows (source
+characters stay in the DOM, hidden by CSS; the editor reveals them the
+moment the cursor's line goes raw).
 Raw HTML is always escaped; hrefs use a scheme allowlist
 (`http/https/mailto` + relative/same-origin, resolved against a fake base);
 image srcs use a **narrower policy** (no `mailto:`, no `data:`; no

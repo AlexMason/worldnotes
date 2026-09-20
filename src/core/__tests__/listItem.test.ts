@@ -464,7 +464,7 @@ describe('listItemPlugin onKeydown', () => {
     document.body.removeChild(editorDiv)
   })
 
-  it('Enter on an ordered item repeats the typed marker (D1 continuation)', () => {
+  it('Enter on an ordered item increments the marker for the new line', () => {
     const context = createContext()
     context.setPageText('home', '1. milk\nplain')
 
@@ -488,8 +488,62 @@ describe('listItemPlugin onKeydown', () => {
     expect(result).not.toBeFalsy()
     const lines = context.getPageText('home').split('\n')
     expect(lines[0]).toBe('1. mi')
-    expect(lines[1]).toBe('1. lk')
+    expect(lines[1]).toBe('2. lk') // NEW line continues the sequence
     expect(lines[2]).toBe('plain')
+
+    document.body.removeChild(editorDiv)
+  })
+
+  it('Enter at end of an alpha item starts the next letter', () => {
+    const context = createContext()
+    context.setPageText('home', 'b. item')
+
+    const editorDiv = document.createElement('div')
+    editorDiv.contentEditable = 'true'
+    document.body.appendChild(editorDiv)
+    editorDiv.innerHTML = '<div data-line="0">b. item</div>'
+
+    const textNode = editorDiv.querySelector('[data-line="0"]')!.firstChild!
+    const range = document.createRange()
+    range.setStart(textNode, 7) // end of line
+    range.collapse(true)
+    const sel = window.getSelection()
+    sel!.removeAllRanges()
+    sel!.addRange(range)
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter' })
+    const result = listItemPlugin.onKeydown!(event, context)
+
+    expect(result).not.toBeFalsy()
+    const lines = context.getPageText('home').split('\n')
+    expect(lines[0]).toBe('b. item')
+    expect(lines[1]).toBe('c. ')
+
+    document.body.removeChild(editorDiv)
+  })
+
+  it('roman continuation: i. → ii.', () => {
+    const context = createContext()
+    context.setPageText('home', 'i. one')
+
+    const editorDiv = document.createElement('div')
+    editorDiv.contentEditable = 'true'
+    document.body.appendChild(editorDiv)
+    editorDiv.innerHTML = '<div data-line="0">i. one</div>'
+
+    const textNode = editorDiv.querySelector('[data-line="0"]')!.firstChild!
+    const range = document.createRange()
+    range.setStart(textNode, 6)
+    range.collapse(true)
+    const sel = window.getSelection()
+    sel!.removeAllRanges()
+    sel!.addRange(range)
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter' })
+    listItemPlugin.onKeydown!(event, context)
+
+    const lines = context.getPageText('home').split('\n')
+    expect(lines[1]).toBe('ii. ')
 
     document.body.removeChild(editorDiv)
   })

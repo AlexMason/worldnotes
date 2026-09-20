@@ -25,12 +25,12 @@ Browser (anonymous)                  Browser (authenticated)
 
 ## Source layout
 
-| Directory | Runs in | Purpose |
-|---|---|---|
-| `src/core/` | browser + node | The ONE render engine: line tokenizer + document-level **block pass** (`document.ts` — fenced code, pipe tables as multi-line regions), content plugins (each with an interactive `render()` and a static `renderToHTML()`; block plugins add a declarative `BlockDef`), interactive DOM renderer (`renderer.ts`/`line-renderer.ts`) + DOM-free static renderer (`static-renderer.ts`, used by the SSR read path), shared DOM↔source text model (`content-text.ts`), editor DOM/state/render/navigation/lifecycle, plugin registry, `PageBuffers` (content model), `PageStore` contract, editor stylesheets (`styles.ts`) |
-| `src/client/` | browser | Editor bootstrap: `main.ts` mounts the editor over `api-page-store.ts` (fetch + versions + conflicts) and builds the header actions (Search / All pages / Admin / sign-out) |
-| `src/server/` | node | Fastify app: config, auth (OIDC/sessions), DB (pool/migrations/repositories), render (reader adapter over core static renderer, layout, title extraction), routes, LRU cache |
-| `src/shared/` | both | Env-agnostic code: `slug.ts` policy, `url-policy.ts`, `url-helpers.ts`, `dto.ts` |
+| Directory     | Runs in        | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/core/`   | browser + node | The ONE render engine: line tokenizer + document-level **block pass** (`document.ts` — fenced code, pipe tables as multi-line regions), content plugins (each with an interactive `render()` and a static `renderToHTML()`; block plugins add a declarative `BlockDef`), interactive DOM renderer (`renderer.ts`/`line-renderer.ts`) + DOM-free static renderer (`static-renderer.ts`, used by the SSR read path), shared DOM↔source text model (`content-text.ts`), editor DOM/state/render/navigation/lifecycle, plugin registry, `PageBuffers` (content model), `PageStore` contract, editor stylesheets (`styles.ts`) |
+| `src/client/` | browser        | Editor bootstrap: `main.ts` mounts the editor over `api-page-store.ts` (fetch + versions + conflicts) and builds the header actions (Search / All pages / Admin / sign-out)                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `src/server/` | node           | Fastify app: config, auth (OIDC/sessions), DB (pool/migrations/repositories), render (reader adapter over core static renderer, layout, title extraction), routes, LRU cache                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `src/shared/` | both           | Env-agnostic code: `slug.ts` policy, `url-policy.ts`, `url-helpers.ts`, `dto.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 Boundary rules (enforced by tooling):
 
@@ -50,11 +50,12 @@ Boundary rules (enforced by tooling):
   no structural render hooks, so `data-line`/`<br>` emission lives in exactly
   one place per surface). Grammar lives only in `src/core/plugins/` and the
   block pass (`src/core/document.ts`); cross-surface structural parity is
-  pinned by `src/core/__tests__/surface-parity.test.ts` with TWO documented
-  divergences: (1) internal links — span in the editable DOM, anchor
-  statically; (2) reader CSS hides image punctuation
-  (`.wn-article .wn-image …{display:none}`) — trees stay identical, computed
-  styles differ.
+  pinned by `src/core/__tests__/surface-parity.test.ts` with ONE structural
+  divergence (internal links: span in the editable DOM, anchor statically)
+  plus CSS-only collapsed styling shared by both surfaces (hidden image
+  source/pipes, hairline separators) and the editor-only `data-expanded`
+  marker — the parity harness compares collapsed trees, so display states
+  cannot hide structural drift.
 - **Text fidelity:** region lines render byte-exact DOM text — fences, pipes
   and separator dashes stay present as text (dimmed/zero-sized by CSS), so
   `extractContentText` round-trips with no `data-raw` on lines. `data-raw`
@@ -78,7 +79,7 @@ state is the undo baseline). DOM input events extract raw markdown
 (`extractContentText`, honoring plugin `data-raw` boundaries) and replace the
 buffer. Debounced autosave calls `PageStore.save(page, content)`; the HTTP
 store PUTs `{content}` with `If-Match: "<version>"` and handles 409 (conflict
-toast with *Load theirs*), 404 (create-on-save), and 401 (auth-expired toast).
+toast with _Load theirs_), 404 (create-on-save), and 401 (auth-expired toast).
 Undo granularity is per input batch (snapshot), not per character — an
 accepted trade-off after removing Yjs.
 
@@ -86,20 +87,20 @@ accepted trade-off after removing Yjs.
 
 Public, no query strings anywhere:
 
-| Route | Handler | Auth |
-|---|---|---|
-| `GET /` | configured home page, else the index listing | anon ok |
-| `GET /all` | index (page list + search form island) | anon ok |
-| `GET /search`, `GET /search/{terms}` | search form + ILIKE results | anon ok |
-| `GET /admin` | settings form (search toggle, home page) | editors |
-| `GET /edit`, `GET /edit/{slug}` | legacy 302s → `/`, `/{slug}` | — |
-| `GET /{slug}` (catch-all, last) | editor shell (auth) / SSR article (anon); miss → 404 create overlay | mixed |
-| `GET /api/pages`, `GET /api/pages/{slug}` | JSON reads + ETags | anon ok |
-| `POST/PUT/DELETE /api/pages[/{slug}]` | writes; `requireSameOrigin` + `requireAuth` | editors |
-| `PUT /api/settings` | instance settings write; `requireSameOrigin` + `requireAuth` | editors |
-| `GET /oidc/login|callback|logout`, `GET /api/me` | auth | mixed |
-| `GET /assets/*` | built client bundle | anon ok |
-| `GET /healthz` | liveness | anon ok |
+| Route                                     | Handler                                                             | Auth                   |
+| ----------------------------------------- | ------------------------------------------------------------------- | ---------------------- | ---- | ----- |
+| `GET /`                                   | configured home page, else the index listing                        | anon ok                |
+| `GET /all`                                | index (page list + search form island)                              | anon ok                |
+| `GET /search`, `GET /search/{terms}`      | search form + ILIKE results                                         | anon ok                |
+| `GET /admin`                              | settings form (search toggle, home page)                            | editors                |
+| `GET /edit`, `GET /edit/{slug}`           | legacy 302s → `/`, `/{slug}`                                        | —                      |
+| `GET /{slug}` (catch-all, last)           | editor shell (auth) / SSR article (anon); miss → 404 create overlay | mixed                  |
+| `GET /api/pages`, `GET /api/pages/{slug}` | JSON reads + ETags                                                  | anon ok                |
+| `POST/PUT/DELETE /api/pages[/{slug}]`     | writes; `requireSameOrigin` + `requireAuth`                         | editors                |
+| `PUT /api/settings`                       | instance settings write; `requireSameOrigin` + `requireAuth`        | editors                |
+| `GET /oidc/login                          | callback                                                            | logout`, `GET /api/me` | auth | mixed |
+| `GET /assets/*`                           | built client bundle                                                 | anon ok                |
+| `GET /healthz`                            | liveness                                                            | anon ok                |
 
 Slugs are lowercase `[a-z0-9-]` segments (`blog/post-name`), validated by a
 shared `validateSlug()` **and** a DB `CHECK` constraint. Nesting is cosmetic:

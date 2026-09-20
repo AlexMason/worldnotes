@@ -23,6 +23,86 @@ export function isBulletMarker(marker: string): boolean {
   return marker === '-' || marker === '*' || marker === '+'
 }
 
+// ── Ordered marker continuation (Enter) ───────────────────────────────────
+
+const ROMAN_VALUES: Record<string, number> = { i: 1, v: 5, x: 10, l: 50, c: 100, d: 500, m: 1000 }
+const ROMAN_TABLE: [number, string][] = [
+  [1000, 'm'],
+  [900, 'cm'],
+  [500, 'd'],
+  [400, 'cd'],
+  [100, 'c'],
+  [90, 'xc'],
+  [50, 'l'],
+  [40, 'xl'],
+  [10, 'x'],
+  [9, 'ix'],
+  [5, 'v'],
+  [4, 'iv'],
+  [1, 'i'],
+]
+
+function romanToInt(s: string): number {
+  let total = 0
+  for (let i = 0; i < s.length; i++) {
+    const v = ROMAN_VALUES[s[i]!]!
+    const next = i + 1 < s.length ? ROMAN_VALUES[s[i + 1]!] : 0
+    total += v < next ? -v : v
+  }
+  return total
+}
+
+function intToRoman(n: number): string {
+  let out = ''
+  for (const [value, sym] of ROMAN_TABLE) {
+    while (n >= value) {
+      out += sym
+      n -= value
+    }
+  }
+  return out
+}
+
+function isRomanRun(body: string): boolean {
+  return body.length > 0 && [...body].every((c) => c in ROMAN_VALUES)
+}
+
+/**
+ * The marker a NEW line gets when Enter splits/continues an ordered item
+ * (feedback: `1.` → `2.`, `a.` → `b.`, `iv.` → `v.`). Bullets return
+ * unchanged. Case of the typed form is preserved.
+ *
+ * Ambiguity rule: single letters `i`/`v`/`x` (in either case) count as
+ * ROMAN starts — roman lists begin at I, while alpha lists begin at a/b —
+ * so `i.` → `ii.`; `c`/`d`/`l`/`m` continue the ALPHABET (`b.` → `c.` →
+ * `d.` stays alpha because b/e/f… are not roman-eligible starts). Multi-
+ * character roman runs (`ii.`, `iv.`) always increment as roman. Alpha
+ * overflow (`z.`) repeats the marker (a `aa.` style would fall out of the
+ * marker grammar anyway).
+ */
+export function nextMarker(marker: string): string {
+  if (isBulletMarker(marker)) return marker
+  const body = marker.slice(0, -1) // drop trailing '.'
+  // Case follows the ORIGINAL typed marker, not the freshly generated text.
+  const keepCase = (s: string): string => (/[A-Z]/.test(body[0] ?? '') ? s.toUpperCase() : s)
+
+  const num = Number(body)
+  if (Number.isInteger(num) && /^\d+$/.test(body)) return `${num + 1}.`
+
+  if (body.length === 1 && 'ivxIVX'.includes(body)) {
+    return keepCase(intToRoman(romanToInt(body.toLowerCase()) + 1)) + '.'
+  }
+  if (body.length > 1 && isRomanRun(body.toLowerCase())) {
+    return keepCase(intToRoman(romanToInt(body.toLowerCase()) + 1)) + '.'
+  }
+  if (body.length === 1 && /[a-z]/i.test(body)) {
+    const next = String.fromCharCode(body.toLowerCase().charCodeAt(0) + 1)
+    if (next > 'z') return marker // alpha overflow: repeat
+    return keepCase(next) + '.'
+  }
+  return marker
+}
+
 export function parseListItem(line: string): ListItemParts | null {
   const m = line.match(LIST_ITEM_RE)
   if (!m) return null
