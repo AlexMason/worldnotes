@@ -1,7 +1,13 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect } from 'vitest'
-import { getLineOffset, setLineOffset, tryGetLineOffset } from '../caret-offset'
+import {
+  getLineOffset,
+  setLineOffset,
+  tryGetLineOffset,
+  getSelectionOffsets,
+  setSelectionOffsets,
+} from '../caret-offset'
 
 function setCaretAt(node: Node, offset: number): void {
   const range = document.createRange()
@@ -371,5 +377,150 @@ describe('tryGetLineOffset — unrecognized selections return null', () => {
     const line1 = el.children[1] as HTMLElement
     setCaretAt(line1.firstChild!, 2)
     expect(tryGetLineOffset(el)).toBe(5 + 1 + 2) // hello + newline + wo
+  })
+})
+
+// ─── Two-ended selection mapping (get/setSelectionOffsets) ─────────────────
+describe('getSelectionOffsets / setSelectionOffsets', () => {
+  // raw: "alpha\nbeta\n[[gamma]] delta\nepsilon"
+  // line starts: 0, 6, 11, 27 — total raw length 34
+  function buildMultiLine(): HTMLElement {
+    const el = document.createElement('div')
+    const mk = (idx: number): HTMLElement => {
+      const d = document.createElement('div')
+      d.dataset.line = String(idx)
+      el.appendChild(d)
+      return d
+    }
+    mk(0).textContent = 'alpha'
+    mk(1).textContent = 'beta'
+    const l2 = mk(2)
+    const span = document.createElement('span')
+    span.dataset.raw = '[[gamma]]' // 9 raw chars, 5 DOM chars → raw 17..19 dead zone
+    span.textContent = 'gamma'
+    l2.appendChild(span)
+    l2.appendChild(document.createTextNode(' delta'))
+    mk(3).textContent = 'epsilon'
+    return el
+  }
+
+  function setSel(sc: Node, so: number, ec: Node, eo: number): void {
+    const range = document.createRange()
+    range.setStart(sc, so)
+    range.setEnd(ec, eo)
+    const sel = window.getSelection()!
+    sel.removeAllRanges()
+    sel.addRange(range)
+  }
+
+  it('maps a plain multi-line selection to raw start/end', () => {
+    const el = buildMultiLine()
+    const line0 = el.children[0] as HTMLElement
+    const line1 = el.children[1] as HTMLElement
+    setSel(line0.firstChild!, 3, line1.firstChild!, 3)
+    expect(getSelectionOffsets(el)).toEqual({ start: 3, end: 9 })
+  })
+
+  it('respects data-raw lengths on both ends of a selection', () => {
+    const el = buildMultiLine()
+    const line2 = el.children[2] as HTMLElement
+    const span = line2.querySelector('[data-raw]') as HTMLElement
+    const tail = line2.lastChild as Text
+    setSel(line2.firstChild!, 0, tail, 6)
+    expect(getSelectionOffsets(el)).toEqual({ start: 11, end: 26 })
+    setSel(span.firstChild!, 3, span.firstChild!, 5)
+    expect(getSelectionOffsets(el)).toEqual({ start: 14, end: 16 })
+  })
+
+  it('root-anchored end maps to true document end, not raw.length + 1 (end bias)', () => {
+    const el = buildMultiLine()
+    const line0 = el.children[0] as HTMLElement
+    setSel(line0.firstChild!, 0, el, el.children.length)
+    expect(getSelectionOffsets(el)).toEqual({ start: 0, end: 34 })
+  })
+
+  it('wrapper-anchored end maps to the covered region end, not its start (end bias)', () => {
+    // editor > [line0, wrapper(line1, line2), line3]
+    const el = document.createElement('div')
+    const l0 = document.createElement('div')
+    l0.dataset.line = '0'
+    l0.textContent = 'import x'
+    el.appendChild(l0)
+    const wrapper = document.createElement('div')
+    wrapper.dataset.block = 'fence'
+    const wl0 = document.createElement('div')
+    wl0.dataset.line = '1'
+    wl0.textContent = '```'
+    wrapper.appendChild(wl0)
+    const wl1 = document.createElement('div')
+    wl1.dataset.line = '2'
+    wl1.textContent = 'code here'
+    wrapper.appendChild(wl1)
+    el.appendChild(wrapper)
+    const l3 = document.createElement('div')
+    l3.dataset.line = '3'
+    l3.textContent = 'tail'
+    el.appendChild(l3)
+    // raw: "import x\n```\ncode here\ntail" → 27; line starts 0, 9, 13, 23
+    setSel(l0.firstChild!, 0, wrapper, wrapper.children.length)
+    // Start bias on l0 text → 0; end bias on wrapper at child n → end of its
+    // last line child (13 + 9 = 22), NOT the region start (9) the start bias
+    // fallback would give.
+    expect(getSelectionOffsets(el)).toEqual({ start: 0, end: 22 })
+  })
+
+  it('null when either boundary is outside the editor', () => {
+    // outside FIRST so a range spanning outside→editor is not collapsed by
+    // the spec's end-precedes-start normalization (browsers do the same).
+    const outside = document.createElement('p')
+    outside.textContent = 'chrome'
+    document.body.appendChild(outside)
+    const el = buildMultiLine()
+    document.body.appendChild(el)
+    const line0 = el.children[0] as HTMLElement
+    setSel(line0.firstChild!, 0, outside.firstChild!, 2)
+    expect(getSelectionOffsets(el)).toBeNull()
+    setSel(outside.firstChild!, 0, line0.firstChild!, 2)
+    expect(getSelectionOffsets(el)).toBeNull()
+    document.body.removeChild(outside)
+    document.body.removeChild(el)
+  })
+
+  it('null when there is no selection', () => {
+    const el = buildMultiLine()
+    const sel = window.getSelection()!
+    sel.removeAllRanges()
+    expect(getSelectionOffsets(el)).toBeNull()
+  })
+
+  it('collapsed pair behaves like setLineOffset', () => {
+    const el = buildMultiLine()
+    setSelectionOffsets(el, 7, 7)
+    expect(getSelectionOffsets(el)).toEqual({ start: 7, end: 7 })
+    expect(window.getSelection()!.isCollapsed).toBe(true)
+  })
+
+  describe('setSelectionOffsets → getSelectionOffsets round trip', () => {
+    const dead = new Set([17, 18, 19]) // trailing glyphs of [[gamma]]
+    const clamp = (o: number): number => (dead.has(o) ? 16 : o)
+    const reachable: number[] = []
+    for (let i = 0; i <= 34; i++) if (!dead.has(i)) reachable.push(i)
+
+    it('round-trips every reachable offset pair (incl. line/data-raw boundaries)', () => {
+      const el = buildMultiLine()
+      for (const a of reachable) {
+        for (const b of reachable) {
+          if (b < a) continue
+          setSelectionOffsets(el, a, b)
+          const got = getSelectionOffsets(el)
+          expect(got, `(${a}, ${b})`).not.toBeNull()
+          expect(got!.start, `start for (${a}, ${b})`).toBe(clamp(a))
+          expect(got!.end, `end for (${a}, ${b})`).toBe(clamp(b))
+          // Stability: re-placing the mapped-back pair is exact.
+          setSelectionOffsets(el, got!.start, got!.end)
+          expect(getSelectionOffsets(el)).toEqual({ start: clamp(a), end: clamp(b) })
+        }
+      }
+    })
   })
 })
