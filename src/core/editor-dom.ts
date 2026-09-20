@@ -154,6 +154,58 @@ const EDITOR_CHROME_CSS = `
   pointer-events: none;
   z-index: 10;
 }
+/* Shortcuts help overlay (editor chrome — never shipped to the reader).
+   Fixed + centered so it escapes the zero-size overlay slot's geometry;
+   re-enables pointer events the slot parent disables. */
+.wn-shortcuts {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 25;
+  pointer-events: auto;
+  max-width: min(560px, 92vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--wn-color-surface, #fbfaf7);
+  color: var(--wn-color-fg, #23211d);
+  border: 1px solid var(--wn-color-border, #e3ded4);
+  border-radius: var(--wn-toast-radius, 6px);
+  box-shadow: var(--wn-toast-shadow, 0 4px 12px rgba(0, 0, 0, 0.12));
+  padding: 1.2rem 1.4rem;
+  font: var(--wn-font-size-small, 14px)/1.5 var(--wn-font-family, serif);
+}
+.wn-shortcuts-title {
+  font-size: var(--wn-font-size-h3, 1.1rem);
+  font-weight: 700;
+  margin-bottom: 0.8rem;
+}
+.wn-shortcuts-group { margin-bottom: 0.9rem; }
+.wn-shortcuts-group-name {
+  color: var(--wn-color-fg-muted, #6f6a61);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.3rem;
+}
+.wn-shortcuts-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 2px 0;
+}
+.wn-shortcuts-keys {
+  font-family: var(--wn-font-mono, monospace);
+  font-size: 12px;
+  white-space: nowrap;
+  background: var(--wn-color-code-bg, #f0ede6);
+  color: var(--wn-color-code, #23211d);
+  border: 1px solid var(--wn-color-border, #e3ded4);
+  border-radius: var(--wn-radius-code, 4px);
+  padding: 1px 6px;
+}
+.wn-shortcuts-action { color: var(--wn-color-fg, #23211d); }
 .wn-remote-cursor { position: absolute; pointer-events: none; white-space: nowrap; }
 .wn-remote-cursor-caret {
   width: 2px;

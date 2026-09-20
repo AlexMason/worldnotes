@@ -188,14 +188,14 @@ describe('Ctrl/Alt+arrows — word motion & selection', () => {
   })
 
   it('motion crosses line breaks', async () => {
-    const { instance, editorDiv } = await mount({ home: DOC })
+    const { editorDiv } = await mount({ home: DOC })
     select(editorDiv, 8) // end of "alpha one" → over the '\n', lands at 'beta' start
     key(editorDiv, { key: 'ArrowRight', ctrlKey: true })
     expect(getSelectionOffsets(editorDiv)).toEqual({ start: 10, end: 10 })
   })
 
   it('Ctrl+Left walks word starts backwards', async () => {
-    const { instance, editorDiv } = await mount({ home: DOC })
+    const { editorDiv } = await mount({ home: DOC })
     select(editorDiv, DOC.length) // end of 'three'
     key(editorDiv, { key: 'ArrowLeft', ctrlKey: true })
     expect(getSelectionOffsets(editorDiv)).toEqual({ start: 25, end: 25 }) // start of 'three'
@@ -204,21 +204,21 @@ describe('Ctrl/Alt+arrows — word motion & selection', () => {
   })
 
   it('Alt+←/→ aliases work (macOS)', async () => {
-    const { instance, editorDiv } = await mount({ home: DOC })
+    const { editorDiv } = await mount({ home: DOC })
     select(editorDiv, 0)
     key(editorDiv, { key: 'ArrowRight', altKey: true })
     expect(getSelectionOffsets(editorDiv)).toEqual({ start: 6, end: 6 })
   })
 
   it('Ctrl+Shift+Right extends the selection', async () => {
-    const { instance, editorDiv } = await mount({ home: DOC })
+    const { editorDiv } = await mount({ home: DOC })
     select(editorDiv, 0)
     key(editorDiv, { key: 'ArrowRight', ctrlKey: true, shiftKey: true })
     expect(getSelectionOffsets(editorDiv)).toEqual({ start: 0, end: 6 })
   })
 
   it('motion at document edges is a consumed no-op', async () => {
-    const { instance, editorDiv } = await mount({ home: DOC })
+    const { editorDiv } = await mount({ home: DOC })
     select(editorDiv, 0)
     const e = key(editorDiv, { key: 'ArrowLeft', ctrlKey: true })
     expect(e.defaultPrevented).toBe(true)
@@ -283,7 +283,7 @@ describe('Ctrl+B / Ctrl+I / Ctrl+K — markdown wrapping', () => {
 
 describe('Ctrl+S — flush save immediately', () => {
   it('saves pending content without waiting for the debounce, and clears it', async () => {
-    const { instance, editorDiv, saves } = await mount({ home: DOC }, 5000)
+    const { editorDiv, saves } = await mount({ home: DOC }, 5000)
     vi.useFakeTimers()
     select(editorDiv, 12)
     key(editorDiv, { key: 'ArrowDown', altKey: true }) // dirty buffer, 5s debounce armed

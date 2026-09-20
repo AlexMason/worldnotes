@@ -15,11 +15,21 @@ const DOC = 'alpha\nbeta\ngamma'
 
 describe('selectedLineRange', () => {
   it('collapsed caret touches its own line only', () => {
-    expect(selectedLineRange(DOC, 7, 7)).toEqual({ firstLine: 1, lastLine: 1, startCol: 1, endCol: 1 })
+    expect(selectedLineRange(DOC, 7, 7)).toEqual({
+      firstLine: 1,
+      lastLine: 1,
+      startCol: 1,
+      endCol: 1,
+    })
   })
 
   it('intra-line selection keeps columns', () => {
-    expect(selectedLineRange(DOC, 1, 4)).toEqual({ firstLine: 0, lastLine: 0, startCol: 1, endCol: 4 })
+    expect(selectedLineRange(DOC, 1, 4)).toEqual({
+      firstLine: 0,
+      lastLine: 0,
+      startCol: 1,
+      endCol: 4,
+    })
   })
 
   it('multi-line selection spans touched lines', () => {

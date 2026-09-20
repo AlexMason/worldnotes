@@ -82,7 +82,11 @@ export function createEditingKeymap(deps: EditingKeymapDeps): EditingKeymap {
    * null from compute = edge no-op (consume silently, change nothing).
    */
   function runTextOp(
-    compute: (text: string, start: number, end: number) => { text: string; start: number; end: number } | null,
+    compute: (
+      text: string,
+      start: number,
+      end: number,
+    ) => { text: string; start: number; end: number } | null,
   ): boolean {
     const page = deps.getCurrentPage()
     if (!deps.pageExists(page)) return false
@@ -188,7 +192,11 @@ export function createEditingKeymap(deps: EditingKeymapDeps): EditingKeymap {
 
   /** Formatting: consume-and-noop inside block regions (fences, tables). */
   function formatOp(
-    compute: (text: string, start: number, end: number) => { text: string; start: number; end: number },
+    compute: (
+      text: string,
+      start: number,
+      end: number,
+    ) => { text: string; start: number; end: number },
   ): boolean {
     if (selectionInBlock(deps.editorEl)) return true
     return runTextOp(compute)
