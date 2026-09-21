@@ -54,7 +54,10 @@ export const linkPlugin: ContentPlugin = {
     const kind = classifyLinkTarget(url)
 
     if (kind === 'internal') {
-      // Internal wiki page link — reuses wiki-link styling
+      // Internal wiki page link — reuses wiki-link styling.
+      // NOTE: data-page carries the RAW author target (e.g. '/Blog/Post');
+      // it is display metadata, not a page key — navigation folds it via
+      // navTargetToSlug in editor-navigation before anything is keyed.
       const el = document.createElement('span')
       el.className = 'wn-wiki-link'
       el.dataset.page = url

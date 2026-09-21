@@ -69,6 +69,9 @@ zero network; a "Page deleted" toast confirms a blank save; typing again
 Reader caches: a delete invalidates the server-side render cache
 immediately, but anonymous browsers may still serve the deleted page from
 their own `max-age=60` cache for up to a minute before the 404 appears.
+The reverse is not true: 404 responses themselves are `no-store`, so
+re-enabling a listing (or creating the page) is visible on the very next
+navigation instead of being shadowed by a browser-cached "Page not found".
 
 `updated_by` records the writer's OIDC `sub` (informational).
 
@@ -181,7 +184,8 @@ delete/clear to retract.
   **anonymous**: server-rendered reading view (`ETag`, `Cache-Control:
 public, max-age=60, stale-while-revalidate=300`, `Vary: Cookie`, 304
   revalidation). Unknown-but-valid slugs → plain “Page not found”
-  404 document (no create/login affordance — header chrome carries no sign-in
+  404 document, served `Cache-Control: no-store` (a cached 404 is a wrong
+  answer, not a stale one) (no create/login affordance — header chrome carries no sign-in
   link by design: authentication is a known route, `GET /oidc/login?returnTo=…`,
   typically bookmarked by operators); the editor seeds a starter and the row
   is created on the first non-blank save — the server never stores blank pages.

@@ -229,9 +229,12 @@ describe('SSR pages', () => {
     expect(after.body).toContain('v2 edited')
   })
 
-  it('404s unknown slugs with a create overlay', async () => {
+  it('404s unknown slugs without create affordances — and never caches the 404', async () => {
     const res = await app.inject({ method: 'GET', url: '/nope/missing' })
     expect(res.statusCode).toBe(404)
+    // A browser-cached 404 is a WRONG answer that outlives its cause
+    // (settings re-enabled, page created) — 4xx must never be stored.
+    expect(res.headers['cache-control']).toBe('no-store')
     expect(res.body).toContain('Page not found')
     // Login affordances are gone from chrome; the create CTA linked to the
     // same URL and rescued only by the removed login hint, so the whole
@@ -277,6 +280,7 @@ describe('SSR pages', () => {
   it('404s invalid slug shapes without the create overlay', async () => {
     const res = await app.inject({ method: 'GET', url: '/Bad%20Caps' })
     expect(res.statusCode).toBe(404)
+    expect(res.headers['cache-control']).toBe('no-store')
     expect(res.body).not.toContain('Create this page')
   })
 
@@ -397,6 +401,7 @@ describe('home page + search toggle', () => {
 
     const all = await app.inject({ method: 'GET', url: '/all' })
     expect(all.statusCode).toBe(404)
+    expect(all.headers['cache-control']).toBe('no-store')
     expect(all.body).toContain('all-pages listing is disabled')
 
     // Landing at / still serves the home page (reader) without the link.
@@ -414,6 +419,7 @@ describe('home page + search toggle', () => {
     await make({ all_pages_enabled: 'false', home_slug: 'gone' })
     const res = await app.inject({ method: 'GET', url: '/' })
     expect(res.statusCode).toBe(404)
+    expect(res.headers['cache-control']).toBe('no-store')
   })
 
   it('carries allPagesEnabled and homeSlug in the editor shell config', async () => {

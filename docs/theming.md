@@ -14,7 +14,11 @@ reader, see below) and the editor-only chrome group in `editor-dom.ts`
 (header, toolbar, sidepanels, overlay, toasts, and the `.wn-root` flex
 layout rule, which must NEVER reach the reader). `--wn-*` custom properties
 are declared on `.wn-root` (`--wn-color-bg/-fg/-fg-muted/-accent/-border/
--code-bg`, plus heading/bold/punct/toast tokens); override them, or replace
+-code-bg`, plus heading/bold/punct/toast tokens and spacing tokens like
+`--wn-list-indent` — the extra tracking added to each transparent
+list-indent space so nested lists read visually, ~2.2× a bare 2-space level
+at the default `0.3em`; presentation-only, the DOM text stays byte-exact);
+override them, or replace
 the entire stylesheet via `createEditor(el, { theme: '…css…' })`.
 
 Classes are the `.wn-*` namespace: `.wn-root .wn-header .wn-nav .wn-menu
@@ -30,6 +34,13 @@ Classes are the `.wn-*` namespace: `.wn-root .wn-header .wn-nav .wn-menu
 notifications and the shortcuts-help overlay (`.wn-shortcuts`,
 `.wn-shortcuts-title/-group/-group-name/-row/-keys/-action` — editor chrome
 in `editor-dom.ts`, token-styled, never shipped to the reader).
+
+Off-site links carry a `↗` marker via `.wn-link[target="_blank"]::after` —
+`target="_blank"` is emitted ONLY for absolute http(s) URLs by both renderers
+(internal folds, `#fragments` and `mailto:` are not), so the attribute
+selects exactly "leaves the site" (full URLs to the same host count too —
+zero-JS CSS cannot compare hostnames). Generated `::after` content never
+enters DOM text, so the byte-exact content model is untouched.
 
 The header (`.wn-header`) mirrors the viewer's `.wn-view-bar` (breadcrumbs
 left; site nav right — a `.wn-nav` wrapper holding the zero-JS hamburger

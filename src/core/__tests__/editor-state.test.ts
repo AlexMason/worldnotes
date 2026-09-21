@@ -92,15 +92,6 @@ describe('createEditorState', () => {
     expect(state.isNavigating()).toBe(true)
   })
 
-  it('pendingRequestedPage can be set and cleared', () => {
-    const state = createEditorState({})
-    expect(state.getPendingRequestedPage()).toBeNull()
-    state.setPendingRequestedPage('missing')
-    expect(state.getPendingRequestedPage()).toBe('missing')
-    state.setPendingRequestedPage(null)
-    expect(state.getPendingRequestedPage()).toBeNull()
-  })
-
   it('toContext returns EditorContext with navigate, trail, world, and page text accessors', () => {
     const state = createEditorState({ initialPage: 'start' })
     const ctx = state.toContext((_page: string) => {

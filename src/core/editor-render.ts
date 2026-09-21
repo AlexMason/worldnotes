@@ -3,7 +3,6 @@
 import type { ContentPlugin, EditorContext } from './types'
 import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
-import type { NotificationSystem } from './notifications'
 import { setLineOffset, tryGetLineOffset } from './caret-offset'
 import { renderDocLines } from './line-renderer'
 import { buildDocument, regionAt } from './document'
@@ -20,11 +19,8 @@ export interface EditorRenderOptions {
   onBreadcrumbNavigate?: (page: string) => void
   onTrailChange?: (trail: string[]) => void
   navigateFn?: (page: string) => void
-  statusPages?: Record<number, string>
-  showCreateOverlay?: boolean
   /** Breadcrumb root crumb label (site name); defaults to 'Home'. */
   homeLabel?: string
-  notifications?: NotificationSystem
 }
 
 function determineActiveLine(raw: string, offset: number): number {
@@ -53,7 +49,6 @@ export function createEditorRender(
   options: EditorRenderOptions = {},
 ): EditorRenderAPI {
   const { editorDiv, placeholder, breadcrumb } = dom
-  const { notifications } = options
 
   let activeLine = -1
 
@@ -104,43 +99,6 @@ export function createEditorRender(
       setLineOffset(editorDiv, offset)
     } catch {
       /* noop */
-    }
-
-    // ── 404 toast (via notification system) ────────────────────────────────
-
-    if (notifications) {
-      const statusPages = options.statusPages ?? {}
-      const notFoundPage = statusPages[404] ?? '404'
-      const currentPage = state.getCurrentPage()
-      const requestedPage = state.getPendingRequestedPage()
-      const showOverlay = options.showCreateOverlay !== false
-
-      if (currentPage === notFoundPage && requestedPage && showOverlay) {
-        const navigateFn = options.navigateFn
-        notifications.notify({
-          id: 'wn-404',
-          message: `Page "${requestedPage}" not found.`,
-          type: 'info',
-          duration: 0,
-          action: {
-            label: 'Create',
-            onClick: () => {
-              const page = requestedPage
-              const buffers = state.getPageBuffers()
-              if (buffers.getPageText(page) === '') {
-                buffers.setPageText(page, `# ${page}\n\n`)
-              }
-              state.setPendingRequestedPage(null)
-              if (navigateFn) {
-                navigateFn(page)
-              }
-              notifications.dismiss('wn-404')
-            },
-          },
-        })
-      } else {
-        notifications.dismiss('wn-404')
-      }
     }
   }
 

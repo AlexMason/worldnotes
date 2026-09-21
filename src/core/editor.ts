@@ -150,7 +150,7 @@ async function mountEditor(
   const state = createEditorState(options, buffers)
   const dom = createEditorDOM(container, options.theme)
   const notifications: NotificationSystem = createNotificationSystem(dom.container)
-  const navigation = createEditorNavigation(state, pageStore, dom, options)
+  const navigation = createEditorNavigation(state, pageStore, dom, options, notifications)
   const renderOpts: EditorRenderOptions = {
     navigateFn: (page: string) => {
       navigation.navigateToPage(page)
@@ -159,10 +159,7 @@ async function mountEditor(
       navigation.loadPage(page)
     },
     onTrailChange: options.onTrailChange,
-    statusPages: options.statusPages,
-    showCreateOverlay: options.showCreateOverlay,
     homeLabel: options.homeLabel,
-    notifications,
   }
   const render = createEditorRender(dom, contentPlugins, state, renderOpts)
   navigation.setRenderAPI(render)

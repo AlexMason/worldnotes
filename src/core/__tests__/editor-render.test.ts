@@ -1,10 +1,9 @@
 // @vitest-environment happy-dom
 
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { ContentPlugin, EditorContext, Token } from '../types'
 import { createEditorState } from '../editor-state'
 import type { EditorDOM } from '../editor-dom'
-import { createNotificationSystem } from '../notifications'
 
 import { createEditorRender } from '../editor-render'
 
@@ -372,84 +371,9 @@ describe('createEditorRender: module shape', () => {
 })
 
 // ─── createEditorRender: 404 toast (via notifications) ─────────────────────────
-
-describe('createEditorRender: 404 toast', () => {
-  let dom: EditorDOM
-  let plugins: ContentPlugin[]
-  let state: ReturnType<typeof createEditorState>
-  let notifications: ReturnType<typeof createNotificationSystem>
-
-  beforeEach(() => {
-    dom = createTestDOM()
-    plugins = [testPlugin()]
-    state = createEditorState({ initialPage: 'test' })
-    const root = document.createElement('div')
-    document.body.appendChild(root)
-    notifications = createNotificationSystem(root)
-  })
-
-  afterEach(() => {
-    notifications.destroy()
-    document.body.innerHTML = ''
-  })
-
-  it('renders 404 toast when on 404 page with pending requested page', () => {
-    state.setTrail(['404'])
-    state.setPendingRequestedPage('missing')
-
-    const render = createEditorRender(dom, plugins, state, {
-      notifications,
-      showCreateOverlay: true,
-    })
-
-    state.getPageBuffers().setPageText('404', '# Page Not Found\n\n')
-    render.render()
-
-    const toast = document.body.querySelector('.wn-toast')
-    expect(toast).not.toBeNull()
-    expect(toast!.textContent).toContain('missing')
-    expect(toast!.textContent).toContain('not found')
-  })
-
-  it('does not show 404 toast when showCreateOverlay is false', () => {
-    state.setTrail(['404'])
-    state.setPendingRequestedPage('missing')
-
-    const render = createEditorRender(dom, plugins, state, {
-      notifications,
-      showCreateOverlay: false,
-    })
-
-    state.getPageBuffers().setPageText('404', '# Page Not Found\n\n')
-    render.render()
-
-    const toast = document.body.querySelector('.wn-toast')
-    expect(toast).toBeNull()
-  })
-
-  it('dismisses 404 toast when navigating away', async () => {
-    state.setTrail(['404'])
-    state.setPendingRequestedPage('missing')
-
-    const render = createEditorRender(dom, plugins, state, {
-      notifications,
-      showCreateOverlay: true,
-    })
-
-    state.getPageBuffers().setPageText('404', '# Page Not Found\n\n')
-    render.render()
-
-    expect(document.body.querySelector('.wn-toast')).not.toBeNull()
-
-    state.setPendingRequestedPage(null)
-    state.setTrail(['home'])
-    render.render()
-
-    // Wait for exit animation to complete
-    await new Promise((resolve) => setTimeout(resolve, 200))
-    expect(document.body.querySelector('.wn-toast')).toBeNull()
-  })
-})
+// REMOVED with the create-dialog/404 dead-end: missing pages now open in a
+// seeded editor (see editor-navigation.test.ts 'missing pages open in the
+// editor'), so the render pass no longer owns any not-found notification.
 
 // ─── Stray/unrecognized selections must never hijack the caret ──────────────
 

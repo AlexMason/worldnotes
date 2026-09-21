@@ -43,6 +43,7 @@ export const EDITOR_TOKENS_CSS = `
   --wn-padding-editor-y: 2rem;       /* editor vertical padding */
   --wn-padding-editor-x: 1.2rem;     /* editor horizontal padding */
   --wn-block-padding-left: 1em;      /* blockquote left padding */
+  --wn-list-indent: 0.3em;           /* extra tracking per list-indent space (visual nesting) */
   --wn-gap-breadcrumb: 0;            /* breadcrumb gap */
 
   /* Radii */
@@ -125,7 +126,11 @@ export const EDITOR_CONTENT_CSS = `
 
 /* List items */
 .wn-list-item { display: flex; }
-.wn-list-item-indent { color: transparent; white-space: pre; user-select: none; flex-shrink: 0; }
+/* Nesting indent is the transparent source spaces — widened with tracking so
+   depth is actually visible (a 2-space level ≈ 2.2× at the default token).
+   letter-spacing is presentation-only: the DOM text stays byte-exact, so
+   content-text extraction and character-offset caret math never see it. */
+.wn-list-item-indent { color: transparent; white-space: pre; user-select: none; flex-shrink: 0; letter-spacing: var(--wn-list-indent, 0.3em); }
 .wn-list-item-marker { color: var(--wn-color-fg-muted, #6f6a61); user-select: none; flex-shrink: 0; }
 .wn-list-item-content { color: var(--wn-color-fg, #23211d); min-width: 0; }
 
@@ -209,6 +214,17 @@ export const EDITOR_CONTENT_CSS = `
   cursor: pointer;
 }
 .wn-link:hover { color: var(--wn-color-accent-hover, #3f79c4); }
+/* Off-site marker: absolute http(s) links are the only ones both renderers
+   emit with target="_blank" (internal folds, #fragments and mailto: are not),
+   so the attribute selects exactly "leaves the site". Generated ::after
+   content is invisible to DOM-text extraction — byte fidelity holds. */
+.wn-link[target='_blank']::after {
+  content: '\\2197';
+  text-decoration: none;
+  margin-inline-start: .15em;
+  font-size: .85em;
+  color: var(--wn-color-fg-muted, #6f6a61);
+}
 
 /* Image — punct-fidelity source (dimmed markers) + the rendered preview.
    While a line is COLLAPSED only the picture shows — on BOTH surfaces: the
