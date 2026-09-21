@@ -4,7 +4,7 @@
 // client chrome through callbacks.
 
 import type { PageStore } from '../core/types'
-import { slugify, validateSlug } from '../shared/slug'
+import { navTargetToSlug } from '../shared/slug'
 import { isBlankContent } from '../shared/content'
 
 export interface PageSnapshotDto {
@@ -32,13 +32,15 @@ function apiUrl(slug: string): string {
 }
 
 /**
- * Editors may navigate by raw wiki-link text ([[Some Page]]); the API speaks
- * slugs. Fold once and key everything (URLs + version map) by the folded
- * slug so load/save/versions stay consistent regardless of the input form.
+ * Editors navigate by raw wiki-link text ([[Some Page]]); the API speaks
+ * slugs. Fold via the ONE shared helper (navTargetToSlug — the same fold the
+ * editor's navigation core applies before a page ever reaches this store),
+ * keyed by the folded slug so load/save/versions stay consistent regardless
+ * of the input form. The `?? page` pass-through only keeps unfurlable raw
+ * strings addressable for error paths; navigation refuses them upstream.
  */
 function normalize(page: string): string {
-  const folded = slugify(page)
-  return validateSlug(folded).ok ? folded : page
+  return navTargetToSlug(page) ?? page
 }
 
 export interface PageVersionSeed {

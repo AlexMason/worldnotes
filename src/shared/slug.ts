@@ -90,6 +90,19 @@ export function wikiTargetToSlug(target: string): string | null {
   return result.ok ? result.slug : null
 }
 
+/**
+ * THE client-side fold for navigation targets (wiki-link text, relative link
+ * hrefs, breadcrumb/page names typed by users): returns the canonical slug or
+ * null when the target cannot address a page (empty, non-latin-only, reserved
+ * route segments…). Callers must REFUSE a null rather than fall back to the
+ * raw string — a raw key would desync buffers, trail, URL, and saves, opening
+ * a phantom page that can never persist (the reader shows such targets as
+ * literal text; navigation must not disagree).
+ */
+export function navTargetToSlug(target: string): string | null {
+  return wikiTargetToSlug(target)
+}
+
 /** Derive the breadcrumb trail root label from a slug's last segment. */
 export function slugDisplayName(slug: string): string {
   const segments = slug.split('/')

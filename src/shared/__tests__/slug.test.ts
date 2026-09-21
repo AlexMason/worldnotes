@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { slugify, validateSlug, wikiTargetToSlug, slugDisplayName } from '../slug'
+import { slugify, validateSlug, wikiTargetToSlug, navTargetToSlug, slugDisplayName } from '../slug'
 
 describe('slugify', () => {
   it('folds titles into hyphenated segments', () => {
@@ -55,6 +55,22 @@ describe('wikiTargetToSlug', () => {
     expect(wikiTargetToSlug('Blog/First Post')).toBe('blog/first-post')
     expect(wikiTargetToSlug('中文')).toBeNull()
     expect(wikiTargetToSlug('api/stuff')).toBeNull() // reserved
+  })
+})
+
+describe('navTargetToSlug', () => {
+  it('folds every spelling of the same page onto one canonical slug', () => {
+    expect(navTargetToSlug('/blog/first-post')).toBe('blog/first-post')
+    expect(navTargetToSlug('blog//first-post/')).toBe('blog/first-post')
+    expect(navTargetToSlug('Blog/First Post')).toBe('blog/first-post')
+    expect(navTargetToSlug('blog/first-post')).toBe('blog/first-post') // idempotent
+  })
+
+  it('returns null for targets that cannot address a page (callers must refuse)', () => {
+    expect(navTargetToSlug('')).toBeNull()
+    expect(navTargetToSlug('中文')).toBeNull()
+    expect(navTargetToSlug('/all')).toBeNull() // reserved route
+    expect(navTargetToSlug('api/x')).toBeNull()
   })
 })
 
