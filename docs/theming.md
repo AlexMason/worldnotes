@@ -86,11 +86,19 @@ remain display-only divergences.
 - Structural classes: `.wn-view-bar` (header), `.wn-crumbs` (breadcrumb,
   with `.wn-crumb-sep` / `.wn-crumb-more` + `.wn-crumb-drop` middle-collapse),
   `.wn-nav` + `.wn-menu` (site-nav wrapper + zero-JS hamburger toggle),
-  `.wn-view-actions` (nav-page `.wn-nav-link`s + search / all-pages /
-  admin / sign-out links — no sign-in link by design),
+  `.wn-view-actions` (nav-page `.wn-nav-link`s + search / all-pages links,
+  then **role-gated** chrome: the Admin-settings link renders only for the
+  `admin` role; sign-out/identity for every session. Reader pages ship no
+  sign-in link — the sole sanctioned exception is the login-required 403
+  document, see `render/status-page.ts`),
   `.wn-article` typography (pre-wrap surface like `.wn-editor`),
-  `.wn-page-list`, `.wn-search-form`, `.wn-admin-form` (admin settings),
-  `.wn-status` (404/status documents).
+  `.wn-page-list`, `.wn-search-form`, `.wn-admin-form` (admin settings,
+  incl. the Access fieldset's `.wn-admin-fieldset`), `.wn-users-table` (the
+  admin Users list: collapsed rows, hairline separators, inline role
+  selects), `.wn-visually-hidden` (a11y-only labels),
+  `.wn-status` (404/403 documents — built-in bodies and custom status-page
+  bodies both ride this wrapper; a designated status page renders its
+  markdown through the reader engine inside it).
 - **Site bands** (`.wn-site-header` / `.wn-site-footer`, styled by
   `SITE_BANDS_CSS` in `src/core/styles.ts` — the one chrome group shared by
   both surfaces): admin-authored **raw HTML** from `PUT /api/settings`, shown

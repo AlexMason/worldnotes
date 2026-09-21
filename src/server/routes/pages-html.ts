@@ -1,7 +1,10 @@
 // ─── SSR read path: /, /all, /search[/terms], /{slug} ────────────────────────
 // Anonymous visitors receive the single-engine (core) render, served
-// from a bounded cache with ETag revalidation. Authenticated visitors receive
-// the client editor shell at /{slug} instead. Registered LAST so the catch-all
+// from a bounded cache with ETag revalidation. Editorial sessions
+// (editor/admin) receive the client editor shell at /{slug} instead;
+// viewers receive the reader render with their own chrome. While
+// settings.requireLogin is on, anonymous HTML reads get the gated 403
+// document instead. Registered LAST so the catch-all
 // slug route only sees unmatched paths.
 
 import type { FastifyInstance, FastifyReply } from 'fastify'
@@ -9,7 +12,13 @@ import type { ServerConfig } from '../config'
 import type { PagesRepository } from '../db/repository'
 import type { AuthUser } from '../auth/session'
 import { requireLoginHtml } from '../auth/login-gate'
-import { renderStatusDocument, signInRequiredBodyHtml } from '../render/status-page'
+import {
+  notFoundBodyHtml,
+  signInLineHtml,
+  signInRequiredBodyHtml,
+  statusDocument,
+  type StatusDeps,
+} from '../render/status-page'
 import { isEditorialRole } from '../../shared/roles'
 import type { NavLink } from '../../shared/dto'
 import { validateSlug, slugDisplayName } from '../../shared/slug'
@@ -58,6 +67,7 @@ export async function registerPageHtmlRoutes(
   const { config, pages, cache, render, layout, assetPrefix, autosaveMs, getSettings } = deps
   const getSettingsRevision = deps.getSettingsRevision
   const getNavLinks = deps.getNavLinks
+  const statusDeps: StatusDeps = { layout, render, pages, cache }
   const MAX_AGE = 'public, max-age=60, stale-while-revalidate=300'
 
   function respond(reply: FastifyReply, entry: CacheEntry, status = 200): FastifyReply {
@@ -112,20 +122,46 @@ export async function registerPageHtmlRoutes(
   }
 
   // Login-only gate: anonymous HTML reads receive the 403 sign-in document
-  // (custom page in Phase B; built-in body until then). Unmatched
-  // api/oidc/assets wildcards keep their JSON answers via the exemption.
+  // (custom forbiddenSlug page when designated — the sanctioned sign-in
+  // line is appended either way). Unmatched api/oidc/assets wildcards keep
+  // their JSON answers via the exemption.
   const gate = requireLoginHtml({
     getSettings,
     document: async (_req, returnTo) => {
       const settings = getSettings()
       const navLinks = await getNavLinks()
-      return renderStatusDocument(layout, chrome(null, settings, navLinks), {
+      return statusDocument(statusDeps, {
+        kind: '403',
         title: 'Sign-in required',
-        bodyHtml: signInRequiredBodyHtml(returnTo),
+        fallbackHtml: signInRequiredBodyHtml(returnTo),
+        customAppendHtml: signInLineHtml(returnTo),
         trail: [{ href: '/', label: 'Home' }],
+        customSlug: settings.forbiddenSlug,
+        chrome: chrome(null, settings, navLinks),
       })
     },
   })
+
+  /** One 404 document builder for every HTML miss (custom notFoundSlug
+   *  page over a per-site fallback body; viewer gets the create-hint). */
+  async function status404(
+    req: { user: AuthUser | null },
+    fallbackHtml: string,
+    trail?: { href: string; label: string }[],
+  ): Promise<string> {
+    const settings = getSettings()
+    const navLinks = await getNavLinks()
+    const hint = req.user ? '<p>Ask an editor to create this page.</p>' : undefined
+    return statusDocument(statusDeps, {
+      kind: '404',
+      title: 'Page not found',
+      fallbackHtml: hint ? fallbackHtml.replace('</div>', hint + '</div>') : fallbackHtml,
+      customAppendHtml: hint,
+      ...(trail ? { trail } : {}),
+      customSlug: settings.notFoundSlug,
+      chrome: chrome(req.user, settings, navLinks),
+    })
+  }
 
   // ── Article render: editor shell for auth, viewer for anonymous ──────────
 
@@ -173,16 +209,13 @@ export async function registerPageHtmlRoutes(
     } else {
       const page = await pages.get(slug)
       if (!page) {
-        // No create/login affordance on the anonymous 404 (locked decision:
-        // login is a known route, not a public button — see docs/api.md).
-        const html = layout({
-          title: 'Page not found',
-          body:
-            `<div class="wn-status"><h1>Page not found</h1>` +
-            `<p>No page exists at <code>${escapeHtml(pageUrl(slug))}</code> yet.</p></div>`,
-          trail: home ? [{ href: '/', label: 'Home' }] : trailFor(slug),
-          ...chrome(req.user, getSettings(), navLinks),
-        })
+        // No login affordance on the anonymous 404 (reader pages ship none
+        // by design — docs/api.md; viewers get an "ask an editor" hint).
+        const html = await status404(
+          req,
+          notFoundBodyHtml(pageUrl(slug)),
+          home ? [{ href: '/', label: 'Home' }] : trailFor(slug),
+        )
         return respond(reply, { html, etag: hashEtag(html) }, 404)
       }
       title = page.title
@@ -255,11 +288,11 @@ export async function registerPageHtmlRoutes(
       if (page) return renderArticle(reply, req, homeSlug, true)
     }
     if (!settings.allPagesEnabled) {
-      const html = layout({
-        title: 'Not found',
-        body: `<div class="wn-status"><h1>Page not found</h1><p>There is no landing page here yet.</p></div>`,
-        ...chrome(req.user, settings, await getNavLinks()),
-      })
+      const html = await status404(
+        req,
+        `<div class="wn-status"><h1>Page not found</h1>` +
+          `<p>There is no landing page here yet.</p></div>`,
+      )
       return respond(reply, { html, etag: hashEtag(html) }, 404)
     }
     return renderIndex(reply, req)
@@ -268,12 +301,12 @@ export async function registerPageHtmlRoutes(
   app.get('/all', { preHandler: [gate] }, async (req, reply) => {
     const settings = getSettings()
     if (!settings.allPagesEnabled) {
-      const html = layout({
-        title: 'Not found',
-        body: `<div class="wn-status"><h1>Page not found</h1><p>The all-pages listing is disabled.</p></div>`,
-        trail: [{ href: '/', label: 'Home' }],
-        ...chrome(req.user, settings, await getNavLinks()),
-      })
+      const html = await status404(
+        req,
+        `<div class="wn-status"><h1>Page not found</h1>` +
+          `<p>The all-pages listing is disabled.</p></div>`,
+        [{ href: '/', label: 'Home' }],
+      )
       return respond(reply, { html, etag: hashEtag(html) }, 404)
     }
     return renderIndex(reply, req)
@@ -341,11 +374,11 @@ export async function registerPageHtmlRoutes(
     }
     const validated = validateSlug(raw)
     if (!validated.ok) {
-      const html = layout({
-        title: 'Not found',
-        body: `<div class="wn-status"><h1>Page not found</h1><p>That address is not a valid page path.</p></div>`,
-        ...chrome(req.user, getSettings(), await getNavLinks()),
-      })
+      const html = await status404(
+        req,
+        `<div class="wn-status"><h1>Page not found</h1>` +
+          `<p>That address is not a valid page path.</p></div>`,
+      )
       return respond(reply, { html, etag: hashEtag(html) }, 404)
     }
     return renderArticle(reply, req, validated.slug)

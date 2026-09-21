@@ -110,6 +110,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const invalidate = (slug: string): void => {
     cache.invalidate(`p:${slug}`)
     cache.invalidate(INDEX_CACHE_KEY)
+    // Status-page bodies are cached by their designated slug; evict on any
+    // write to that page regardless of which setting names it (cheap, and
+    // correct across a concurrent slug change).
+    cache.invalidate(`s:404:${slug}`)
+    cache.invalidate(`s:403:${slug}`)
     navLinks.onPageWrite(slug)
     deps.onPageWrite?.(slug)
   }
@@ -157,12 +162,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   await registerSettingsApiRoutes(app, { settings: settingsService, media: mediaRepo })
   await registerUsersApiRoutes(app, { users: usersRepo })
+  const readerRender = createReaderRenderer()
   await registerAdminRoutes(app, {
     config: deps.config,
     settings: settingsService,
     media: mediaRepo,
     users: usersRepo,
     nav: navLinks,
+    pages: deps.pages,
+    cache,
+    render: readerRender,
   })
   await registerMediaRoutes(app, {
     media: mediaRepo,
@@ -183,7 +192,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     config: deps.config,
     pages: deps.pages,
     cache,
-    render: createReaderRenderer(),
+    render: readerRender,
     layout: renderLayout,
     assetPrefix: assetsMounted ? '/assets' : '',
     autosaveMs: deps.config.env.AUTOSAVE_DEBOUNCE_MS,

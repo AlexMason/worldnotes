@@ -8,12 +8,14 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { renderLayout, escapeHtml } from '../render/layout'
-import { forbiddenBodyHtml, renderStatusDocument } from '../render/status-page'
+import { forbiddenBodyHtml, statusDocument, type StatusDeps } from '../render/status-page'
 import { ROLES } from '../../shared/roles'
 import type { SettingsService } from '../settings'
 import type { NavLinksService } from '../render/nav'
 import type { MediaRepository } from '../db/media-repository'
 import type { UserRecord, UsersRepository } from '../db/users-repository'
+import type { PagesRepository } from '../db/repository'
+import type { RenderCache } from '../cache'
 import type { ServerConfig } from '../config'
 
 export interface AdminDeps {
@@ -22,12 +24,18 @@ export interface AdminDeps {
   media: MediaRepository
   users: UsersRepository
   nav: NavLinksService
+  /** Status-document seam (custom forbidden page): reader deps for the 403. */
+  pages: PagesRepository
+  cache: RenderCache
+  render: { render(src: string): string }
 }
 
 /**
  * HTML-aware admin guard: anonymous gets the conventional 401 JSON (the
  * page is a known operator route, not a public surface); an authenticated
- * viewer/editor gets a readable 403 document, never a raw JSON blob.
+ * viewer/editor gets a readable 403 document (custom forbidden page when
+ * designated), never a raw JSON blob. No sign-in link on this variant — the
+ * caller is already authenticated.
  */
 function requireAdminHtml(deps: AdminDeps) {
   return async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
@@ -38,13 +46,22 @@ function requireAdminHtml(deps: AdminDeps) {
     if (req.user.role === 'admin') return
     const s = deps.settings.get()
     const navLinks = await deps.nav.links()
-    const html = renderStatusDocument(renderLayout, chromeFor(req.user, s, navLinks, deps), {
+    const statusDeps: StatusDeps = {
+      layout: renderLayout,
+      render: deps.render,
+      pages: deps.pages,
+      cache: deps.cache,
+    }
+    const html = await statusDocument(statusDeps, {
+      kind: '403',
       title: 'Forbidden',
-      bodyHtml: forbiddenBodyHtml(),
+      fallbackHtml: forbiddenBodyHtml(),
       trail: [
         { href: '/', label: 'Home' },
         { href: '/admin', label: 'Admin settings' },
       ],
+      customSlug: s.forbiddenSlug,
+      chrome: chromeFor(req.user, s, navLinks, deps),
     })
     await reply
       .code(403)
@@ -257,6 +274,16 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
         ? `<p class="wn-admin-msg">Custom icon in use (<img src="/media/${s.faviconMediaId}" alt="current icon" width="32" height="32">, ${row.width ?? '?'}\u00d7${row.height ?? '?'} ${row.mediaType}).</p>`
         : `<p class="wn-admin-msg">Icon override points at media #${s.faviconMediaId}, which is missing \u2014 upload a new image to recover.</p>`
     }
+    // Status-page designation state (nav/fallback pattern: name the state
+    // so a typo or deleted page is visible without hunting for it).
+    const statusNote = async (label: string, slug: string | null): Promise<string> => {
+      if (!slug) return ''
+      const exists = await deps.pages.get(slug)
+      return exists
+        ? ''
+        : `<p class="wn-admin-msg">The ${label} page \u201c${escapeHtml(slug)}\u201d does not exist yet —
+           the built-in document stays in use until it does.</p>`
+    }
     // Leading newline in each textarea guards against the HTML parser
     // swallowing a stored value's own first newline (it strips exactly one
     // after the opening tag; this synthetic one is what gets stripped).
@@ -304,6 +331,8 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
       )}" placeholder="e.g. no-access"></label>` +
       `<p class="wn-admin-msg">Designated status pages are served to every visitor —
          including anonymous readers in login-only mode. Keep their content public-safe.</p>` +
+      (await statusNote('404', s.notFoundSlug)) +
+      (await statusNote('403', s.forbiddenSlug)) +
       `</fieldset>` +
       `<button type="submit">Save settings</button>` +
       `<p id="wn-admin-msg" class="wn-admin-msg" hidden></p>` +

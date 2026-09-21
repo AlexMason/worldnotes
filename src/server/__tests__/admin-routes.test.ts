@@ -371,6 +371,52 @@ describe('admin page roles & users section', () => {
     return { config, app }
   }
 
+  it('names a dangling status-page designation on the form', async () => {
+    const config = loadConfig(baseEnv)
+    const app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      settings: createMemorySettingsRepository({
+        not_found_slug: 'gone',
+        forbidden_slug: 'restricted',
+      }),
+      media: createMemoryMediaRepository(),
+      users: usersFixture({ users: { boss: 'admin' } }),
+      relyingParty: null,
+    })
+    // Neither designated page exists yet → both named; then create one →
+    // its note disappears.
+    const first = await app.inject({
+      method: 'GET',
+      url: '/admin',
+      headers: { cookie: cookieFor(config, 'boss') },
+    })
+    expect(first.body).toContain('404 page \u201cgone\u201d does not exist yet')
+    expect(first.body).toContain('403 page \u201crestricted\u201d does not exist yet')
+    const repo = createMemoryPagesRepository()
+    await repo.put('gone', { title: 'Gone', content: 'x' })
+    const second = await buildApp({
+      config,
+      pages: repo,
+      settings: createMemorySettingsRepository({
+        not_found_slug: 'gone',
+        forbidden_slug: 'restricted',
+      }),
+      media: createMemoryMediaRepository(),
+      users: usersFixture({ users: { boss: 'admin' } }),
+      relyingParty: null,
+    })
+    const again = await second.inject({
+      method: 'GET',
+      url: '/admin',
+      headers: { cookie: cookieFor(config, 'boss') },
+    })
+    expect(again.body).not.toContain('\u201cgone\u201d does not exist yet')
+    expect(again.body).toContain('\u201crestricted\u201d does not exist yet')
+    await app.close()
+    await second.close()
+  })
+
   it('authenticated viewer gets an HTML 403 document, not a JSON blob', async () => {
     const { config, app } = await make({ boss: 'admin', peeker: 'viewer' })
     const res = await app.inject({

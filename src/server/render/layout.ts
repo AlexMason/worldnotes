@@ -242,8 +242,10 @@ export function renderLayout(opts: LayoutOptions): string {
         : `<a href="/oidc/logout">Sign out (${escapeHtml(opts.user.name ?? opts.user.sub)})</a>`,
     )
   }
-  // No "Log in" affordance by design: sign-in is a known route
-  // (/oidc/login?returnTo=…). See docs/api.md for the first-admin bootstrap.
+  // No "Log in" affordance on reader chrome by design: sign-in is a known
+  // route (/oidc/login?returnTo=…), and login-only mode narrows the rule to
+  // reader pages — the login-required 403 document (render/status-page.ts)
+  // is the one sanctioned public sign-in link. See docs/api.md.
 
   // The <details> holds ONLY its summary: the UA hides nothing else, so
   // mobile show/hide of the sibling actions is pure `:has()` CSS.

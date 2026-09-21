@@ -751,3 +751,112 @@ describe('SSR roles & login-only gate', () => {
     await app.close()
   })
 })
+
+describe('custom status pages (Phase B)', () => {
+  const cookieFor = (config: ServerConfig, sub: string) =>
+    'wn_session=' +
+    seal({ exp: Math.floor(Date.now() / 1000) + 300, sub, name: sub }, config.sessionSecrets)
+
+  async function make(
+    settingsSeed: Record<string, string>,
+    users?: Record<string, 'viewer' | 'editor' | 'admin'>,
+  ) {
+    const config = loadConfig(baseEnv)
+    const repo = createMemoryPagesRepository()
+    const app = await buildApp({
+      config,
+      pages: repo,
+      settings: createMemorySettingsRepository(settingsSeed),
+      users: usersFixture({ users: users ?? { boss: 'admin', peeker: 'viewer' } }),
+      relyingParty: null,
+    })
+    return { config, repo, app }
+  }
+
+  it('renders the designated 404 page as markdown inside chrome, escaped', async () => {
+    const { repo, app } = await make({ not_found_slug: 'gone' })
+    await repo.put('gone', {
+      title: 'Gone',
+      content: '# All gone\n\nTry the [[home|front page]].\n\n<script>alert(1)</script>',
+    })
+    const res = await app.inject({ method: 'GET', url: '/nowhere' })
+    expect(res.statusCode).toBe(404)
+    expect(res.headers['cache-control']).toBe('no-store')
+    expect(res.body).toContain('All gone')
+    expect(res.body).toContain('href="/home"') // wiki links work
+    expect(res.body).not.toContain('<script>alert(1)</script>') // engine escapes raw HTML
+    expect(res.body).not.toContain('No page exists at') // custom body replaced the fallback
+    await app.close()
+  })
+
+  it('editing the status page busts the render cache via the write hook', async () => {
+    const { config, repo, app } = await make({ not_found_slug: 'gone' })
+    await repo.put('gone', { title: 'Gone', content: 'version-one' })
+    const first = await app.inject({ method: 'GET', url: '/nowhere' })
+    expect(first.body).toContain('version-one')
+    // Edit through the API — that is where cache invalidation is wired.
+    const put = await app.inject({
+      method: 'PUT',
+      url: '/api/pages/gone',
+      headers: { cookie: cookieFor(config, 'boss'), 'if-match': '"1"' },
+      payload: { content: 'version-two' },
+    })
+    expect(put.statusCode).toBe(200)
+    const second = await app.inject({ method: 'GET', url: '/nowhere' })
+    expect(second.body).toContain('version-two')
+    expect(second.body).not.toContain('version-one')
+    await app.close()
+  })
+
+  it('a dangling designation falls back to the built-in body', async () => {
+    const { app } = await make({ not_found_slug: 'no-such-page' })
+    const res = await app.inject({ method: 'GET', url: '/nowhere' })
+    expect(res.statusCode).toBe(404)
+    expect(res.body).toContain('No page exists at')
+    await app.close()
+  })
+
+  it('login-gate 403 uses the custom forbidden page AND keeps the sign-in line', async () => {
+    const { repo, app } = await make({
+      require_login: 'true',
+      forbidden_slug: 'restricted',
+    })
+    await repo.put('restricted', { title: 'Nope', content: 'Members only, friend.' })
+    const res = await app.inject({ method: 'GET', url: '/anything' })
+    expect(res.statusCode).toBe(403)
+    expect(res.body).toContain('Members only, friend.')
+    expect(res.body).toContain('/oidc/login?returnTo=%2F')
+    await app.close()
+  })
+
+  it("viewer 404 gets the 'ask an editor' hint; anonymous does not", async () => {
+    const { config, app } = await make({}, { boss: 'admin', peeker: 'viewer' })
+    const viewer = await app.inject({
+      method: 'GET',
+      url: '/nowhere',
+      headers: { cookie: cookieFor(config, 'peeker') },
+    })
+    expect(viewer.statusCode).toBe(404)
+    expect(viewer.body).toContain('Ask an editor to create this page.')
+    const anon = await app.inject({ method: 'GET', url: '/nowhere' })
+    expect(anon.body).not.toContain('Ask an editor')
+    await app.close()
+  })
+
+  it('authenticated non-admin /admin 403 renders the custom page WITHOUT a sign-in link', async () => {
+    const { config, repo, app } = await make(
+      { forbidden_slug: 'restricted' },
+      { boss: 'admin', peeker: 'viewer' },
+    )
+    await repo.put('restricted', { title: 'Nope', content: 'Admins only beyond this point.' })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/admin',
+      headers: { cookie: cookieFor(config, 'peeker') },
+    })
+    expect(res.statusCode).toBe(403)
+    expect(res.body).toContain('Admins only beyond this point.')
+    expect(res.body).not.toContain('/oidc/login')
+    await app.close()
+  })
+})
