@@ -22,7 +22,6 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
   let trail: string[] = initialTrail ? [...initialTrail] : ['home']
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let isNavigating = false
-  let pendingRequestedPage: string | null = null
 
   return {
     getPageBuffers: () => pageBuffers,
@@ -51,10 +50,6 @@ function mockState(initialTrail?: string[]): EditorStateAPI {
     },
     setSaveTimer: (timer: ReturnType<typeof setTimeout> | null) => {
       saveTimer = timer
-    },
-    getPendingRequestedPage: (): string | null => pendingRequestedPage,
-    setPendingRequestedPage: (page: string | null): void => {
-      pendingRequestedPage = page
     },
     toContext: (navigate: (page: string) => void): EditorContext => ({
       navigate,
@@ -389,88 +384,152 @@ describe('createEditorNavigation', () => {
     })
   })
 
-  // ── Status Pages ──────────────────────────────────────────────────────────
+  // ── Missing pages: drop into the editor (no 404 dead-end) ─────────────────
 
-  describe('status pages', () => {
-    it('redirects to 404 page when page does not exist in Y.Doc or storage', async () => {
-      const s = mockState(['home'])
-      const st = mockStorage({})
-      const nav = createEditorNavigation(s, st, dom, { statusPages: { 404: '404-page' } })
-      nav.setRenderAPI(render)
-
-      await nav.navigateToPage('missing')
-
-      expect(s.getPendingRequestedPage()).toBe('missing')
-      expect(s.getTrail()).toContain('404-page')
-      expect(s.getWorld()).toHaveProperty('404-page')
-    })
-
-    it('uses default "404" page name when statusPages is not configured', async () => {
+  describe('missing pages open in the editor', () => {
+    it('seeds a new page with a title derived from its slug', async () => {
       const s = mockState(['home'])
       const st = mockStorage({})
       const nav = createEditorNavigation(s, st, dom, {})
       nav.setRenderAPI(render)
 
-      await nav.navigateToPage('missing')
+      await nav.navigateToPage('blog/first-post')
 
-      expect(s.getTrail()).toContain('404')
-      expect(s.getPendingRequestedPage()).toBe('missing')
+      expect(s.getTrail()).toEqual(['home', 'blog', 'first-post'])
+      expect(s.getCurrentPage()).toBe('blog/first-post')
+      // Human title, not the raw slug — no `# blog/first-post`
+      expect(s.getWorld()['blog/first-post']).toBe('# First Post\n\n')
     })
 
-    it('does not redirect when page is found in storage', async () => {
-      const s = mockState(['home'])
-      const st = mockStorage({ exists: '# Exists\n\ncontent' })
-      const nav = createEditorNavigation(s, st, dom, {})
-      nav.setRenderAPI(render)
-
-      await nav.navigateToPage('exists')
-
-      expect(s.getPendingRequestedPage()).toBeNull()
-      expect(s.getTrail()).toContain('exists')
-    })
-
-    it('does not redirect when page is already in Y.Doc', async () => {
-      const s = mockState(['home'])
-      s.getPageBuffers().setPageText('cached', '# Cached')
-      const nav = createEditorNavigation(s, storage, dom, {})
-      nav.setRenderAPI(render)
-
-      await nav.navigateToPage('cached')
-
-      expect(s.getPendingRequestedPage()).toBeNull()
-      expect(s.getTrail()).toContain('cached')
-    })
-
-    it('clears pendingRequestedPage when navigating from 404 to an existing page', async () => {
+    it('never lands on a status/404 page', async () => {
       const s = mockState(['home'])
       const st = mockStorage({})
       const nav = createEditorNavigation(s, st, dom, {})
       nav.setRenderAPI(render)
 
-      // Navigate to trigger 404 redirect
       await nav.navigateToPage('missing')
-      expect(s.getPendingRequestedPage()).toBe('missing')
 
-      // Create the page in Y.Doc, then navigate to it
-      s.getPageBuffers().setPageText('missing', '# content')
-      s.setPendingRequestedPage('missing')
-      // navigateToPage will clear it since target is not a status page
-      await nav.navigateToPage('missing')
-      expect(s.getPendingRequestedPage()).toBeNull()
+      expect(s.getTrail()).not.toContain('404')
+      expect(s.getTrail()).toContain('missing')
     })
 
-    it('auto-creates 404 page with default content when it does not exist', async () => {
+    it('keeps an existing-but-empty page empty (no seed overwrite)', async () => {
+      const s = mockState(['home'])
+      const st = mockStorage({ 'empty-page': '' })
+      const nav = createEditorNavigation(s, st, dom, {})
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('empty-page')
+
+      expect(s.getWorld()['empty-page']).toBe('')
+    })
+
+    it('home falls back to the welcome seed when it exists nowhere', async () => {
       const s = mockState(['home'])
       const st = mockStorage({})
       const nav = createEditorNavigation(s, st, dom, {})
       nav.setRenderAPI(render)
 
-      await nav.navigateToPage('nonexistent')
+      await nav.loadPage('home')
 
-      expect(s.getWorld()['404']).toContain('Page Not Found')
+      expect(s.getWorld()['home']).toContain('Welcome to your world')
+    })
+  })
+
+  // ── Folding: one canonical slug for every navigation source ───────────────
+
+  describe('target folding', () => {
+    it('clicking /blog/first-post opens the SAME page as blog/first-post', async () => {
+      const s = mockState(['home'])
+      // Store keyed BY SLUG — exactly what a leading-slash target used to miss
+      const st = mockStorage({ 'blog/first-post': '# First Post\n\nbody\n' })
+      const nav = createEditorNavigation(s, st, dom, {})
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('/blog/first-post')
+
+      expect(s.getCurrentPage()).toBe('blog/first-post')
+      expect(s.getWorld()['blog/first-post']).toContain('body')
+      // No ghost crumb: every trail segment non-empty
+      expect(s.getTrail()).toEqual(['home', 'blog', 'first-post'])
     })
 
-    it('propagates load errors from the page store', async () => {
+    it('folds display text ([[Some Page]]) onto the existing some-page', async () => {
+      const s = mockState(['home'])
+      const st = mockStorage({ 'some-page': '# Some Page\n' })
+      const nav = createEditorNavigation(s, st, dom, {})
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('Some Page')
+
+      expect(s.getCurrentPage()).toBe('some-page')
+      expect(s.getTrail()).toEqual(['home', 'some-page'])
+    })
+
+    it('strips trailing slashes and duplicate slashes', async () => {
+      const s = mockState(['home'])
+      const st = mockStorage({ 'blog/first-post': '# X\n' })
+      const nav = createEditorNavigation(s, st, dom, {})
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('/blog//first-post/')
+
+      expect(s.getCurrentPage()).toBe('blog/first-post')
+    })
+
+    it('fetches a missing page at most once per navigation', async () => {
+      const s = mockState(['home'])
+      const st = mockStorage({})
+      const loadSpy = vi.spyOn(st, 'load')
+      const nav = createEditorNavigation(s, st, dom, {})
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('brand-new')
+
+      expect(loadSpy).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  // ── Refusal: unfoldable targets never enter the trail ──────────────────
+
+  describe('refusing invalid targets', () => {
+    const refuse = [ ['', 'empty'], ['中文', 'non-latin'], ['api/x', 'reserved route'], ['/all', 'reserved route'], ['/search/hi', 'app route'] ] as const
+
+    for (const [target, why] of refuse) {
+      it(`refuses "${target || '(empty)'}" (${why}) with a toast and no trail change`, async () => {
+        const s = mockState(['home'])
+        const st = mockStorage({})
+        const notify = vi.fn()
+        const nav = createEditorNavigation(s, st, dom, {}, { notify, dismiss: vi.fn(), destroy: vi.fn() })
+        nav.setRenderAPI(render)
+
+        await nav.navigateToPage(target)
+
+        expect(notify).toHaveBeenCalledTimes(1)
+        expect(notify.mock.calls[0][0]).toMatchObject({ type: 'warning' })
+        expect(s.getTrail()).toEqual(['home'])
+        expect(Object.keys(s.getWorld())).toHaveLength(0)
+      })
+    }
+
+    it('refuses absolute URLs handed to the public navigate() API', async () => {
+      const s = mockState(['home'])
+      const st = mockStorage({})
+      const notify = vi.fn()
+      const nav = createEditorNavigation(s, st, dom, {}, { notify, dismiss: vi.fn(), destroy: vi.fn() })
+      nav.setRenderAPI(render)
+
+      await nav.navigateToPage('https://example.com/y')
+
+      expect(notify).toHaveBeenCalledTimes(1)
+      expect(s.getTrail()).toEqual(['home'])
+    })
+  })
+
+  // ── Failure containment ───────────────────────────────────────────────────
+
+  describe('store failures', () => {
+    it('swallows load errors with an error toast instead of rejecting', async () => {
       const errorStorage: PageStore = {
         load: async () => {
           throw new Error('network down')
@@ -478,9 +537,20 @@ describe('createEditorNavigation', () => {
         save: () => Promise.resolve(),
       }
       const s = mockState(['home'])
-      const nav = createEditorNavigation(s, errorStorage, dom, {})
+      const notify = vi.fn()
+      const nav = createEditorNavigation(s, errorStorage, dom, {}, {
+        notify,
+        dismiss: vi.fn(),
+        destroy: vi.fn(),
+      })
+      nav.setRenderAPI(render)
 
-      await expect(nav.navigateToPage('any')).rejects.toThrow('network down')
+      await expect(nav.navigateToPage('any')).resolves.toBeUndefined()
+
+      expect(notify).toHaveBeenCalledTimes(1)
+      expect(notify.mock.calls[0][0]).toMatchObject({ type: 'error' })
+      // A failed load never strands the editor with isNavigating stuck true
+      expect(s.isNavigating()).toBe(false)
     })
   })
 

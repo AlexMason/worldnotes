@@ -7,7 +7,7 @@ import type { EditorInstance } from '../core/types'
 import { insertSiteBands } from '../core/editor-dom'
 import { createApiPageStore } from './api-page-store'
 import { slugFromPath, pageUrlPath } from '../shared/url-helpers'
-import { slugify, slugDisplayName } from '../shared/slug'
+import { slugDisplayName } from '../shared/slug'
 import { composeDocTitle } from '../shared/doc-title'
 import type { EditorShellConfig } from '../shared/dto'
 
@@ -147,12 +147,14 @@ async function main(): Promise<void> {
     homeLabel: cfg.siteName || undefined,
     saveDebounceMs: cfg.autosaveMs,
     onTrailChange: (trail) => {
+      // Trail segments are always canonical slugs: navigateToPage folds every
+      // click target via navTargetToSlug, and the initial trail is seeded from
+      // the server-validated URL. So the joined page IS the slug.
       const page = trail.length <= 1 ? (trail[0] ?? 'home') : trail.slice(1).join('/')
-      const slug = slugify(page) || page
-      if (slug !== currentSlug) {
-        currentSlug = slug
-        window.history.pushState(null, '', pageUrlPath(slug))
-        document.title = composeDocTitle(slugDisplayName(slug), cfg.siteName)
+      if (page !== currentSlug) {
+        currentSlug = page
+        window.history.pushState(null, '', pageUrlPath(page))
+        document.title = composeDocTitle(slugDisplayName(page), cfg.siteName)
       }
       // A navigation happened (any way) — do not leave an open menu hovering
       // over the new page on mobile.

@@ -30,6 +30,8 @@ export const wikiLinkPlugin: ContentPlugin = {
   render(token: Token, _context: EditorContext): HTMLElement {
     const { page, display } = parseWikiLink(token.groups[0] ?? '')
 
+    // data-page carries the RAW author target (display metadata, not a page
+    // key) — editor-navigation folds it via navTargetToSlug on click.
     const el = document.createElement('span')
     el.className = 'wn-wiki-link'
     el.dataset.page = page

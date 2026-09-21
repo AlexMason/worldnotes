@@ -57,17 +57,17 @@ export function createEditorLifecycle(
     const buffers = state.getPageBuffers()
 
     /**
-     * Immediate save (Ctrl+S path): clears any pending debounce, reads the
-     * buffer AT CALL TIME, and runs the shared save body so onSave/toast
-     * semantics match the debounced path.
+     * Immediate save (Ctrl+S path) + the debounced timer's body. `page` is
+     * passed by the debounce scheduler (captured at SCHEDULE time); omitting
+     * it saves the page under the cursor.
      */
-    async function saveNow(): Promise<void> {
+    async function saveNow(page?: string): Promise<void> {
       state.clearSaveTimer()
-      const page = state.getCurrentPage()
-      const content = buffers.getPageText(page)
+      const target = page ?? state.getCurrentPage()
+      const content = buffers.getPageText(target)
       try {
-        await pageStore.save(page, content)
-        options.onSave?.(page, content)
+        await pageStore.save(target, content)
+        options.onSave?.(target, content)
       } catch (e) {
         console.error('worldnotes: page save failed', e)
         notifications.notify({ message: 'Failed to save page', type: 'error' })
@@ -76,7 +76,13 @@ export function createEditorLifecycle(
 
     const saveDebounced = (): void => {
       state.clearSaveTimer()
-      const timer = setTimeout(() => void saveNow(), saveDebounce)
+      // Capture the page at SCHEDULE time: the timer may fire after the user
+      // has navigated (a link click ~500ms after typing). Reading
+      // getCurrentPage() at FIRE time would persist the destination page's
+      // seeded buffer — creating a page the user never typed into — and the
+      // originating page's edits would never be saved.
+      const page = state.getCurrentPage()
+      const timer = setTimeout(() => void saveNow(page), saveDebounce)
       state.setSaveTimer(timer)
     }
 
@@ -302,8 +308,8 @@ export function createEditorLifecycle(
         dom.container.innerHTML = ''
       },
 
-      navigate(page: string) {
-        navigation.navigateToPage(page)
+      navigate(page: string): void {
+        void navigation.navigateToPage(page)
       },
 
       getCurrentPage(): string {
