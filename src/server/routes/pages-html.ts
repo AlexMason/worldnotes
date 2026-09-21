@@ -61,11 +61,18 @@ export async function registerPageHtmlRoutes(
     if (status === 200 && reply.request.headers['if-none-match'] === entry.etag) {
       return reply.code(304).send()
     }
+    // 4xx must never sit in a browser cache. A stale 200 is a cosmetic
+    // problem (≤60s-old chrome after a settings edit — accepted; the
+    // settings revision is mixed into the ETag so revalidation fixes it);
+    // a cached 404 is a WRONG answer that would outlive the thing that
+    // caused it (e.g. re-enabling the all-pages listing, or creating the
+    // page). The ETag stays (harmless); the 304 shortcut above is
+    // deliberately 200-only, so a no-store 404 can never negotiate.
     return reply
       .code(status)
       .header('content-type', 'text/html; charset=utf-8')
       .header('etag', entry.etag)
-      .header('cache-control', MAX_AGE)
+      .header('cache-control', status === 200 ? MAX_AGE : 'no-store')
       .header('vary', 'Cookie')
       .send(entry.html)
   }
