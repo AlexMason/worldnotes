@@ -28,6 +28,11 @@ services:
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?set OIDC_CLIENT_SECRET}
       OIDC_REDIRECT_URL: ${OIDC_REDIRECT_URL:?set OIDC_REDIRECT_URL}
       SESSION_SECRETS: ${SESSION_SECRETS:?set SESSION_SECRETS (32+ chars, comma-separated for rotation)}
+      # Roles: DEFAULT_ROLE applies to accounts provisioned after the first
+      # login; BOOTSTRAP_ADMIN_SUBS makes the admin grant deterministic on
+      # upgrades with live sessions (set it BEFORE the first deploy).
+      DEFAULT_ROLE: ${DEFAULT_ROLE:-editor}
+      BOOTSTRAP_ADMIN_SUBS: ${BOOTSTRAP_ADMIN_SUBS:-}
     depends_on:
       db:
         condition: service_healthy

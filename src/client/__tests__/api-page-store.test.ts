@@ -137,6 +137,19 @@ describe('createApiPageStore', () => {
     expect(onAuthLost).toHaveBeenCalled()
   })
 
+  it('403 on save reports lost edit access', async () => {
+    const onForbidden = vi.fn()
+    stubFetch(
+      { status: 200, body: { slug: 'a', title: 'A', content: '', version: 1 } }, // load
+      { status: 403, body: { error: 'forbidden' } }, // save after demotion
+    )
+    const store = createApiPageStore({ onConflict: vi.fn(), onForbidden })
+
+    await store.load('a')
+    await expect(store.save('a', 'x')).rejects.toThrow(/edit access revoked/)
+    expect(onForbidden).toHaveBeenCalled()
+  })
+
   it('retry once when the server demands a version (428)', async () => {
     const fn = stubFetch(
       { status: 200, body: { slug: 'a', title: 'A', content: '', version: 1 } }, // load

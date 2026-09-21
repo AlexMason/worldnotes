@@ -2,6 +2,7 @@
 // Multipart bodies are hand-built Buffers (inject takes raw payloads).
 
 import { describe, it, expect, beforeEach } from 'vitest'
+import { usersFixture } from './helpers/users-fixture'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -45,15 +46,16 @@ function multipartHeaders(): Record<string, string> {
   return { 'content-type': `multipart/form-data; boundary=${BOUNDARY}` }
 }
 
+const iconsDir = mkdtempSync(join(tmpdir(), 'wn-icons-'))
+writeFileSync(join(iconsDir, 'favicon.ico'), ICO_BYTES)
+writeFileSync(join(iconsDir, 'apple-touch-icon.png'), pngBytes(180, 180))
+
 describe('media routes', () => {
   let config: ServerConfig
   let mediaRepo: ReturnType<typeof createMemoryMediaRepository>
   let settingsRepo: ReturnType<typeof createMemorySettingsRepository>
   let app: Awaited<ReturnType<typeof buildApp>>
   let auth: string
-  const iconsDir = mkdtempSync(join(tmpdir(), 'wn-icons-'))
-  writeFileSync(join(iconsDir, 'favicon.ico'), ICO_BYTES)
-  writeFileSync(join(iconsDir, 'apple-touch-icon.png'), pngBytes(180, 180))
 
   beforeEach(async () => {
     config = loadConfig(baseEnv)
@@ -64,6 +66,7 @@ describe('media routes', () => {
       pages: createMemoryPagesRepository(),
       settings: settingsRepo,
       media: mediaRepo,
+      users: usersFixture(),
       relyingParty: null,
       bundledIconsDir: iconsDir,
     })
@@ -311,11 +314,97 @@ describe('media routes', () => {
       pages: createMemoryPagesRepository(),
       settings: createMemorySettingsRepository(),
       media: createMemoryMediaRepository(),
+      users: usersFixture(),
       relyingParty: null,
       bundledIconsDir: null,
     })
     const res = await bare.inject({ method: 'GET', url: '/favicon.ico' })
     expect(res.statusCode).toBe(404)
     await bare.close()
+  })
+})
+
+describe('media roles & login-only gate', () => {
+  const cookieFor = (config: ServerConfig, sub: string) =>
+    'wn_session=' +
+    seal({ exp: Math.floor(Date.now() / 1000) + 300, sub, name: sub }, config.sessionSecrets)
+
+  it('viewer cannot upload (403) while editor can (201)', async () => {
+    const config = loadConfig(baseEnv)
+    const mediaRepo = createMemoryMediaRepository()
+    const app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      settings: createMemorySettingsRepository(),
+      media: mediaRepo,
+      users: usersFixture({ users: { writer: 'editor', peeker: 'viewer' } }),
+      relyingParty: null,
+    })
+    const viewer = await app.inject({
+      method: 'POST',
+      url: '/api/media',
+      headers: { ...multipartHeaders(), cookie: cookieFor(config, 'peeker') },
+      payload: multipartBuf(pngBytes()),
+    })
+    expect(viewer.statusCode).toBe(403)
+    const editor = await app.inject({
+      method: 'POST',
+      url: '/api/media',
+      headers: { ...multipartHeaders(), cookie: cookieFor(config, 'writer') },
+      payload: multipartBuf(pngBytes()),
+    })
+    expect(editor.statusCode).toBe(201)
+    await app.close()
+  })
+
+  it('login-only mode: anonymous /media is 403 JSON, authed is private; blind icons serve bundled bytes only to anonymous', async () => {
+    const config = loadConfig(baseEnv)
+    const mediaRepo = createMemoryMediaRepository()
+    // Seed an override favicon row + settings pointing at it, gated app.
+    const { id } = await mediaRepo.insert({
+      mediaType: 'image/png',
+      width: 1,
+      height: 1,
+      data: pngBytes(),
+      by: 'boss',
+    })
+    const app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      settings: createMemorySettingsRepository({
+        require_login: 'true',
+        favicon_media_id: String(id),
+      }),
+      media: mediaRepo,
+      users: usersFixture({ users: { boss: 'admin' } }),
+      relyingParty: null,
+      bundledIconsDir: iconsDir,
+    })
+
+    const anonMedia = await app.inject({ method: 'GET', url: `/media/${id}` })
+    expect(anonMedia.statusCode).toBe(403)
+    expect(anonMedia.json()).toEqual({ error: 'login required' })
+
+    const authedMedia = await app.inject({
+      method: 'GET',
+      url: `/media/${id}`,
+      headers: { cookie: cookieFor(config, 'boss') },
+    })
+    expect(authedMedia.statusCode).toBe(200)
+    expect(authedMedia.headers['cache-control']).toContain('private')
+    expect(authedMedia.headers['vary']).toBe('Cookie')
+
+    // Blind icon: anonymous gets the BUNDLED ico bytes, never the override.
+    const anonIcon = await app.inject({ method: 'GET', url: '/favicon.ico' })
+    expect(anonIcon.statusCode).toBe(200)
+    expect(Buffer.compare(anonIcon.rawPayload, ICO_BYTES)).toBe(0)
+
+    const authedIcon = await app.inject({
+      method: 'GET',
+      url: '/favicon.ico',
+      headers: { cookie: cookieFor(config, 'boss') },
+    })
+    expect(Buffer.compare(authedIcon.rawPayload, pngBytes())).toBe(0)
+    await app.close()
   })
 })

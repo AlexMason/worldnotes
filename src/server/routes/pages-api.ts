@@ -3,8 +3,10 @@
 // session, same-origin, and optimistic concurrency (If-Match).
 
 import type { FastifyInstance } from 'fastify'
-import { requireAuth, requireSameOrigin } from '../auth/session'
+import { requireRole, requireSameOrigin } from '../auth/session'
+import { cacheControlFor, requireLoginJson } from '../auth/login-gate'
 import type { PagesRepository } from '../db/repository'
+import type { AppSettings } from '../settings'
 import { validateSlug, slugDisplayName } from '../../shared/slug'
 import { isBlankContent } from '../../shared/content'
 import { extractTitle } from '../render/title'
@@ -14,6 +16,8 @@ const MAX_TITLE_LENGTH = 200
 
 export interface PageApiDeps {
   pages: PagesRepository
+  /** Login-only gate reads the dynamic settings snapshot per request. */
+  getSettings: () => AppSettings
   /** Bump when any write succeeds — SSR cache keys off this (step 8). */
   onWrite?: (slug: string) => void
 }
@@ -38,19 +42,25 @@ export async function registerPageApiRoutes(
   app: FastifyInstance,
   deps: PageApiDeps,
 ): Promise<void> {
-  const writeGuard = [requireSameOrigin, requireAuth]
+  const writeGuard = [requireSameOrigin, requireRole('editor', 'admin')]
+  const readGate = requireLoginJson(deps.getSettings)
 
-  // ── Reads ─────────────────────────────────────────────────────────────────
+  // ── Reads (public unless the instance is login-only) ─────────────────────────
 
-  app.get('/api/pages', async (req, reply) => {
+  app.get('/api/pages', { preHandler: [readGate] }, async (req, reply) => {
     const query = (req.query ?? {}) as { q?: string; limit?: string }
     const limit = Math.min(Number(query.limit) || 100, 500)
     const items = await deps.pages.list({ query: query.q, limit })
-    reply.header('cache-control', 'public, max-age=30, stale-while-revalidate=60')
+    const gated = deps.getSettings().requireLogin
+    if (gated) reply.header('vary', 'Cookie')
+    reply.header(
+      'cache-control',
+      cacheControlFor(gated, 'public, max-age=30, stale-while-revalidate=60'),
+    )
     return { pages: items }
   })
 
-  app.get('/api/pages/*', async (req, reply) => {
+  app.get('/api/pages/*', { preHandler: [readGate] }, async (req, reply) => {
     const slug = (req.params as { '*': string })['*']
     const validated = validateSlug(slug)
     if (!validated.ok) return reply.code(400).send({ error: validated.error })
@@ -58,9 +68,14 @@ export async function registerPageApiRoutes(
     const page = await deps.pages.get(validated.slug)
     if (!page) return reply.code(404).send({ error: 'page not found' })
 
+    const gated = deps.getSettings().requireLogin
+    if (gated) reply.header('vary', 'Cookie')
     reply
       .header('etag', etagOf(page.version))
-      .header('cache-control', 'public, max-age=60, stale-while-revalidate=300')
+      .header(
+        'cache-control',
+        cacheControlFor(gated, 'public, max-age=60, stale-while-revalidate=300'),
+      )
     return {
       slug: page.slug,
       title: page.title,

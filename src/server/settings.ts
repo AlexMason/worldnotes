@@ -23,6 +23,9 @@ const KEY_SITE_NAME = 'site_name'
 const KEY_HEADER_HTML = 'header_html'
 const KEY_FOOTER_HTML = 'footer_html'
 const KEY_FAVICON = 'favicon_media_id'
+const KEY_REQUIRE_LOGIN = 'require_login'
+const KEY_NOT_FOUND_SLUG = 'not_found_slug'
+const KEY_FORBIDDEN_SLUG = 'forbidden_slug'
 
 export const DEFAULT_SITE_NAME = 'WorldNotes'
 export const SITE_NAME_MAX = 200
@@ -50,6 +53,19 @@ export interface AppSettings {
   footerHtml: string
   /** Media row overriding the bundled favicon set; null = bundled defaults. */
   faviconMediaId: number | null
+  /** SECURITY: when true, every read surface requires a session — anonymous
+   *  HTML gets a 403 sign-in page, /api and /media reads get 403 JSON.
+   *  Default FALSE: upgrading an instance must never silently lock out its
+   *  anonymous readers. Note: this gates ANONYMOUS access only — any
+   *  IdP-admitted account can still read everything (there are no page
+   *  ACLs). */
+  requireLogin: boolean
+  /** Page rendered (markdown, normal chrome) for 404 responses; null =
+   *  built-in body. Designated status pages are public by definition. */
+  notFoundSlug: string | null
+  /** Page rendered for the login-required 403 and insufficient-role 403;
+   *  null = built-in body. */
+  forbiddenSlug: string | null
 }
 
 export interface SettingsPatch {
@@ -61,6 +77,9 @@ export interface SettingsPatch {
   headerHtml?: string
   footerHtml?: string
   faviconMediaId?: number | null
+  requireLogin?: boolean
+  notFoundSlug?: string | null
+  forbiddenSlug?: string | null
 }
 
 export interface SettingsService {
@@ -85,6 +104,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   headerHtml: '',
   footerHtml: '',
   faviconMediaId: null,
+  requireLogin: false,
+  notFoundSlug: null,
+  forbiddenSlug: null,
 }
 
 function parseBool(value: string | undefined, fallback: boolean): boolean {
@@ -168,6 +190,11 @@ export function parseSettings(raw: Record<string, string>): AppSettings {
       footerHtml: raw[KEY_FOOTER_HTML],
     }),
     faviconMediaId: parseFaviconId(raw[KEY_FAVICON]),
+    // Absent/corrupt rows MUST parse false: pre-feature instances keep
+    // anonymous reading until an admin opts in.
+    requireLogin: parseBool(raw[KEY_REQUIRE_LOGIN], false),
+    notFoundSlug: normalizePageSlug(raw[KEY_NOT_FOUND_SLUG] ?? ''),
+    forbiddenSlug: normalizePageSlug(raw[KEY_FORBIDDEN_SLUG] ?? ''),
   }
 }
 
@@ -181,6 +208,9 @@ function serialize(settings: AppSettings): Record<string, string> {
     [KEY_HEADER_HTML]: settings.headerHtml,
     [KEY_FOOTER_HTML]: settings.footerHtml,
     [KEY_FAVICON]: settings.faviconMediaId === null ? '' : String(settings.faviconMediaId),
+    [KEY_REQUIRE_LOGIN]: settings.requireLogin ? 'true' : 'false',
+    [KEY_NOT_FOUND_SLUG]: settings.notFoundSlug ?? '',
+    [KEY_FORBIDDEN_SLUG]: settings.forbiddenSlug ?? '',
   }
 }
 
@@ -204,11 +234,22 @@ export async function createSettingsService(repo: SettingsRepository): Promise<S
       if (patch.allPagesEnabled !== undefined && typeof patch.allPagesEnabled !== 'boolean') {
         throw new Error('allPagesEnabled must be a boolean')
       }
+      if (patch.requireLogin !== undefined && typeof patch.requireLogin !== 'boolean') {
+        throw new Error('requireLogin must be a boolean')
+      }
       // Page-slug fields coerce before merging: blank clears, invalid rejects.
       const homeSlug =
         patch.homeSlug === undefined ? current.homeSlug : coercePageSlug(patch.homeSlug, 'home')
       const navSlug =
         patch.navSlug === undefined ? current.navSlug : coercePageSlug(patch.navSlug, 'nav')
+      const notFoundSlug =
+        patch.notFoundSlug === undefined
+          ? current.notFoundSlug
+          : coercePageSlug(patch.notFoundSlug, 'notFound')
+      const forbiddenSlug =
+        patch.forbiddenSlug === undefined
+          ? current.forbiddenSlug
+          : coercePageSlug(patch.forbiddenSlug, 'forbidden')
       for (const field of ['siteName', 'headerHtml', 'footerHtml'] as const) {
         const value = patch[field]
         if (value !== undefined && typeof value !== 'string') {
@@ -243,6 +284,9 @@ export async function createSettingsService(repo: SettingsRepository): Promise<S
         }),
         faviconMediaId:
           patch.faviconMediaId === undefined ? current.faviconMediaId : patch.faviconMediaId,
+        requireLogin: patch.requireLogin ?? current.requireLogin,
+        notFoundSlug,
+        forbiddenSlug,
       }
 
       // With the index disabled, `/` must still have a landing page.

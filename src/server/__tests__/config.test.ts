@@ -86,4 +86,29 @@ describe('loadConfig', () => {
   it('rejects non-numeric PORT', () => {
     expect(() => loadConfig(baseEnv({ PORT: 'not-a-number' }))).toThrow(/PORT/)
   })
+
+  describe('roles', () => {
+    it('defaults DEFAULT_ROLE to editor and BOOTSTRAP_ADMIN_SUBS to empty', () => {
+      const config = loadConfig(baseEnv())
+      expect(config.defaultRole).toBe('editor')
+      expect(config.bootstrapAdminSubs).toEqual([])
+    })
+
+    it('accepts DEFAULT_ROLE=viewer', () => {
+      expect(loadConfig(baseEnv({ DEFAULT_ROLE: 'viewer' })).defaultRole).toBe('viewer')
+    })
+
+    it('rejects admin as a default role', () => {
+      expect(() => loadConfig(baseEnv({ DEFAULT_ROLE: 'admin' }))).toThrow(/DEFAULT_ROLE/)
+    })
+
+    it('rejects any other invalid default role', () => {
+      expect(() => loadConfig(baseEnv({ DEFAULT_ROLE: 'superuser' }))).toThrow(/DEFAULT_ROLE/)
+    })
+
+    it('parses bootstrap subs into a trimmed list', () => {
+      const config = loadConfig(baseEnv({ BOOTSTRAP_ADMIN_SUBS: ' sub-a , sub-b ,' }))
+      expect(config.bootstrapAdminSubs).toEqual(['sub-a', 'sub-b'])
+    })
+  })
 })

@@ -28,6 +28,25 @@ const EnvSchema = z.object({
     .optional()
     .transform((v) => v === '1' || v === 'true'),
 
+  // Roles
+  /** Role granted to provisioned accounts that are neither bootstrap admins
+   *  nor the very first login. 'admin' is deliberately not settable here —
+   *  admin comes from BOOTSTRAP_ADMIN_SUBS, the empty-table bootstrap, or an
+   *  existing admin promoting someone. */
+  DEFAULT_ROLE: z.enum(['viewer', 'editor']).default('editor'),
+  /** Comma-separated OIDC subs that always provision as admin. The
+   *  deterministic upgrade path: set this BEFORE deploying roles onto an
+   *  instance with live sessions so admin is not a first-come grant. */
+  BOOTSTRAP_ADMIN_SUBS: z
+    .string()
+    .optional()
+    .transform((v) =>
+      (v ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
+
   // Read-path render cache
   CACHE_MAX_ENTRIES: z.coerce.number().int().positive().default(200),
   CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(55),
@@ -54,6 +73,10 @@ export interface ServerConfig {
   } | null
   sessionSecrets: string[]
   authDisabled: boolean
+  /** Role for freshly-provisioned non-bootstrap accounts. */
+  defaultRole: 'viewer' | 'editor'
+  /** Subs that always provision as admin (see BOOTSTRAP_ADMIN_SUBS). */
+  bootstrapAdminSubs: string[]
 }
 
 export function loadConfig(overrides: Record<string, string | undefined> = {}): ServerConfig {
@@ -97,5 +120,13 @@ export function loadConfig(overrides: Record<string, string | undefined> = {}): 
     throw new Error('Every SESSION_SECRETS entry must be at least 32 characters')
   }
 
-  return { env, isProduction, oidc, sessionSecrets, authDisabled }
+  return {
+    env,
+    isProduction,
+    oidc,
+    sessionSecrets,
+    authDisabled,
+    defaultRole: env.DEFAULT_ROLE,
+    bootstrapAdminSubs: env.BOOTSTRAP_ADMIN_SUBS,
+  }
 }

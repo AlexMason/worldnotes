@@ -1,6 +1,7 @@
 // ─── Admin settings route tests (memory repos, forged session cookies) ──────
 
 import { describe, it, expect, beforeEach } from 'vitest'
+import { usersFixture } from './helpers/users-fixture'
 import { loadConfig, type ServerConfig } from '../config'
 import { buildApp } from '../app'
 import { createMemoryPagesRepository } from '../db/pages-memory'
@@ -45,6 +46,7 @@ describe('admin settings', () => {
       pages: createMemoryPagesRepository(),
       settings: settingsRepo,
       media: mediaRepo,
+      users: usersFixture(),
       relyingParty: null,
     })
     auth = editorCookie(config)
@@ -125,6 +127,9 @@ describe('admin settings', () => {
       headerHtml: '',
       footerHtml: '',
       faviconMediaId: null,
+      requireLogin: false,
+      notFoundSlug: null,
+      forbiddenSlug: null,
     })
     expect(settingsRepo.dump()).toEqual({
       search_enabled: 'false',
@@ -135,6 +140,9 @@ describe('admin settings', () => {
       header_html: '',
       footer_html: '',
       favicon_media_id: '',
+      require_login: 'false',
+      not_found_slug: '',
+      forbidden_slug: '',
     })
   })
 
@@ -342,5 +350,151 @@ describe('admin settings', () => {
       expect(res.statusCode).toBe(200)
       expect(res.body).toContain('which is missing')
     })
+  })
+})
+
+describe('admin page roles & users section', () => {
+  const cookieFor = (config: ServerConfig, sub: string) =>
+    'wn_session=' +
+    seal({ exp: Math.floor(Date.now() / 1000) + 300, sub, name: sub }, config.sessionSecrets)
+
+  async function make(users: Record<string, 'viewer' | 'editor' | 'admin'>) {
+    const config = loadConfig(baseEnv)
+    const app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      settings: createMemorySettingsRepository(),
+      media: createMemoryMediaRepository(),
+      users: usersFixture({ users }),
+      relyingParty: null,
+    })
+    return { config, app }
+  }
+
+  it('names a dangling status-page designation on the form', async () => {
+    const config = loadConfig(baseEnv)
+    const app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      settings: createMemorySettingsRepository({
+        not_found_slug: 'gone',
+        forbidden_slug: 'restricted',
+      }),
+      media: createMemoryMediaRepository(),
+      users: usersFixture({ users: { boss: 'admin' } }),
+      relyingParty: null,
+    })
+    // Neither designated page exists yet → both named; then create one →
+    // its note disappears.
+    const first = await app.inject({
+      method: 'GET',
+      url: '/admin',
+      headers: { cookie: cookieFor(config, 'boss') },
+    })
+    expect(first.body).toContain('404 page \u201cgone\u201d does not exist yet')
+    expect(first.body).toContain('403 page \u201crestricted\u201d does not exist yet')
+    const repo = createMemoryPagesRepository()
+    await repo.put('gone', { title: 'Gone', content: 'x' })
+    const second = await buildApp({
+      config,
+      pages: repo,
+      settings: createMemorySettingsRepository({
+        not_found_slug: 'gone',
+        forbidden_slug: 'restricted',
+      }),
+      media: createMemoryMediaRepository(),
+      users: usersFixture({ users: { boss: 'admin' } }),
+      relyingParty: null,
+    })
+    const again = await second.inject({
+      method: 'GET',
+      url: '/admin',
+      headers: { cookie: cookieFor(config, 'boss') },
+    })
+    expect(again.body).not.toContain('\u201cgone\u201d does not exist yet')
+    expect(again.body).toContain('\u201crestricted\u201d does not exist yet')
+    await app.close()
+    await second.close()
+  })
+
+  it('authenticated viewer gets an HTML 403 document, not a JSON blob', async () => {
+    const { config, app } = await make({ boss: 'admin', peeker: 'viewer' })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/admin',
+      headers: { cookie: cookieFor(config, 'peeker') },
+    })
+    expect(res.statusCode).toBe(403)
+    expect(res.headers['content-type']).toContain('text/html')
+    expect(res.headers['cache-control']).toBe('no-store')
+    expect(res.body).toContain('Forbidden')
+    expect(res.body).not.toContain('id="wn-admin-form"') // no settings form DOM
+    await app.close()
+  })
+
+  it('editor also 403s; admin renders the form', async () => {
+    const { config, app } = await make({ boss: 'admin', writer: 'editor' })
+    expect(
+      (
+        await app.inject({
+          method: 'GET',
+          url: '/admin',
+          headers: { cookie: cookieFor(config, 'writer') },
+        })
+      ).statusCode,
+    ).toBe(403)
+    const admin = await app.inject({
+      method: 'GET',
+      url: '/admin',
+      headers: { cookie: cookieFor(config, 'boss') },
+    })
+    expect(admin.statusCode).toBe(200)
+    expect(admin.body).toContain('wn-admin-form')
+    await app.close()
+  })
+
+  it('renders the Access fieldset with login-only and status-page controls', async () => {
+    const { config, app } = await make({ boss: 'admin' })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/admin',
+      headers: { cookie: cookieFor(config, 'boss') },
+    })
+    expect(res.body).toContain('name="requireLogin"')
+    expect(res.body).toContain('name="notFoundSlug"')
+    expect(res.body).toContain('name="forbiddenSlug"')
+    expect(res.body).toContain('served to every visitor')
+    await app.close()
+  })
+
+  it('lists users with escaped IdP-controlled fields and marks the current admin', async () => {
+    const users = usersFixture()
+    await users.recordLogin('boss', { email: 'boss@x.test', name: 'Boss' })
+    await users.recordLogin('<img src=x onerror=alert(1)>', {
+      email: 'evil@x.test',
+      name: '<script>alert(2)</script>',
+    })
+    const config = loadConfig(baseEnv)
+    const app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      settings: createMemorySettingsRepository(),
+      media: createMemoryMediaRepository(),
+      users,
+      relyingParty: null,
+    })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/admin',
+      headers: { cookie: cookieFor(config, 'boss') },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toContain('<h2>Users</h2>')
+    expect(res.body).toContain('(you)')
+    // Stored-XSS-to-admin sink: IdP fields must arrive escaped.
+    expect(res.body).not.toContain('<script>alert(2)</script>')
+    expect(res.body).toContain('&lt;script&gt;alert(2)&lt;/script&gt;')
+    expect(res.body).not.toContain('<img src=x onerror=alert(1)>')
+    await app.close()
   })
 })

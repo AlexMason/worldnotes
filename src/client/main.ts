@@ -101,6 +101,14 @@ async function main(): Promise<void> {
           },
         })
       },
+      onForbidden() {
+        instance?.notify({
+          id: 'wn-forbidden',
+          message: 'You no longer have edit access on this site.',
+          type: 'warning',
+          duration: 0,
+        })
+      },
       onConflict(page, server) {
         const editor = instance
         if (!editor) return
@@ -198,10 +206,14 @@ async function main(): Promise<void> {
       all.textContent = 'All pages'
       actions.appendChild(all)
     }
-    const admin = document.createElement('a')
-    admin.href = '/admin'
-    admin.textContent = 'Admin settings'
-    actions.appendChild(admin)
+    // Role-gated chrome: the Admin link is for admins only (absent role in
+    // a fallback/legacy config = least privilege — no link).
+    if (cfg.userRole === 'admin') {
+      const admin = document.createElement('a')
+      admin.href = '/admin'
+      admin.textContent = 'Admin settings'
+      actions.appendChild(admin)
+    }
     if (cfg.authDisabled) {
       const name = document.createElement('span')
       name.title = 'dev mode'

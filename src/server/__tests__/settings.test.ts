@@ -71,6 +71,9 @@ describe('createSettingsService', () => {
       headerHtml: '',
       footerHtml: '',
       faviconMediaId: null,
+      requireLogin: false,
+      notFoundSlug: null,
+      forbiddenSlug: null,
     })
     s.searchEnabled = true
     expect(svc.get().searchEnabled).toBe(false)
@@ -89,6 +92,9 @@ describe('createSettingsService', () => {
       headerHtml: '',
       footerHtml: '',
       faviconMediaId: null,
+      requireLogin: false,
+      notFoundSlug: null,
+      forbiddenSlug: null,
     })
     expect(svc.get()).toEqual(next)
     expect(await repo.getAll()).toEqual({
@@ -100,6 +106,9 @@ describe('createSettingsService', () => {
       header_html: '',
       footer_html: '',
       favicon_media_id: '',
+      require_login: 'false',
+      not_found_slug: '',
+      forbidden_slug: '',
     })
   })
 
@@ -241,5 +250,50 @@ describe('createSettingsService', () => {
     expect(svc.getRevision()).toBe(1)
     await svc.update({ headerHtml: '<marquee>hi</marquee>' })
     expect(svc.getRevision()).toBe(2)
+  })
+
+  // SECURITY: the highest-blast-radius default in the roles feature — a
+  // pre-feature settings row must NEVER parse as login-only.
+  it('rows written before the roles feature parse requireLogin false', () => {
+    const legacy = {
+      search_enabled: 'true',
+      home_slug: 'welcome',
+      nav_slug: '',
+      all_pages_enabled: 'true',
+      site_name: 'WorldNotes',
+      header_html: '',
+      footer_html: '',
+      favicon_media_id: '',
+    }
+    expect(parseSettings(legacy).requireLogin).toBe(false)
+    expect(parseSettings(legacy).notFoundSlug).toBeNull()
+    expect(parseSettings(legacy).forbiddenSlug).toBeNull()
+    expect(parseSettings({ require_login: 'banana' }).requireLogin).toBe(false)
+  })
+
+  it('round-trips requireLogin and status slugs; blank clears; invalid rejects', async () => {
+    const repo = createMemorySettingsRepository()
+    const svc = await createSettingsService(repo)
+    const next = await svc.update({
+      requireLogin: true,
+      notFoundSlug: 'not-found',
+      forbiddenSlug: 'no-access',
+    })
+    expect(next.requireLogin).toBe(true)
+    expect(next.notFoundSlug).toBe('not-found')
+    expect(next.forbiddenSlug).toBe('no-access')
+    expect((await repo.getAll()).require_login).toBe('true')
+    const cleared = await svc.update({
+      requireLogin: false,
+      notFoundSlug: '  ',
+      forbiddenSlug: null,
+    })
+    expect(cleared.requireLogin).toBe(false)
+    expect(cleared.notFoundSlug).toBeNull()
+    expect(cleared.forbiddenSlug).toBeNull()
+    await expect(svc.update({ notFoundSlug: 'Bad Slug' })).rejects.toThrow(/invalid notFound slug/)
+    await expect(svc.update({ requireLogin: 'yes' as unknown as boolean })).rejects.toThrow(
+      /requireLogin must be a boolean/,
+    )
   })
 })

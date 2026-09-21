@@ -6,19 +6,87 @@
 // branding must never bury the form used to recover it (site name still
 // decorates the title/breadcrumb, which is escaped chrome).
 
-import type { FastifyInstance } from 'fastify'
-import { requireAuth } from '../auth/session'
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { renderLayout, escapeHtml } from '../render/layout'
+import { forbiddenBodyHtml, statusDocument, type StatusDeps } from '../render/status-page'
+import { ROLES } from '../../shared/roles'
 import type { SettingsService } from '../settings'
 import type { NavLinksService } from '../render/nav'
 import type { MediaRepository } from '../db/media-repository'
+import type { UserRecord, UsersRepository } from '../db/users-repository'
+import type { PagesRepository } from '../db/repository'
+import type { RenderCache } from '../cache'
 import type { ServerConfig } from '../config'
 
 export interface AdminDeps {
   config: ServerConfig
   settings: SettingsService
   media: MediaRepository
+  users: UsersRepository
   nav: NavLinksService
+  /** Status-document seam (custom forbidden page): reader deps for the 403. */
+  pages: PagesRepository
+  cache: RenderCache
+  render: { render(src: string): string }
+}
+
+/**
+ * HTML-aware admin guard: anonymous gets the conventional 401 JSON (the
+ * page is a known operator route, not a public surface); an authenticated
+ * viewer/editor gets a readable 403 document (custom forbidden page when
+ * designated), never a raw JSON blob. No sign-in link on this variant — the
+ * caller is already authenticated.
+ */
+function requireAdminHtml(deps: AdminDeps) {
+  return async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    if (!req.user) {
+      await reply.code(401).send({ error: 'unauthorized' })
+      return
+    }
+    if (req.user.role === 'admin') return
+    const s = deps.settings.get()
+    const navLinks = await deps.nav.links()
+    const statusDeps: StatusDeps = {
+      layout: renderLayout,
+      render: deps.render,
+      pages: deps.pages,
+      cache: deps.cache,
+    }
+    const html = await statusDocument(statusDeps, {
+      kind: '403',
+      title: 'Forbidden',
+      fallbackHtml: forbiddenBodyHtml(),
+      trail: [
+        { href: '/', label: 'Home' },
+        { href: '/admin', label: 'Admin settings' },
+      ],
+      customSlug: s.forbiddenSlug,
+      chrome: chromeFor(req.user, s, navLinks, deps),
+    })
+    await reply
+      .code(403)
+      .header('content-type', 'text/html; charset=utf-8')
+      .header('cache-control', 'no-store')
+      .header('vary', 'Cookie')
+      .send(html)
+  }
+}
+
+function chromeFor(
+  user: FastifyRequest['user'],
+  s: ReturnType<SettingsService['get']>,
+  navLinks: Awaited<ReturnType<NavLinksService['links']>>,
+  deps: AdminDeps,
+) {
+  return {
+    user,
+    authDisabled: deps.config.authDisabled,
+    searchEnabled: s.searchEnabled,
+    allPagesEnabled: s.allPagesEnabled,
+    siteName: s.siteName,
+    navLinks,
+    faviconMediaId: s.requireLogin && !user ? null : s.faviconMediaId,
+  }
 }
 
 const ADMIN_SCRIPT = `
@@ -34,6 +102,9 @@ const ADMIN_SCRIPT = `
     var siteNameInput = form.querySelector('[name=siteName]');
     var headerInput = form.querySelector('[name=headerHtml]');
     var footerInput = form.querySelector('[name=footerHtml]');
+    var requireLoginInput = form.querySelector('[name=requireLogin]');
+    var notFoundInput = form.querySelector('[name=notFoundSlug]');
+    var forbiddenInput = form.querySelector('[name=forbiddenSlug]');
     var res = await fetch('/api/settings', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
@@ -45,6 +116,9 @@ const ADMIN_SCRIPT = `
         siteName: siteNameInput.value,
         headerHtml: headerInput.value,
         footerHtml: footerInput.value,
+        requireLogin: requireLoginInput.checked,
+        notFoundSlug: notFoundInput.value.trim(),
+        forbiddenSlug: forbiddenInput.value.trim(),
       }),
     });
     if (res.ok) { window.location.reload(); return; }
@@ -105,10 +179,90 @@ const ICON_SCRIPT = `
 })();
 `
 
-export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps): Promise<void> {
-  const { config, settings, media, nav } = deps
+// Per-row role save: own button, own message line (favicon pattern) so a
+// failed demotion (409 last admin, 403 revoked rights) never buries the rest
+// of the table. Every user-controlled string was escaped server-side.
+const USERS_SCRIPT = `
+(function () {
+  document.querySelectorAll('tr[data-sub]').forEach(function (row) {
+    var btn = row.querySelector('.wn-user-save');
+    var sel = row.querySelector('select');
+    var msg = row.querySelector('.wn-user-msg');
+    if (!btn || !sel || !msg) return;
+    btn.addEventListener('click', async function () {
+      msg.hidden = false;
+      msg.textContent = 'Saving…';
+      var res;
+      try {
+        res = await fetch('/api/users/role', {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ sub: row.dataset.sub, role: sel.value }),
+        });
+      } catch (err) {
+        msg.textContent = 'Save failed — network error.';
+        return;
+      }
+      if (res.ok) {
+        msg.textContent = 'Saved.';
+        return;
+      }
+      var detail = '';
+      try { detail = (await res.json()).error || ''; } catch (err) { /* ignore */ }
+      msg.textContent = 'Save failed — ' + (detail || res.status);
+    });
+  });
+})();
+`
 
-  app.get('/admin', { preHandler: [requireAuth] }, async (req, reply) => {
+function formatLogin(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 16).replace('T', ' ') + 'Z'
+}
+
+/**
+ * The Users table (admin-only surface). Every displayed string is
+ * IdP-controlled (editable by the account holder) — all of it goes through
+ * escapeHtml; this table would otherwise be a stored-XSS-to-admin sink.
+ */
+function usersSection(user: { sub: string } | null, rows: UserRecord[]): string {
+  const trs = rows
+    .map(
+      (u) =>
+        `<tr data-sub="${escapeHtml(u.sub)}">` +
+        `<td>${escapeHtml(u.name ?? '\u2014')}</td>` +
+        `<td>${escapeHtml(u.email ?? '\u2014')}</td>` +
+        `<td><code>${escapeHtml(u.sub)}</code>${
+          user && u.sub === user.sub ? ' <em>(you)</em>' : ''
+        }</td>` +
+        `<td>${formatLogin(u.lastLoginAt)}</td>` +
+        `<td><label class="wn-user-role"><span class="wn-visually-hidden">Role for</span>` +
+        `<select aria-label="Role for ${escapeHtml(u.sub)}">` +
+        ROLES.map(
+          (r) => `<option value="${r}"${r === u.role ? ' selected' : ''}>${r}</option>`,
+        ).join('') +
+        `</select></label>` +
+        `<button type="button" class="wn-user-save">Save</button>` +
+        `<p class="wn-user-msg wn-admin-msg" hidden></p></td>` +
+        `</tr>`,
+    )
+    .join('')
+  return (
+    `<section class="wn-admin-form" style="margin-top:2rem">` +
+    `<h2>Users</h2>` +
+    (trs
+      ? `<table class="wn-users-table"><thead><tr><th>Name</th><th>Email</th><th>Subject</th>` +
+        `<th>Last login</th><th>Role</th></tr></thead><tbody>${trs}</tbody></table>`
+      : `<p class="wn-admin-msg">No one has signed in yet — accounts appear here after their first login.</p>`) +
+    `<p class="wn-admin-msg">Revoking access means demoting to “viewer”: deleting the database row does not — the
+       account re-provisions at the default role on its next request. The last remaining admin cannot be demoted.</p>` +
+    `</section>`
+  )
+}
+
+export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps): Promise<void> {
+  const { config, settings, media, users, nav } = deps
+
+  app.get('/admin', { preHandler: [requireAdminHtml(deps)] }, async (req, reply) => {
     const s = settings.get()
     const navLinks = await nav.links()
     // Icon state: override row healthy → thumbnail; row missing (dangling
@@ -119,6 +273,16 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
       iconState = row
         ? `<p class="wn-admin-msg">Custom icon in use (<img src="/media/${s.faviconMediaId}" alt="current icon" width="32" height="32">, ${row.width ?? '?'}\u00d7${row.height ?? '?'} ${row.mediaType}).</p>`
         : `<p class="wn-admin-msg">Icon override points at media #${s.faviconMediaId}, which is missing \u2014 upload a new image to recover.</p>`
+    }
+    // Status-page designation state (nav/fallback pattern: name the state
+    // so a typo or deleted page is visible without hunting for it).
+    const statusNote = async (label: string, slug: string | null): Promise<string> => {
+      if (!slug) return ''
+      const exists = await deps.pages.get(slug)
+      return exists
+        ? ''
+        : `<p class="wn-admin-msg">The ${label} page \u201c${escapeHtml(slug)}\u201d does not exist yet —
+           the built-in document stays in use until it does.</p>`
     }
     // Leading newline in each textarea guards against the HTML parser
     // swallowing a stored value's own first newline (it strips exactly one
@@ -155,6 +319,21 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
       `<label>Footer HTML (raw, shown to all readers at the bottom of every page)<textarea name="footerHtml" rows="4">\n${escapeHtml(
         s.footerHtml,
       )}</textarea></label>` +
+      `<fieldset class="wn-admin-fieldset"><legend>Access</legend>` +
+      `<label class="checkbox"><input type="checkbox" name="requireLogin"${
+        s.requireLogin ? ' checked' : ''
+      }> Login required (no anonymous reading)</label>` +
+      `<label>404 page (slug; its content renders on "Page not found")<input type="text" name="notFoundSlug" value="${escapeHtml(
+        s.notFoundSlug ?? '',
+      )}" placeholder="e.g. not-found"></label>` +
+      `<label>403 page (slug; its content renders when sign-in is required)<input type="text" name="forbiddenSlug" value="${escapeHtml(
+        s.forbiddenSlug ?? '',
+      )}" placeholder="e.g. no-access"></label>` +
+      `<p class="wn-admin-msg">Designated status pages are served to every visitor —
+         including anonymous readers in login-only mode. Keep their content public-safe.</p>` +
+      (await statusNote('404', s.notFoundSlug)) +
+      (await statusNote('403', s.forbiddenSlug)) +
+      `</fieldset>` +
       `<button type="submit">Save settings</button>` +
       `<p id="wn-admin-msg" class="wn-admin-msg" hidden></p>` +
       `</form>` +
@@ -165,7 +344,8 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
       `<div class="wn-admin-icon-actions"><button type="button" id="wn-icon-upload">Upload icon</button>` +
       `<button type="button" id="wn-icon-remove">Use default icons</button></div>` +
       `<p id="wn-icon-msg" class="wn-admin-msg" hidden></p>` +
-      `</section>`
+      `</section>` +
+      usersSection(req.user, await users.list({ limit: 500 }))
 
     const html = renderLayout({
       title: 'Admin settings',
@@ -182,8 +362,8 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
       // Nav links are escaped chrome (unlike the raw bands omitted here):
       // they can never deface or bury the recovery form.
       navLinks,
-      faviconMediaId: s.faviconMediaId,
-      scripts: ADMIN_SCRIPT + ICON_SCRIPT,
+      faviconMediaId: s.requireLogin && !req.user ? null : s.faviconMediaId,
+      scripts: ADMIN_SCRIPT + ICON_SCRIPT + USERS_SCRIPT,
     })
     return reply
       .header('content-type', 'text/html; charset=utf-8')

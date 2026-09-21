@@ -6,13 +6,17 @@ import type { ServerConfig } from './config'
 import type { PagesRepository } from './db/repository'
 import type { SettingsRepository } from './db/settings-repository'
 import type { MediaRepository } from './db/media-repository'
+import type { UsersRepository } from './db/users-repository'
 import { createMemorySettingsRepository } from './db/settings-memory'
 import { createMemoryMediaRepository } from './db/media-memory'
+import { createMemoryUsersRepository } from './db/users-memory'
 import { createSettingsService } from './settings'
 import { registerSessions } from './auth/session'
+import { registerRoleResolver } from './auth/roles'
 import { registerAuthRoutes } from './auth/routes'
 import { registerPageApiRoutes } from './routes/pages-api'
 import { registerSettingsApiRoutes } from './routes/settings-api'
+import { registerUsersApiRoutes } from './routes/users-api'
 import { registerMediaRoutes } from './routes/media'
 import { registerAdminRoutes } from './routes/admin'
 import { registerPageHtmlRoutes } from './routes/pages-html'
@@ -42,6 +46,10 @@ export interface AppDeps {
   bundledIconsDir?: string | null
   /** Uploaded-media store; defaults to an in-memory store in tests. */
   media?: MediaRepository
+  /** Identity/role store. REQUIRED whenever auth is enabled — an
+   *  authorization store that silently defaults to memory would make every
+   *  promotion per-process and evaporate on restart. */
+  users?: UsersRepository | null
   /** Fastify logger; omitted = silent (tests). Bootstrap passes real config. */
   logger?: FastifyServerOptions['logger']
 }
@@ -56,6 +64,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     ttlMs: deps.config.env.CACHE_TTL_SECONDS * 1000,
   })
 
+  if (!deps.users && !deps.config.authDisabled) {
+    throw new Error('buildApp: deps.users is required when auth is enabled')
+  }
+  const usersRepo =
+    deps.users ??
+    createMemoryUsersRepository({
+      bootstrapAdminSubs: deps.config.bootstrapAdminSubs,
+      defaultRole: deps.config.defaultRole,
+    })
+
   await registerSessions(app, {
     secrets: deps.config.sessionSecrets,
     maxAgeSeconds: deps.config.env.SESSION_MAX_AGE_SECONDS,
@@ -63,9 +81,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     authDisabled: deps.config.authDisabled,
   })
 
+  // Single writer of req.user (claims + role). Must be registered after the
+  // session parser hook and before any route guards can run.
+  if (!deps.config.authDisabled) {
+    await registerRoleResolver(app, { users: usersRepo })
+  }
+
   await registerAuthRoutes(app, {
     config: deps.config,
     relyingParty: deps.relyingParty ?? null,
+    users: deps.config.authDisabled ? null : usersRepo,
   })
 
   const settingsRepo = deps.settings ?? createMemorySettingsRepository()
@@ -85,6 +110,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const invalidate = (slug: string): void => {
     cache.invalidate(`p:${slug}`)
     cache.invalidate(INDEX_CACHE_KEY)
+    // Status-page bodies are cached by their designated slug; evict on any
+    // write to that page regardless of which setting names it (cheap, and
+    // correct across a concurrent slug change).
+    cache.invalidate(`s:404:${slug}`)
+    cache.invalidate(`s:403:${slug}`)
     navLinks.onPageWrite(slug)
     deps.onPageWrite?.(slug)
   }
@@ -131,11 +161,17 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   })
 
   await registerSettingsApiRoutes(app, { settings: settingsService, media: mediaRepo })
+  await registerUsersApiRoutes(app, { users: usersRepo })
+  const readerRender = createReaderRenderer()
   await registerAdminRoutes(app, {
     config: deps.config,
     settings: settingsService,
     media: mediaRepo,
+    users: usersRepo,
     nav: navLinks,
+    pages: deps.pages,
+    cache,
+    render: readerRender,
   })
   await registerMediaRoutes(app, {
     media: mediaRepo,
@@ -145,6 +181,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   await registerPageApiRoutes(app, {
     pages: deps.pages,
+    getSettings: () => settingsService.get(),
     onWrite: invalidate,
   })
 
@@ -155,7 +192,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     config: deps.config,
     pages: deps.pages,
     cache,
-    render: createReaderRenderer(),
+    render: readerRender,
     layout: renderLayout,
     assetPrefix: assetsMounted ? '/assets' : '',
     autosaveMs: deps.config.env.AUTOSAVE_DEBOUNCE_MS,

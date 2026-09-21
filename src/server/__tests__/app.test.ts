@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { usersFixture } from './helpers/users-fixture'
 import { buildApp } from '../app'
 import { loadConfig } from '../config'
 import { createMemoryPagesRepository } from '../db/pages-memory'
@@ -18,6 +19,7 @@ describe('buildApp', () => {
     const app = await buildApp({
       config: loadConfig(baseEnv),
       pages: createMemoryPagesRepository(),
+      users: usersFixture(),
     })
     const res = await app.inject({ method: 'GET', url: '/healthz' })
     expect(res.statusCode).toBe(200)

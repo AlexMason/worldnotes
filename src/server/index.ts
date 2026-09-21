@@ -11,6 +11,7 @@ import { runMigrations } from './db/migrate'
 import { createPgPagesRepository } from './db/pages-pg'
 import { createPgSettingsRepository } from './db/settings-pg'
 import { createPgMediaRepository } from './db/media-pg'
+import { createPgUsersRepository } from './db/users-pg'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -32,6 +33,10 @@ async function main(): Promise<void> {
     pages: createPgPagesRepository(pool),
     settings: createPgSettingsRepository(pool),
     media: createPgMediaRepository(pool),
+    users: createPgUsersRepository(pool, {
+      bootstrapAdminSubs: config.bootstrapAdminSubs,
+      defaultRole: config.defaultRole,
+    }),
     relyingParty,
     clientAssetsDir: resolve(here, '../../dist/client'),
     bundledIconsDir: resolve(here, '../../public/icons'),

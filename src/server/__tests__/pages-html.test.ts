@@ -1,6 +1,7 @@
 // ─── SSR read-path route tests ───────────────────────────────────────────────
 
 import { describe, it, expect, beforeEach } from 'vitest'
+import { usersFixture } from './helpers/users-fixture'
 import { loadConfig, type ServerConfig } from '../config'
 import { buildApp } from '../app'
 import { createMemoryPagesRepository } from '../db/pages-memory'
@@ -35,7 +36,7 @@ describe('SSR pages', () => {
   beforeEach(async () => {
     config = loadConfig(baseEnv)
     repo = createMemoryPagesRepository()
-    app = await buildApp({ config, pages: repo, relyingParty: null })
+    app = await buildApp({ config, pages: repo, users: usersFixture(), relyingParty: null })
     auth = editorCookie(config)
   })
 
@@ -338,6 +339,7 @@ describe('home page + search toggle', () => {
       config,
       pages: repo,
       settings: createMemorySettingsRepository(settingsSeed),
+      users: usersFixture(),
       relyingParty: null,
     })
     auth = editorCookie(config)
@@ -456,6 +458,7 @@ describe('favicon icon chrome', () => {
       config,
       pages: repo,
       media: mediaRepo,
+      users: usersFixture(),
       relyingParty: null,
     })
     auth = editorCookie(config)
@@ -533,6 +536,7 @@ describe('SSR chrome: nav page, hamburger, breadcrumb collapse', () => {
       config,
       pages: repo,
       settings: settingsRepo,
+      users: usersFixture(),
       relyingParty: null,
     })
     auth = editorCookie(config)
@@ -621,5 +625,238 @@ describe('SSR chrome: nav page, hamburger, breadcrumb collapse', () => {
     expect(cfgMatch).not.toBeNull()
     const cfg = JSON.parse(JSON.parse(cfgMatch![1]) as string)
     expect(cfg.navLinks).toEqual([{ slug: 'welcome', href: '/welcome', label: 'Welcome' }])
+  })
+})
+
+describe('SSR roles & login-only gate', () => {
+  const cookieFor = (config: ServerConfig, sub: string, name?: string) =>
+    'wn_session=' +
+    seal(
+      { exp: Math.floor(Date.now() / 1000) + 300, sub, name: name ?? sub },
+      config.sessionSecrets,
+    )
+
+  async function make(opts?: {
+    requireLogin?: boolean
+    users?: Record<string, 'viewer' | 'editor' | 'admin'>
+    faviconMediaId?: number
+  }) {
+    const config = loadConfig(baseEnv)
+    const repo = createMemoryPagesRepository()
+    await repo.put('page', { title: 'P', content: 'UNIQUE-PAGE-CONTENT' })
+    const app = await buildApp({
+      config,
+      pages: repo,
+      settings: createMemorySettingsRepository({
+        ...(opts?.requireLogin ? { require_login: 'true' } : {}),
+        ...(opts?.faviconMediaId ? { favicon_media_id: String(opts.faviconMediaId) } : {}),
+      }),
+      users: usersFixture({
+        users: opts?.users ?? { boss: 'admin', writer: 'editor', peeker: 'viewer' },
+      }),
+      relyingParty: null,
+    })
+    return { config, repo, app }
+  }
+
+  it('viewer gets the reader render (no editor shell, no Admin link)', async () => {
+    const { config, app } = await make()
+    const res = await app.inject({
+      method: 'GET',
+      url: '/page',
+      headers: { cookie: cookieFor(config, 'peeker') },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.body).not.toContain('id="wn-app"') // no editor shell
+    expect(res.body).toContain('UNIQUE-PAGE-CONTENT')
+    expect(res.body).not.toContain('/admin') // no Admin chrome for non-admins
+    expect(res.body).toContain('Sign out')
+    await app.close()
+  })
+
+  it('editor and admin still receive the shell; only admin gets the Admin link', async () => {
+    const { config, app } = await make()
+    const editor = await app.inject({
+      method: 'GET',
+      url: '/page',
+      headers: { cookie: cookieFor(config, 'writer') },
+    })
+    expect(editor.body).toContain('id="wn-app"')
+    const cfg = JSON.parse(
+      JSON.parse(/id="wn-config"[^>]*>(.*?)<\/script>/s.exec(editor.body)![1]! as string),
+    )
+    // The client renders the Admin link from this field (=== 'admin') —
+    // a non-admin shell must carry a non-admin role.
+    expect(cfg.userRole).toBe('editor')
+
+    const admin = await app.inject({
+      method: 'GET',
+      url: '/page',
+      headers: { cookie: cookieFor(config, 'boss') },
+    })
+    expect(admin.body).toContain('id="wn-app"')
+    expect(
+      JSON.parse(JSON.parse(/id="wn-config"[^>]*>(.*?)<\/script>/s.exec(admin.body)![1]! as string))
+        .userRole,
+    ).toBe('admin')
+    await app.close()
+  })
+
+  it('login-only mode 403s anonymous HTML with a sign-in document and no /media/ URLs', async () => {
+    const { config, app } = await make({ requireLogin: true, faviconMediaId: 7 })
+    const res = await app.inject({ method: 'GET', url: '/page' })
+    expect(res.statusCode).toBe(403)
+    expect(res.headers['content-type']).toContain('text/html')
+    expect(res.headers['cache-control']).toBe('no-store')
+    expect(res.body).toContain('Sign-in required')
+    expect(res.body).toContain('/oidc/login?returnTo=%2Fpage')
+    // Uploaded override bytes/URLs never reach the anonymous gate doc.
+    expect(res.body).not.toContain('/media/')
+    // The reader page itself is not embedded.
+    expect(res.body).not.toContain('UNIQUE-PAGE-CONTENT')
+    await app.close()
+  })
+
+  it('login-only mode keeps authenticated surfaces working', async () => {
+    const { config, app } = await make({ requireLogin: true })
+    const viewer = await app.inject({
+      method: 'GET',
+      url: '/page',
+      headers: { cookie: cookieFor(config, 'peeker') },
+    })
+    expect(viewer.statusCode).toBe(200)
+    expect(viewer.body).toContain('UNIQUE-PAGE-CONTENT')
+    const anonApi = await app.inject({ method: 'GET', url: '/api/pages/page' })
+    expect(anonApi.statusCode).toBe(403)
+    await app.close()
+  })
+
+  it('returnTo on the gate is built from the validated slug, not the raw URL', async () => {
+    const { config, app } = await make({ requireLogin: true })
+    // Invalid slug path: the gate doc must not reflect the raw attack string.
+    const evil = await app.inject({ method: 'GET', url: '/Bad%22onmouseover%3Dx' })
+    expect(evil.statusCode).toBe(403)
+    expect(evil.body).toContain('/oidc/login?returnTo=%2F')
+    expect(evil.body).not.toContain('onmouseover=x"')
+    // Deep valid slug round-trips.
+    await (
+      await buildApp({
+        config,
+        pages: createMemoryPagesRepository(),
+        users: usersFixture({ users: { boss: 'admin' } }),
+        relyingParty: null,
+        settings: createMemorySettingsRepository({ require_login: 'true' }),
+      })
+    ).close()
+    await app.close()
+  })
+})
+
+describe('custom status pages (Phase B)', () => {
+  const cookieFor = (config: ServerConfig, sub: string) =>
+    'wn_session=' +
+    seal({ exp: Math.floor(Date.now() / 1000) + 300, sub, name: sub }, config.sessionSecrets)
+
+  async function make(
+    settingsSeed: Record<string, string>,
+    users?: Record<string, 'viewer' | 'editor' | 'admin'>,
+  ) {
+    const config = loadConfig(baseEnv)
+    const repo = createMemoryPagesRepository()
+    const app = await buildApp({
+      config,
+      pages: repo,
+      settings: createMemorySettingsRepository(settingsSeed),
+      users: usersFixture({ users: users ?? { boss: 'admin', peeker: 'viewer' } }),
+      relyingParty: null,
+    })
+    return { config, repo, app }
+  }
+
+  it('renders the designated 404 page as markdown inside chrome, escaped', async () => {
+    const { repo, app } = await make({ not_found_slug: 'gone' })
+    await repo.put('gone', {
+      title: 'Gone',
+      content: '# All gone\n\nTry the [[home|front page]].\n\n<script>alert(1)</script>',
+    })
+    const res = await app.inject({ method: 'GET', url: '/nowhere' })
+    expect(res.statusCode).toBe(404)
+    expect(res.headers['cache-control']).toBe('no-store')
+    expect(res.body).toContain('All gone')
+    expect(res.body).toContain('href="/home"') // wiki links work
+    expect(res.body).not.toContain('<script>alert(1)</script>') // engine escapes raw HTML
+    expect(res.body).not.toContain('No page exists at') // custom body replaced the fallback
+    await app.close()
+  })
+
+  it('editing the status page busts the render cache via the write hook', async () => {
+    const { config, repo, app } = await make({ not_found_slug: 'gone' })
+    await repo.put('gone', { title: 'Gone', content: 'version-one' })
+    const first = await app.inject({ method: 'GET', url: '/nowhere' })
+    expect(first.body).toContain('version-one')
+    // Edit through the API — that is where cache invalidation is wired.
+    const put = await app.inject({
+      method: 'PUT',
+      url: '/api/pages/gone',
+      headers: { cookie: cookieFor(config, 'boss'), 'if-match': '"1"' },
+      payload: { content: 'version-two' },
+    })
+    expect(put.statusCode).toBe(200)
+    const second = await app.inject({ method: 'GET', url: '/nowhere' })
+    expect(second.body).toContain('version-two')
+    expect(second.body).not.toContain('version-one')
+    await app.close()
+  })
+
+  it('a dangling designation falls back to the built-in body', async () => {
+    const { app } = await make({ not_found_slug: 'no-such-page' })
+    const res = await app.inject({ method: 'GET', url: '/nowhere' })
+    expect(res.statusCode).toBe(404)
+    expect(res.body).toContain('No page exists at')
+    await app.close()
+  })
+
+  it('login-gate 403 uses the custom forbidden page AND keeps the sign-in line', async () => {
+    const { repo, app } = await make({
+      require_login: 'true',
+      forbidden_slug: 'restricted',
+    })
+    await repo.put('restricted', { title: 'Nope', content: 'Members only, friend.' })
+    const res = await app.inject({ method: 'GET', url: '/anything' })
+    expect(res.statusCode).toBe(403)
+    expect(res.body).toContain('Members only, friend.')
+    expect(res.body).toContain('/oidc/login?returnTo=%2F')
+    await app.close()
+  })
+
+  it("viewer 404 gets the 'ask an editor' hint; anonymous does not", async () => {
+    const { config, app } = await make({}, { boss: 'admin', peeker: 'viewer' })
+    const viewer = await app.inject({
+      method: 'GET',
+      url: '/nowhere',
+      headers: { cookie: cookieFor(config, 'peeker') },
+    })
+    expect(viewer.statusCode).toBe(404)
+    expect(viewer.body).toContain('Ask an editor to create this page.')
+    const anon = await app.inject({ method: 'GET', url: '/nowhere' })
+    expect(anon.body).not.toContain('Ask an editor')
+    await app.close()
+  })
+
+  it('authenticated non-admin /admin 403 renders the custom page WITHOUT a sign-in link', async () => {
+    const { config, repo, app } = await make(
+      { forbidden_slug: 'restricted' },
+      { boss: 'admin', peeker: 'viewer' },
+    )
+    await repo.put('restricted', { title: 'Nope', content: 'Admins only beyond this point.' })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/admin',
+      headers: { cookie: cookieFor(config, 'peeker') },
+    })
+    expect(res.statusCode).toBe(403)
+    expect(res.body).toContain('Admins only beyond this point.')
+    expect(res.body).not.toContain('/oidc/login')
+    await app.close()
   })
 })

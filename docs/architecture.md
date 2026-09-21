@@ -1,9 +1,10 @@
 # Architecture
 
 WorldNotes is a single Fastify application: a Postgres-backed pages store, an
-OIDC auth layer, a server-rendered read path for anonymous visitors, and a
+OIDC auth layer with per-account roles, a server-rendered read path for
+visitors (anonymous access can be switched off from `/admin`), and a
 client-side inline markdown editor that **replaces** the read view for
-authenticated editors (the editor lives at `/{slug}` too).
+editors/admins (the editor lives at `/{slug}` too).
 
 ```
 Browser (anonymous)                  Browser (authenticated)
@@ -12,16 +13,20 @@ Browser (anonymous)                  Browser (authenticated)
 ┌──────────────────────────── Fastify ────────────────────────────┐
 │ core static renderer (SSR) ── bounded LRU + ETag                │
 │ / → home|index · /all · /search/{terms} · /{slug} catch-all    │
-│   (editor for auth, registered LAST) · plain 404 documents    │
-│ OIDC RP (state+PKCE+nonce) ── AES-GCM cookie sessions           │
-│ /api/pages CRUD ── requireAuth + same-origin ── PagesRepository │
+│   (editor for editor|admin, LAST) · 404/403 status documents  │
+│ OIDC RP (state+PKCE+nonce) ── AES-GCM cookie sessions (claims)  │
+│ role resolver ── users row per request (sole req.user writer)   │
+│ /api/pages CRUD ── requireRole(editor|admin) + same-origin      │
+│ /api/settings, /api/users/role ── requireRole(admin)            │
+│ login-only gate ── settings.requireLogin (HTML 403 / JSON 403)  │
 │ /api/settings ── SettingsRepository ── key/value table          │
+│ /api/users/role ── UsersRepository (advisory-locked guard)      │
 │ /api/media upload ── MediaRepository (pg bytea) ── /media/{id}  │
 │ @fastify/static /assets/* (dist/client) · /icons/* (public)     │
 └──────────────────────────────────────────────────────────────────┘
                               │ pg pool + advisory-locked migrations
                               ▼
-                     PostgreSQL `pages`, `settings`, `media`
+              PostgreSQL `pages`, `settings`, `media`, `users`
 ```
 
 ## Source layout
@@ -29,9 +34,9 @@ Browser (anonymous)                  Browser (authenticated)
 | Directory     | Runs in        | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/core/`   | browser + node | The ONE render engine: line tokenizer + document-level **block pass** (`document.ts` — fenced code, pipe tables as multi-line regions), content plugins (each with an interactive `render()` and a static `renderToHTML()`; block plugins add a declarative `BlockDef`), interactive DOM renderer (`renderer.ts`/`line-renderer.ts`) + DOM-free static renderer (`static-renderer.ts`, used by the SSR read path), shared DOM↔source text model (`content-text.ts`), editor DOM/state/render/navigation/lifecycle, editing shortcuts (`editor-keymap.ts` + pure `editor-text-ops.ts`/`editor-format.ts`), plugin registry, `PageBuffers` (content model), `PageStore` contract, editor stylesheets (`styles.ts`) |
-| `src/client/` | browser        | Editor bootstrap: `main.ts` mounts the editor over `api-page-store.ts` (fetch + versions + conflicts) and builds the header actions (Search / All pages / Admin / sign-out)                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `src/server/` | node           | Fastify app: config, auth (OIDC/sessions), DB (pool/migrations/repositories), render (reader adapter over core static renderer, layout, title extraction), routes, LRU cache                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `src/shared/` | both           | Env-agnostic code: `slug.ts` policy, `url-policy.ts`, `url-helpers.ts`, `dto.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `src/client/` | browser        | Editor bootstrap: `main.ts` mounts the editor over `api-page-store.ts` (fetch + versions + conflicts) and builds the header actions (Search / All pages / Admin — admins only / sign-out)                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `src/server/` | node           | Fastify app: config, auth (OIDC/sessions/role resolver/login gate), DB (pool/migrations/repositories incl. users), render (reader adapter over core static renderer, layout, status documents, title extraction), routes, LRU cache                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `src/shared/` | both           | Env-agnostic code: `slug.ts` policy, `roles.ts` (role enum, single source of truth), `url-policy.ts`, `url-helpers.ts`, `dto.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 Boundary rules (enforced by tooling):
 
@@ -64,7 +69,7 @@ Boundary rules (enforced by tooling):
   (`src/core/editor-dom.ts`) around the content column. Everything else on
   the read path is escaped or safety-gated inside the plugins (href/src
   policy, no raw-HTML markdown plugin); these bands are deliberately outside
-  that invariant and writable only via `PUT /api/settings` (authenticated —
+  that invariant and writable only via `PUT /api/settings` (**admin role** —
   see `docs/api.md` trust model). The `/admin` page omits the bands so
   broken branding can never hide the recovery form.
 - **Nav-page links are engine-extracted chrome:** the `navSlug` setting
@@ -186,14 +191,15 @@ Public, no query strings anywhere:
 | `GET /`                                         | configured home page, else the index listing                        | anon ok                |
 | `GET /all`                                      | index (page list + search form island)                              | anon ok                |
 | `GET /search`, `GET /search/{terms}`            | search form + ILIKE results                                         | anon ok                |
-| `GET /admin`                                    | settings form (search, home page, branding; bands omitted)          | editors                |
+| `GET /admin`                                    | settings form (search, home page, branding, access, Users; bands omitted) | admins (`403` HTML for others) |
 | `GET /edit`, `GET /edit/{slug}`                 | legacy 302s → `/`, `/{slug}`                                        | —                      |
-| `GET /{slug}` (catch-all, last)                 | editor shell (auth) / SSR article (anon); miss → plain 404      | mixed                  |
-| `GET /api/pages`, `GET /api/pages/{slug}`       | JSON reads + ETags                                                  | anon ok                |
-| `POST/PUT/DELETE /api/pages[/{slug}]`           | writes; `requireSameOrigin` + `requireAuth`                         | editors                |
-| `PUT /api/settings`                             | instance settings write; `requireSameOrigin` + `requireAuth`        | editors                |
+| `GET /{slug}` (catch-all, last)                 | editor shell (editor\|admin) / SSR article (viewer/anon); miss → 404 document (customizable) | mixed (anon reads gate) |
+| `GET /api/pages`, `GET /api/pages/{slug}`       | JSON reads + ETags                                                  | anon ok (403 when login-only) |
+| `POST/PUT/DELETE /api/pages[/{slug}]`           | writes; `requireSameOrigin` + `requireRole(editor,admin)`            | editors                |
+| `PUT /api/settings`                             | instance settings write; `requireSameOrigin` + `requireRole(admin)`  | admins                 |
+| `PUT /api/users/role`                           | guarded role change; **strict** Origin (no Origin-less pass)        | admins                 |
 | `POST /api/media`                               | multipart upload; sniff + size/dimension caps                       | editors (`onRequest`)  |
-| `GET /media/{id}`                               | stored bytes, immutable cache + hardening headers                   | anon ok                |
+| `GET /media/{id}`                               | stored bytes, immutable cache + hardening headers                   | anon ok (gated when login-only) |
 | `GET /favicon.ico`, `GET /apple-touch-icon.png` | blind-request favicon (override row or bundled `public/icons/`)     | anon ok                |
 | `GET /oidc/login                                | callback                                                            | logout`, `GET /api/me` | auth | mixed |
 | `GET /assets/*`                                 | built client bundle                                                 | anon ok                |
@@ -214,8 +220,35 @@ validation by the library; `sub` is the stable identity stored in the session
 and on rows (`updated_by`). Sessions are AES-256-GCM sealed cookies
 (encrypted, httpOnly, SameSite=Lax, `Secure` in prod, exp enforced, multi-key
 rotation). Callback `returnTo` is restricted to same-origin app paths
-(open-redirect guard). `AUTH_DISABLED=1` injects a dev identity and refuses to
-boot in production.
+(open-redirect guard). `AUTH_DISABLED=1` injects a dev identity (role
+`admin`) and refuses to boot in production.
+
+**Roles** (`shared/roles.ts`: viewer | editor | admin) are NOT sealed into
+the cookie. The session parser stores claims in `req.sessionClaims`; the
+role resolver (`auth/roles.ts`) is the **sole writer of `req.user`** — one
+indexed `users`-table SELECT per authenticated request (`ensure()` inserts
+only on a miss, so GETs never write), publishing `req.user = {claims, role}`.
+Structurally, a user object without a role cannot exist, and
+`requireRole(...)` fails closed. Login metadata (`email`/`name`/
+`last_login_at`) refresh at `/oidc/callback` (`recordLogin`), the only place
+a "login" happens. Provisioning on insert: `admin` if the sub is on
+`BOOTSTRAP_ADMIN_SUBS` or the table is empty (first login = admin; the grant
+is logged at `warn`), else `DEFAULT_ROLE`. Both races that matter — the
+bootstrap winner and the last-admin lockout — are serialized by a
+`pg_advisory_xact_lock` (key `'wnus'`) inside the repository; the guarded
+`setRoleGuarded` is the only role setter.
+
+**Login-only mode** (`auth/login-gate.ts`): a settings flag read per request
+(not static wiring). HTML read routes answer anonymous requests with the
+`403` sign-in document (custom page when `forbiddenSlug` is set; unmatched
+`/api|/oidc|/assets` wildcards keep JSON answers); JSON/media reads answer
+`403 {error:"login required"}`. The gate runs at preHandler, before the
+render cache is consulted, and authenticated cache headers flip to `private`
++ `Vary: Cookie` while gated. Status documents (`render/status-page.ts`)
+compose through `renderLayout`, so they inherit chrome — and the chrome
+never points anonymous visitors at override `/media/` URLs in this mode.
+Designated status pages are public surfaces by definition (docs call this
+out loudly in the admin form and in `docs/api.md`).
 
 ## Caching
 
