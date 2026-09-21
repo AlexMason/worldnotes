@@ -117,6 +117,29 @@ state is the undo baseline). DOM input events extract raw markdown
 buffer. Debounced autosave calls `PageStore.save(page, content)`; the HTTP
 store PUTs `{content}` with `If-Match: "<version>"` and handles 409 (conflict
 toast with _Load theirs_), 404 (create-on-save), and 401 (auth-expired toast).
+The debounce captures its page at SCHEDULE time, not fire time — a save
+still pending when the user navigates persists the page that was TYPED ON
+(fire-time `getCurrentPage()` would instead POST the destination's seeded
+buffer and silently skip the originating page's edits).
+
+**Navigation folding:** every in-editor navigation source (link clicks,
+breadcrumb/header nav, popstate, `instance.navigate`) funnels through
+`editor-navigation.ts`'s `navigateToPage`, which folds the target through
+`navTargetToSlug` (`shared/slug.ts` — the same fold the API store and the
+plugins' static hrefs use) BEFORE anything is keyed: buffer keys, trail
+segments, the pushState URL, and saves share one canonical slug, so
+`[x](/Blog/First-Post)` and `[[blog/first-post]]` open the SAME page. A
+target that cannot fold (empty, non-latin like `[[中文]]`, a reserved route
+like `/all`, or an absolute URL — refused pre-fold, since `slugify` would
+otherwise mangle `https://x/y` into a junk `https/x/y` page) is REFUSED with
+a warning toast: the reader renders such targets as literal text, and opening
+a raw-keyed phantom buffer would produce a page that can never persist.
+Missing pages are not a dead end: navigation opens a seeded
+`# Human Title` editor and the create-on-save flow persists the first edit
+(the client has no 404 status page and no create dialog; the reader keeps
+its plain anonymous 404). `loadPage`'s store load is wrapped in
+`try/finally` + a failure toast — a network error can neither freeze the
+input handler (`isNavigating` stuck) nor surface as an unhandled rejection.
 **No-blank-pages invariant (route-level):** a PUT whose content is
 whitespace-only deletes the page (version-guarded `deleteIfMatch` → 204, so
 a stale client can never destroy newer content); blank/absent POSTs are
@@ -209,7 +232,11 @@ route) invalidate `p:{slug}`, the index, and `nav:{slug}`. Settings are read per
 (cached in the `SettingsService`); changing them leaves the article caches
 intact (they stay settings-independent) but advances the revision mixed into
 every ETag. Responses carry `ETag` + `Cache-Control: public, max-age=60,
-stale-while-revalidate=300`; `If-None-Match` → 304. Single-process scope —
+stale-while-revalidate=300`; `If-None-Match` → 304. **4xx is the exception:
+404 documents answer `no-store`** — a stale 200 is cosmetic, a cached 404 is
+a WRONG answer that outlives its cause (e.g. re-enabling the all-pages
+listing), and the 304 shortcut is 200-only by design so a no-store 404 never
+negotiates. Single-process scope —
 with multiple server instances, each process caches settings in memory and
 revisions diverge; branding on every page makes that failure mode visible.
 
