@@ -16,6 +16,7 @@ import { registerRoleResolver } from './auth/roles'
 import { registerAuthRoutes } from './auth/routes'
 import { registerPageApiRoutes } from './routes/pages-api'
 import { registerSettingsApiRoutes } from './routes/settings-api'
+import { registerUsersApiRoutes } from './routes/users-api'
 import { registerMediaRoutes } from './routes/media'
 import { registerAdminRoutes } from './routes/admin'
 import { registerPageHtmlRoutes } from './routes/pages-html'
@@ -155,6 +156,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   })
 
   await registerSettingsApiRoutes(app, { settings: settingsService, media: mediaRepo })
+  await registerUsersApiRoutes(app, { users: usersRepo })
   await registerAdminRoutes(app, {
     config: deps.config,
     settings: settingsService,
@@ -169,6 +171,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   await registerPageApiRoutes(app, {
     pages: deps.pages,
+    getSettings: () => settingsService.get(),
     onWrite: invalidate,
   })
 

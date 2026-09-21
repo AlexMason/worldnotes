@@ -127,6 +127,9 @@ describe('admin settings', () => {
       headerHtml: '',
       footerHtml: '',
       faviconMediaId: null,
+      requireLogin: false,
+      notFoundSlug: null,
+      forbiddenSlug: null,
     })
     expect(settingsRepo.dump()).toEqual({
       search_enabled: 'false',
@@ -137,6 +140,9 @@ describe('admin settings', () => {
       header_html: '',
       footer_html: '',
       favicon_media_id: '',
+      require_login: 'false',
+      not_found_slug: '',
+      forbidden_slug: '',
     })
   })
 

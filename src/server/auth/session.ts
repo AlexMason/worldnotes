@@ -216,10 +216,7 @@ export async function requireSameOrigin(req: FastifyRequest, reply: FastifyReply
  * always sends one, and Origin-less requests are exactly the ones a
  * Host-confused proxy or attacker-driven non-browser client would use.
  */
-export async function requireStrictOrigin(
-  req: FastifyRequest,
-  reply: FastifyReply,
-): Promise<void> {
+export async function requireStrictOrigin(req: FastifyRequest, reply: FastifyReply): Promise<void> {
   const origin = req.headers.origin
   const present =
     typeof origin === 'string' &&

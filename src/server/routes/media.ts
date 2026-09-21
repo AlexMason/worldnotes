@@ -12,7 +12,8 @@ import { readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { requireAuth, requireSameOrigin } from '../auth/session'
+import { requireRole, requireSameOrigin } from '../auth/session'
+import { cacheControlFor, requireLoginJson } from '../auth/login-gate'
 import type { MediaRepository } from '../db/media-repository'
 import type { SettingsService } from '../settings'
 import { probeMedia } from '../media-types'
@@ -79,87 +80,104 @@ export async function registerMediaRoutes(app: FastifyInstance, deps: MediaDeps)
   // ── Upload (auth + same-origin BEFORE parsing: onRequest, not preHandler —
   //    an anonymous caller must not be able to drive busboy at all) ─────────
 
-  app.post('/api/media', { onRequest: [requireSameOrigin, requireAuth] }, async (req, reply) => {
-    let part
-    try {
-      part = await req.file()
-    } catch (e) {
-      const mapped = limitError(e) ?? { code: 400, message: 'malformed multipart request' }
-      if (mapped.code === 400 && !(e instanceof Error && /malformed/i.test(e.message))) {
-        req.log.warn({ err: e }, 'media upload rejected')
+  app.post(
+    '/api/media',
+    { onRequest: [requireSameOrigin, requireRole('editor', 'admin')] },
+    async (req, reply) => {
+      let part
+      try {
+        part = await req.file()
+      } catch (e) {
+        const mapped = limitError(e) ?? { code: 400, message: 'malformed multipart request' }
+        if (mapped.code === 400 && !(e instanceof Error && /malformed/i.test(e.message))) {
+          req.log.warn({ err: e }, 'media upload rejected')
+        }
+        return reply.code(mapped.code).send({ error: mapped.message })
       }
-      return reply.code(mapped.code).send({ error: mapped.message })
-    }
-    if (!part) return reply.code(400).send({ error: 'a file part is required' })
+      if (!part) return reply.code(400).send({ error: 'a file part is required' })
 
-    let buf: Buffer
-    try {
-      buf = await part.toBuffer()
-    } catch (e) {
-      const mapped = limitError(e) ?? { code: 400, message: 'could not read upload' }
-      return reply.code(mapped.code).send({ error: mapped.message })
-    }
-    if (part.file.truncated) {
-      return reply.code(413).send({ error: 'file exceeds the upload size limit' })
-    }
-    // Drain any extra parts so busboy can finish the request cleanly.
-    try {
-      while (true) {
-        const extra = await req.file()
-        if (!extra) break
-        await extra.toBuffer().catch(() => undefined)
+      let buf: Buffer
+      try {
+        buf = await part.toBuffer()
+      } catch (e) {
+        const mapped = limitError(e) ?? { code: 400, message: 'could not read upload' }
+        return reply.code(mapped.code).send({ error: mapped.message })
       }
-    } catch {
-      /* limit errors on extras are fine — the single-part rule below wins */
-    }
+      if (part.file.truncated) {
+        return reply.code(413).send({ error: 'file exceeds the upload size limit' })
+      }
+      // Drain any extra parts so busboy can finish the request cleanly.
+      try {
+        while (true) {
+          const extra = await req.file()
+          if (!extra) break
+          await extra.toBuffer().catch(() => undefined)
+        }
+      } catch {
+        /* limit errors on extras are fine — the single-part rule below wins */
+      }
 
-    const probed = probeMedia(buf)
-    if (!probed.ok) {
-      return reply.code(415).send({ error: `unsupported image: ${probed.reason}` })
-    }
+      const probed = probeMedia(buf)
+      if (!probed.ok) {
+        return reply.code(415).send({ error: `unsupported image: ${probed.reason}` })
+      }
 
-    const { id } = await media.insert({
-      mediaType: probed.media.mediaType,
-      width: probed.media.width,
-      height: probed.media.height,
-      data: buf,
-      by: req.user?.sub ?? null,
-    })
-    return reply.code(201).send({
-      id,
-      url: `/media/${id}`,
-      mediaType: probed.media.mediaType,
-      sizeBytes: buf.byteLength,
-      width: probed.media.width,
-      height: probed.media.height,
-    })
-  })
+      const { id } = await media.insert({
+        mediaType: probed.media.mediaType,
+        width: probed.media.width,
+        height: probed.media.height,
+        data: buf,
+        by: req.user?.sub ?? null,
+      })
+      return reply.code(201).send({
+        id,
+        url: `/media/${id}`,
+        mediaType: probed.media.mediaType,
+        sizeBytes: buf.byteLength,
+        width: probed.media.width,
+        height: probed.media.height,
+      })
+    },
+  )
 
   // ── Immutable serving ────────────────────────────────────────────────────
 
-  app.get('/media/:id', async (req, reply) => {
-    const raw = (req.params as { id: string }).id
-    const id = Number(raw)
-    if (!Number.isInteger(id) || id < 1) return reply.code(404).send({ error: 'not found' })
-    const row = await media.get(id)
-    if (!row) return reply.code(404).send({ error: 'not found' })
-    return sendBytes(
-      reply,
-      req,
-      row.data,
-      row.mediaType,
-      `"m${row.id}"`,
-      'public, max-age=31536000, immutable',
-    )
-  })
+  app.get(
+    '/media/:id',
+    { preHandler: [requireLoginJson(() => settings.get())] },
+    async (req, reply) => {
+      const raw = (req.params as { id: string }).id
+      const id = Number(raw)
+      if (!Number.isInteger(id) || id < 1) return reply.code(404).send({ error: 'not found' })
+      const row = await media.get(id)
+      if (!row) return reply.code(404).send({ error: 'not found' })
+      // Login-only mode: authenticated fetches become private (immutable
+      // public bytes would outlive any later gate — already-cached copies
+      // are un-retractable; the going-forward `private` flip plus the gate
+      // itself (ids are sequential bigserials) is the honest posture).
+      const gated = settings.get().requireLogin
+      if (gated) reply.header('vary', 'Cookie')
+      return sendBytes(
+        reply,
+        req,
+        row.data,
+        row.mediaType,
+        `"m${row.id}"`,
+        cacheControlFor(gated, 'public, max-age=31536000, immutable'),
+      )
+    },
+  )
 
   // ── Blind browser icon requests ──────────────────────────────────────────
   // These URLs are mutable (they follow settings), so: revalidable short
   // cache, no immutable, no ETag (worst-case ≤1h staleness after a change;
   // browsers that parse <link> tags see changes immediately from fresh HTML).
 
-  async function serveIcon(path: string): Promise<{ contentType: string; data: Buffer } | null> {
-    const faviconId = settings.get().faviconMediaId
+  async function serveIcon(
+    path: string,
+    allowOverride: boolean,
+  ): Promise<{ contentType: string; data: Buffer } | null> {
+    const faviconId = allowOverride ? settings.get().faviconMediaId : null
     if (faviconId !== null) {
       const row = await media.get(faviconId)
       if (row) return { contentType: row.mediaType, data: row.data }
@@ -173,7 +191,9 @@ export async function registerMediaRoutes(app: FastifyInstance, deps: MediaDeps)
 
   for (const path of Object.keys(BUNDLED_FILES)) {
     app.get(path, async (req, reply) => {
-      const icon = await serveIcon(path)
+      // One principle while login-only: uploaded bytes never reach anonymous
+      // requests — blind icon routes serve bundled (public) assets instead.
+      const icon = await serveIcon(path, !settings.get().requireLogin || !!req.user)
       if (!icon) return reply.code(404).send({ error: 'not found' })
       return sendBytes(reply, req, icon.data, icon.contentType, null, 'public, max-age=3600')
     })

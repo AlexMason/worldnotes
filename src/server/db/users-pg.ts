@@ -20,8 +20,7 @@ import {
 
 const USERS_LOCK_KEY = 7266797 // 'wnus'
 
-const COLS =
-  'sub, email, name, role, created_at, last_login_at, updated_at, updated_by'
+const COLS = 'sub, email, name, role, created_at, last_login_at, updated_at, updated_by'
 
 interface Row {
   sub: string

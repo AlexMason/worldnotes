@@ -5,6 +5,7 @@ import { usersFixture } from './helpers/users-fixture'
 import { loadConfig, type ServerConfig } from '../config'
 import { buildApp } from '../app'
 import { createMemoryPagesRepository } from '../db/pages-memory'
+import { createMemorySettingsRepository } from '../db/settings-memory'
 import { seal } from '../auth/session'
 
 const baseEnv = {
@@ -365,5 +366,129 @@ describe('pages API', () => {
   it('healthz still serves', async () => {
     const res = await app.inject({ method: 'GET', url: '/healthz' })
     expect(res.statusCode).toBe(200)
+  })
+})
+
+describe('pages API roles & login-only gate', () => {
+  let config: ServerConfig
+  let settingsRepo: ReturnType<typeof createMemorySettingsRepository>
+
+  async function make(users: Record<'writer' | 'peeker' | 'boss', 'editor' | 'viewer' | 'admin'>) {
+    settingsRepo = createMemorySettingsRepository()
+    const repo = createMemoryPagesRepository()
+    await repo.put('one', { title: 'One', content: 'body' })
+    const app = await buildApp({
+      config,
+      pages: repo,
+      settings: settingsRepo,
+      users: usersFixture({ users }),
+      relyingParty: null,
+    })
+    return { app, repo }
+  }
+  const cookieFor = (sub: string) =>
+    'wn_session=' +
+    seal({ exp: Math.floor(Date.now() / 1000) + 300, sub, name: sub }, config.sessionSecrets)
+
+  beforeEach(() => {
+    config = loadConfig(baseEnv)
+  })
+
+  it('viewer reads but cannot write; editor writes; only admin sets settings', async () => {
+    const { app } = await make({ writer: 'editor', peeker: 'viewer', boss: 'admin' })
+    const body = { slug: 'brand-new', content: 'hello' }
+
+    const read = await app.inject({
+      method: 'GET',
+      url: '/api/pages/one',
+      headers: { cookie: cookieFor('peeker') },
+    })
+    expect(read.statusCode).toBe(200)
+
+    const viewerWrite = await app.inject({
+      method: 'POST',
+      url: '/api/pages',
+      headers: { cookie: cookieFor('peeker') },
+      payload: body,
+    })
+    expect(viewerWrite.statusCode).toBe(403)
+
+    const editorWrite = await app.inject({
+      method: 'POST',
+      url: '/api/pages',
+      headers: { cookie: cookieFor('writer') },
+      payload: body,
+    })
+    expect(editorWrite.statusCode).toBe(201)
+
+    const editorSettings = await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: cookieFor('writer') },
+      payload: { siteName: 'Nope' },
+    })
+    expect(editorSettings.statusCode).toBe(403)
+
+    const adminSettings = await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: cookieFor('boss') },
+      payload: { siteName: 'Yep' },
+    })
+    expect(adminSettings.statusCode).toBe(200)
+    await app.close()
+  })
+
+  it('login-only mode 403s anonymous reads (JSON) and keeps authed reads with a private cache posture', async () => {
+    // The settings service snapshots at boot → toggle before building.
+    const gateEnv = createMemorySettingsRepository({ require_login: 'true' })
+    const repo = createMemoryPagesRepository()
+    await repo.put('one', { title: 'One', content: 'body' })
+    const fresh = await buildApp({
+      config,
+      pages: repo,
+      settings: gateEnv,
+      users: usersFixture({ users: { writer: 'editor', boss: 'admin' } }),
+      relyingParty: null,
+    })
+    const anonList = await fresh.inject({ method: 'GET', url: '/api/pages' })
+    expect(anonList.statusCode).toBe(403)
+    expect(anonList.json()).toEqual({ error: 'login required' })
+    expect(anonList.headers['cache-control']).toBe('no-store')
+
+    const anonPage = await fresh.inject({ method: 'GET', url: '/api/pages/one' })
+    expect(anonPage.statusCode).toBe(403)
+
+    const authed = await fresh.inject({
+      method: 'GET',
+      url: '/api/pages/one',
+      headers: { cookie: cookieFor('writer') },
+    })
+    expect(authed.statusCode).toBe(200)
+    expect(authed.headers['cache-control']).toContain('private')
+    expect(authed.headers['vary']).toBe('Cookie')
+
+    // Writes keep the 401-for-anonymous contract (expiry toast), not the gate.
+    const anonWrite = await fresh.inject({
+      method: 'PUT',
+      url: '/api/pages/one',
+      headers: { 'if-match': '"1"' },
+      payload: { content: 'x' },
+    })
+    expect(anonWrite.statusCode).toBe(401)
+
+    const write = await fresh.inject({
+      method: 'PUT',
+      url: '/api/pages/one',
+      headers: { cookie: cookieFor('writer'), 'if-match': '"1"' },
+      payload: { content: 'new body' },
+    })
+    expect(write.statusCode).toBe(200)
+
+    // Unmatched /api wildcards stay JSON even behind the gate.
+    const unknown = await fresh.inject({ method: 'GET', url: '/api/nonsense' })
+    expect(unknown.statusCode).toBe(404)
+    expect(unknown.headers['content-type']).toContain('json')
+    await fresh.close()
   })
 })

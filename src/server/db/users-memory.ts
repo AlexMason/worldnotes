@@ -21,7 +21,11 @@ export function createMemoryUsersRepository(
   const store = new Map<string, UserRecord>()
   for (const row of opts.seed ?? []) store.set(row.sub, { ...row })
 
-  function provisionCore(sub: string, claims: LoginClaims | undefined, touch: boolean): ProvisionOutcome {
+  function provisionCore(
+    sub: string,
+    claims: LoginClaims | undefined,
+    touch: boolean,
+  ): ProvisionOutcome {
     const existing = store.get(sub)
     if (existing) {
       let record = existing

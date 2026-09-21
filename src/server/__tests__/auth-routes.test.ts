@@ -270,7 +270,11 @@ describe('auth routes (AUTH_DISABLED dev mode)', () => {
       NODE_ENV: 'development',
       AUTH_DISABLED: '1',
     })
-    const app = await buildApp({ config, pages: createMemoryPagesRepository(), users: usersFixture() })
+    const app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      users: usersFixture(),
+    })
 
     const me = await app.inject({ method: 'GET', url: '/api/me' })
     expect(me.statusCode).toBe(200)
