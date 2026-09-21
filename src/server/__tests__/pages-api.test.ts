@@ -1,6 +1,7 @@
 // ─── Pages API route tests (memory repo, forged session cookies) ─────────────
 
 import { describe, it, expect, beforeEach } from 'vitest'
+import { usersFixture } from './helpers/users-fixture'
 import { loadConfig, type ServerConfig } from '../config'
 import { buildApp } from '../app'
 import { createMemoryPagesRepository } from '../db/pages-memory'
@@ -40,6 +41,7 @@ describe('pages API', () => {
     app = await buildApp({
       config,
       pages: repo,
+      users: usersFixture(),
       relyingParty: null,
       onPageWrite: (slug) => writes.push(slug),
     })

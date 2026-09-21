@@ -1,6 +1,7 @@
 // ─── Auth route integration tests (mocked issuer, real crypto) ──────────────
 
 import { describe, it, expect, beforeEach } from 'vitest'
+import { usersFixture } from './helpers/users-fixture'
 import { loadConfig } from '../config'
 import { buildApp } from '../app'
 import { createRelyingParty } from '../auth/oidc'
@@ -41,7 +42,12 @@ describe('auth routes (OIDC)', () => {
   it('runs the full login → session → whoami flow', async () => {
     const config = loadConfig(baseEnv())
     const rp = await createRelyingParty(config, { fetch: mockFetch })
-    const app = await buildApp({ config, pages: createMemoryPagesRepository(), relyingParty: rp })
+    const app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      users: usersFixture(),
+      relyingParty: rp,
+    })
 
     // 1. login redirects to the provider with pending state cookie
     const login = await app.inject({ method: 'GET', url: '/oidc/login?returnTo=/blog/one' })
@@ -90,6 +96,7 @@ describe('auth routes (OIDC)', () => {
       sub: 'user-42',
       email: 'alice@example.com',
       name: 'Alice Example',
+      role: 'admin', // first-ever login bootstrap
     })
 
     // 4. logout clears the session cookie
@@ -122,7 +129,12 @@ describe('auth routes (OIDC)', () => {
     // mockFetch's metadata omits nothing today; emulate a provider without
     // end_session by asserting the route still 302s with a valid session
     const rp = await createRelyingParty(config, { fetch: mockFetch })
-    const app = await buildApp({ config, pages: createMemoryPagesRepository(), relyingParty: rp })
+    const app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      users: usersFixture(),
+      relyingParty: rp,
+    })
     const login = await app.inject({ method: 'GET', url: '/oidc/login' })
     const pending = cookieOf(login.headers['set-cookie'] as never, 'wn_oidc_pending')!
     const nonce = new URL(login.headers.location as string).searchParams.get('nonce')!
@@ -149,7 +161,12 @@ describe('auth routes (OIDC)', () => {
   it('rejects callbacks without pending state', async () => {
     const config = loadConfig(baseEnv())
     const rp = await createRelyingParty(config, { fetch: mockFetch })
-    const app = await buildApp({ config, pages: createMemoryPagesRepository(), relyingParty: rp })
+    const app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      users: usersFixture(),
+      relyingParty: rp,
+    })
 
     const cb = await app.inject({ method: 'GET', url: '/oidc/callback?code=x&state=y' })
     expect(cb.statusCode).toBe(400)
@@ -159,7 +176,12 @@ describe('auth routes (OIDC)', () => {
   it('rejects callbacks whose state does not match', async () => {
     const config = loadConfig(baseEnv())
     const rp = await createRelyingParty(config, { fetch: mockFetch })
-    const app = await buildApp({ config, pages: createMemoryPagesRepository(), relyingParty: rp })
+    const app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      users: usersFixture(),
+      relyingParty: rp,
+    })
 
     const login = await app.inject({ method: 'GET', url: '/oidc/login' })
     const pendingCookie = cookieOf(login.headers['set-cookie'] as never, 'wn_oidc_pending')!
@@ -180,7 +202,12 @@ describe('auth routes (OIDC)', () => {
   it('rejects a callback with no query parameters at all', async () => {
     const config = loadConfig(baseEnv())
     const rp = await createRelyingParty(config, { fetch: mockFetch })
-    const app = await buildApp({ config, pages: createMemoryPagesRepository(), relyingParty: rp })
+    const app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      users: usersFixture(),
+      relyingParty: rp,
+    })
     const login = await app.inject({ method: 'GET', url: '/oidc/login' })
     const pendingCookie = cookieOf(login.headers['set-cookie'] as never, 'wn_oidc_pending')!
     const cb = await app.inject({
@@ -196,7 +223,12 @@ describe('auth routes (OIDC)', () => {
   it('surfaces provider error codes in the failure detail', async () => {
     const config = loadConfig(baseEnv())
     const rp = await createRelyingParty(config, { fetch: mockFetch })
-    const app = await buildApp({ config, pages: createMemoryPagesRepository(), relyingParty: rp })
+    const app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      users: usersFixture(),
+      relyingParty: rp,
+    })
 
     const login = await app.inject({ method: 'GET', url: '/oidc/login' })
     const pendingCookie = cookieOf(login.headers['set-cookie'] as never, 'wn_oidc_pending')!
@@ -219,7 +251,12 @@ describe('auth routes (OIDC)', () => {
   it('anonymous /api/me gets 401', async () => {
     const config = loadConfig(baseEnv())
     const rp = await createRelyingParty(config, { fetch: mockFetch })
-    const app = await buildApp({ config, pages: createMemoryPagesRepository(), relyingParty: rp })
+    const app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      users: usersFixture(),
+      relyingParty: rp,
+    })
     const me = await app.inject({ method: 'GET', url: '/api/me' })
     expect(me.statusCode).toBe(401)
     await app.close()
@@ -233,7 +270,7 @@ describe('auth routes (AUTH_DISABLED dev mode)', () => {
       NODE_ENV: 'development',
       AUTH_DISABLED: '1',
     })
-    const app = await buildApp({ config, pages: createMemoryPagesRepository() })
+    const app = await buildApp({ config, pages: createMemoryPagesRepository(), users: usersFixture() })
 
     const me = await app.inject({ method: 'GET', url: '/api/me' })
     expect(me.statusCode).toBe(200)

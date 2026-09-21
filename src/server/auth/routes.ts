@@ -2,6 +2,7 @@
 
 import type { FastifyInstance } from 'fastify'
 import type { ServerConfig } from '../config'
+import type { UsersRepository } from '../db/users-repository'
 import { PENDING_COOKIE, seal, open, sessionCookieOptions } from './session'
 import type { OidcRelyingParty, PendingAuth } from './oidc'
 import { sanitizeReturnTo } from './oidc'
@@ -10,6 +11,8 @@ import { escapeHtml } from '../render/layout'
 export interface AuthRouteDeps {
   config: ServerConfig
   relyingParty: OidcRelyingParty | null
+  /** Users store for login-time provisioning; null only when authDisabled. */
+  users: UsersRepository | null
 }
 
 /**
@@ -83,6 +86,22 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
             `<p style="color:#666">The server log contains the full error.</p>` +
             `</body></html>`,
         )
+    }
+
+    // The actual login event is the only writer of login metadata; the
+    // per-request resolver stays read-only. Insert-if-absent here applies
+    // the same bootstrap rules as the resolver (first login = admin).
+    if (deps.users) {
+      const outcome = await deps.users.recordLogin(user.sub, {
+        email: user.email,
+        name: user.name,
+      })
+      if (outcome.grantedAdmin) {
+        req.log.warn(
+          `provisioned admin sub=${user.sub} (reason: ${outcome.reason}) — ` +
+            'verify this grant was intended; demote or reassign via /admin',
+        )
+      }
     }
 
     reply.setSession(user)

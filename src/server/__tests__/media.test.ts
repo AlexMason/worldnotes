@@ -2,6 +2,7 @@
 // Multipart bodies are hand-built Buffers (inject takes raw payloads).
 
 import { describe, it, expect, beforeEach } from 'vitest'
+import { usersFixture } from './helpers/users-fixture'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -64,6 +65,7 @@ describe('media routes', () => {
       pages: createMemoryPagesRepository(),
       settings: settingsRepo,
       media: mediaRepo,
+      users: usersFixture(),
       relyingParty: null,
       bundledIconsDir: iconsDir,
     })
@@ -311,6 +313,7 @@ describe('media routes', () => {
       pages: createMemoryPagesRepository(),
       settings: createMemorySettingsRepository(),
       media: createMemoryMediaRepository(),
+      users: usersFixture(),
       relyingParty: null,
       bundledIconsDir: null,
     })

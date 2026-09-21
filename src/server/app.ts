@@ -6,10 +6,13 @@ import type { ServerConfig } from './config'
 import type { PagesRepository } from './db/repository'
 import type { SettingsRepository } from './db/settings-repository'
 import type { MediaRepository } from './db/media-repository'
+import type { UsersRepository } from './db/users-repository'
 import { createMemorySettingsRepository } from './db/settings-memory'
 import { createMemoryMediaRepository } from './db/media-memory'
+import { createMemoryUsersRepository } from './db/users-memory'
 import { createSettingsService } from './settings'
 import { registerSessions } from './auth/session'
+import { registerRoleResolver } from './auth/roles'
 import { registerAuthRoutes } from './auth/routes'
 import { registerPageApiRoutes } from './routes/pages-api'
 import { registerSettingsApiRoutes } from './routes/settings-api'
@@ -42,6 +45,10 @@ export interface AppDeps {
   bundledIconsDir?: string | null
   /** Uploaded-media store; defaults to an in-memory store in tests. */
   media?: MediaRepository
+  /** Identity/role store. REQUIRED whenever auth is enabled — an
+   *  authorization store that silently defaults to memory would make every
+   *  promotion per-process and evaporate on restart. */
+  users?: UsersRepository | null
   /** Fastify logger; omitted = silent (tests). Bootstrap passes real config. */
   logger?: FastifyServerOptions['logger']
 }
@@ -56,6 +63,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     ttlMs: deps.config.env.CACHE_TTL_SECONDS * 1000,
   })
 
+  if (!deps.users && !deps.config.authDisabled) {
+    throw new Error('buildApp: deps.users is required when auth is enabled')
+  }
+  const usersRepo =
+    deps.users ??
+    createMemoryUsersRepository({
+      bootstrapAdminSubs: deps.config.bootstrapAdminSubs,
+      defaultRole: deps.config.defaultRole,
+    })
+
   await registerSessions(app, {
     secrets: deps.config.sessionSecrets,
     maxAgeSeconds: deps.config.env.SESSION_MAX_AGE_SECONDS,
@@ -63,9 +80,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     authDisabled: deps.config.authDisabled,
   })
 
+  // Single writer of req.user (claims + role). Must be registered after the
+  // session parser hook and before any route guards can run.
+  if (!deps.config.authDisabled) {
+    await registerRoleResolver(app, { users: usersRepo })
+  }
+
   await registerAuthRoutes(app, {
     config: deps.config,
     relyingParty: deps.relyingParty ?? null,
+    users: deps.config.authDisabled ? null : usersRepo,
   })
 
   const settingsRepo = deps.settings ?? createMemorySettingsRepository()

@@ -1,6 +1,7 @@
 // ─── /edit redirect + editor-at-/{slug} route tests ─────────────────────────
 
 import { describe, it, expect, beforeEach } from 'vitest'
+import { usersFixture } from './helpers/users-fixture'
 import { loadConfig, type ServerConfig } from '../config'
 import { buildApp } from '../app'
 import { createMemoryPagesRepository } from '../db/pages-memory'
@@ -24,7 +25,12 @@ describe('/edit redirects', () => {
 
   beforeEach(async () => {
     config = loadConfig(baseEnv)
-    app = await buildApp({ config, pages: createMemoryPagesRepository(), relyingParty: null })
+    app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      users: usersFixture(),
+      relyingParty: null,
+    })
     auth =
       'wn_session=' +
       seal(
@@ -77,7 +83,12 @@ describe('editor at /{slug}', () => {
 
   beforeEach(async () => {
     config = loadConfig(baseEnv)
-    app = await buildApp({ config, pages: createMemoryPagesRepository(), relyingParty: null })
+    app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      users: usersFixture(),
+      relyingParty: null,
+    })
     auth =
       'wn_session=' +
       seal(
@@ -118,7 +129,7 @@ describe('editor at /{slug}', () => {
   it('embeds page content + version in the shell for an existing page', async () => {
     const pages = createMemoryPagesRepository()
     await pages.put('blog/post', { title: 'Post', content: '# Hi\n\nbody', by: 'u1' })
-    const a = await buildApp({ config, pages, relyingParty: null })
+    const a = await buildApp({ config, pages, users: usersFixture(), relyingParty: null })
     const res = await a.inject({ method: 'GET', url: '/blog/post', headers: { cookie: auth } })
     expect(res.statusCode).toBe(200)
     const page = JSON.parse(
@@ -144,7 +155,7 @@ describe('editor at /{slug}', () => {
     const evil = 'x </script><script>alert(1)</script>'
     const pages = createMemoryPagesRepository()
     await pages.put('evil', { title: 'Evil', content: evil, by: 'u1' })
-    const a = await buildApp({ config, pages, relyingParty: null })
+    const a = await buildApp({ config, pages, users: usersFixture(), relyingParty: null })
     const res = await a.inject({ method: 'GET', url: '/evil', headers: { cookie: auth } })
     // Angle brackets in the payload are unicode-escaped, so no premature
     // </script> close or executable <script> element appears in the HTML...

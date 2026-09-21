@@ -1,6 +1,7 @@
 // ─── SSR read-path route tests ───────────────────────────────────────────────
 
 import { describe, it, expect, beforeEach } from 'vitest'
+import { usersFixture } from './helpers/users-fixture'
 import { loadConfig, type ServerConfig } from '../config'
 import { buildApp } from '../app'
 import { createMemoryPagesRepository } from '../db/pages-memory'
@@ -35,7 +36,7 @@ describe('SSR pages', () => {
   beforeEach(async () => {
     config = loadConfig(baseEnv)
     repo = createMemoryPagesRepository()
-    app = await buildApp({ config, pages: repo, relyingParty: null })
+    app = await buildApp({ config, pages: repo, users: usersFixture(), relyingParty: null })
     auth = editorCookie(config)
   })
 
@@ -338,6 +339,7 @@ describe('home page + search toggle', () => {
       config,
       pages: repo,
       settings: createMemorySettingsRepository(settingsSeed),
+      users: usersFixture(),
       relyingParty: null,
     })
     auth = editorCookie(config)
@@ -456,6 +458,7 @@ describe('favicon icon chrome', () => {
       config,
       pages: repo,
       media: mediaRepo,
+      users: usersFixture(),
       relyingParty: null,
     })
     auth = editorCookie(config)
@@ -533,6 +536,7 @@ describe('SSR chrome: nav page, hamburger, breadcrumb collapse', () => {
       config,
       pages: repo,
       settings: settingsRepo,
+      users: usersFixture(),
       relyingParty: null,
     })
     auth = editorCookie(config)

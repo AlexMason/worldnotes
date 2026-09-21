@@ -1,6 +1,7 @@
 // ─── Admin settings route tests (memory repos, forged session cookies) ──────
 
 import { describe, it, expect, beforeEach } from 'vitest'
+import { usersFixture } from './helpers/users-fixture'
 import { loadConfig, type ServerConfig } from '../config'
 import { buildApp } from '../app'
 import { createMemoryPagesRepository } from '../db/pages-memory'
@@ -45,6 +46,7 @@ describe('admin settings', () => {
       pages: createMemoryPagesRepository(),
       settings: settingsRepo,
       media: mediaRepo,
+      users: usersFixture(),
       relyingParty: null,
     })
     auth = editorCookie(config)

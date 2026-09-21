@@ -15,10 +15,11 @@ import {
 } from './users-repository'
 
 export function createMemoryUsersRepository(
-  opts: UsersRepositoryOptions,
+  opts: UsersRepositoryOptions & { seed?: Iterable<UserRecord> },
 ): UsersRepository & { dump(): UserRecord[] } {
   // sub → row, in insertion order (a stable sort keeps it for ties).
   const store = new Map<string, UserRecord>()
+  for (const row of opts.seed ?? []) store.set(row.sub, { ...row })
 
   function provisionCore(sub: string, claims: LoginClaims | undefined, touch: boolean): ProvisionOutcome {
     const existing = store.get(sub)

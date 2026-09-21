@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { seal, open, sameOriginOrMissing, requireAuth } from '../auth/session'
+import {
+  seal,
+  open,
+  sameOriginOrMissing,
+  requireAuth,
+  requireRole,
+  requireStrictOrigin,
+} from '../auth/session'
 import { formatAuthError } from '../auth/routes'
 
 interface Payload {
@@ -114,6 +121,70 @@ describe('requireAuth', () => {
     }
     await requireAuth({ user: { sub: 'x' } } as never, reply as never)
     expect(touched).toBe(false)
+  })
+})
+
+describe('requireRole (fail-closed)', () => {
+  const capture = async (guard: Awaited<ReturnType<typeof mkGuard>>, req: unknown) => {
+    const sent: { code?: number; body?: unknown } = {}
+    const reply = {
+      code(c: number) {
+        sent.code = c
+        return this
+      },
+      async send(b: unknown) {
+        sent.body = b
+      },
+    }
+    await guard(req as never, reply as never)
+    return sent
+  }
+  // tiny indirection so the helper above has a concrete type
+  function mkGuard(...allowed: ('viewer' | 'editor' | 'admin')[]) {
+    return requireRole(...allowed)
+  }
+
+  it('401s anonymous requests', async () => {
+    const sent = await capture(mkGuard('editor'), { user: null })
+    expect(sent).toMatchObject({ code: 401, body: { error: 'unauthorized' } })
+  })
+
+  it('403s a user whose role is missing (resolver did not run)', async () => {
+    const sent = await capture(mkGuard('editor', 'admin'), { user: { sub: 'x' } })
+    expect(sent).toMatchObject({ code: 403, body: { error: 'forbidden' } })
+  })
+
+  it('403s an insufficient role and passes an allowed one', async () => {
+    const viewer = await capture(mkGuard('editor', 'admin'), { user: { sub: 'x', role: 'viewer' } })
+    expect(viewer.code).toBe(403)
+    const untouched = await capture(mkGuard('editor'), { user: { sub: 'x', role: 'editor' } })
+    expect(untouched.code).toBeUndefined()
+  })
+})
+
+describe('requireStrictOrigin', () => {
+  const run = async (headers: Record<string, string>, hostname = 'notes.example') => {
+    const sent: { code?: number; body?: unknown } = {}
+    const reply = {
+      code(c: number) {
+        sent.code = c
+        return this
+      },
+      async send(b: unknown) {
+        sent.body = b
+      },
+    }
+    await requireStrictOrigin({ headers, hostname } as never, reply as never)
+    return sent.code
+  }
+
+  it('rejects requests with no Origin header', async () => {
+    expect(await run({})).toBe(403)
+  })
+
+  it('rejects cross-origin and accepts same-origin', async () => {
+    expect(await run({ origin: 'https://evil.test', host: 'notes.example' })).toBe(403)
+    expect(await run({ origin: 'https://notes.example', host: 'notes.example' })).toBeUndefined()
   })
 })
 
