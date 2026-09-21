@@ -214,6 +214,17 @@ export const EDITOR_CONTENT_CSS = `
   cursor: pointer;
 }
 .wn-link:hover { color: var(--wn-color-accent-hover, #3f79c4); }
+/* Off-site marker: absolute http(s) links are the only ones both renderers
+   emit with target="_blank" (internal folds, #fragments and mailto: are not),
+   so the attribute selects exactly "leaves the site". Generated ::after
+   content is invisible to DOM-text extraction — byte fidelity holds. */
+.wn-link[target='_blank']::after {
+  content: '\\2197';
+  text-decoration: none;
+  margin-inline-start: .15em;
+  font-size: .85em;
+  color: var(--wn-color-fg-muted, #6f6a61);
+}
 
 /* Image — punct-fidelity source (dimmed markers) + the rendered preview.
    While a line is COLLAPSED only the picture shows — on BOTH surfaces: the
