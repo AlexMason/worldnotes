@@ -8,6 +8,7 @@
 import { escapeHtml } from './layout'
 import { iconTagsHtml } from './icons'
 import { composeDocTitle } from '../../shared/doc-title'
+import type { Role } from '../../shared/roles'
 import type { EditorShellConfig, NavLink } from '../../shared/dto'
 import { slugDisplayName } from '../../shared/slug'
 
@@ -36,6 +37,8 @@ export interface EditorShellOptions {
   footerHtml: string
   userName: string | null
   authDisabled: boolean
+  /** Session role carried into the client config (chrome gating). */
+  userRole: Role
   /**
    * The page's persisted content + version, embedded so the editor can seed
    * its buffer and `If-Match` without a fetch on first paint. Null for pages
@@ -68,6 +71,7 @@ export function editorShellHtml(slug: string, opts: EditorShellOptions): string 
     footerHtml: opts.footerHtml,
     userName: opts.userName,
     authDisabled: opts.authDisabled,
+    userRole: opts.userRole,
   }
   const page = opts.page
     ? { slug, content: opts.page.content, version: opts.page.version, exists: true }

@@ -161,6 +161,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     config: deps.config,
     settings: settingsService,
     media: mediaRepo,
+    users: usersRepo,
     nav: navLinks,
   })
   await registerMediaRoutes(app, {

@@ -5,7 +5,7 @@
 // is the editor, read-only. VIEW_CSS below is chrome only (bar, crumbs,
 // index/search/admin); it must not restyle anything the editor classes own.
 
-import type { SessionUser } from '../auth/session'
+import type { AuthUser } from '../auth/session'
 import type { NavLink } from '../../shared/dto'
 import { EDITOR_TOKENS_CSS, EDITOR_CONTENT_CSS, SITE_BANDS_CSS } from '../../core/styles'
 import { composeDocTitle } from '../../shared/doc-title'
@@ -81,6 +81,12 @@ ul.wn-page-list { list-style: none; padding: 0; } ul.wn-page-list li { padding: 
   border-radius: 6px; border: 1px solid var(--wn-accent); background: transparent;
   color: var(--wn-accent); cursor: pointer; }
 .wn-admin-msg { color: var(--wn-accent); font: 14px/1.4 system-ui, sans-serif; }
+.wn-users-table { border-collapse: collapse; font: 14px/1.5 system-ui, sans-serif; width: 100%; }
+.wn-users-table th, .wn-users-table td { text-align: left; padding: .35rem .6rem .35rem 0;
+  border-bottom: 1px solid var(--wn-border); vertical-align: top; }
+.wn-users-table select { font: inherit; margin-right: .4rem; }
+.wn-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; }
 /* Site nav: custom nav links then the built-in actions. Desktop renders them
    inline and hides the hamburger toggle; on mobile the toggle (a <details>
    wrapping ONLY its summary) appears and :has() hides the sibling actions
@@ -130,7 +136,7 @@ export interface LayoutOptions {
   body: string
   trail?: { href: string; label: string }[]
   status?: number
-  user?: SessionUser | null
+  user?: AuthUser | null
   authDisabled?: boolean
   /** Show search affordances; defaults to true. */
   searchEnabled?: boolean
@@ -225,7 +231,11 @@ export function renderLayout(opts: LayoutOptions): string {
     actions.push('<a href="/all">All pages</a>')
   }
   if (opts.user) {
-    actions.push('<a href="/admin">Admin settings</a>')
+    // Admin chrome is role-gated; the identity/sign-out shows for everyone
+    // with a session (viewers included — they read, they don't manage).
+    if (opts.user.role === 'admin') {
+      actions.push('<a href="/admin">Admin settings</a>')
+    }
     actions.push(
       opts.authDisabled
         ? `<span title="dev mode">${escapeHtml(opts.user.name ?? opts.user.sub)}</span>`

@@ -1,5 +1,7 @@
 // ─── Wire formats shared by client and server ────────────────────────────────
 
+import type { Role } from './roles'
+
 export interface PageDto {
   slug: string
   title: string
@@ -61,4 +63,8 @@ export interface EditorShellConfig {
   footerHtml: string
   userName: string | null
   authDisabled: boolean
+  /** Viewer/editor/admin role of the session (optional for embedded-config
+   *  compatibility; ABSENT = least privilege — e.g. no Admin link). The
+   *  server always writes the real role; authDisabled sends 'admin'. */
+  userRole?: Role
 }

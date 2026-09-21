@@ -21,6 +21,8 @@ export interface ApiPageStoreEvents {
   /** A blank save deleted the page server-side. */
   onDeleted?(page: string): void
   onAuthLost?(): void
+  /** Server refused with 403 — the account lost its editorial role. */
+  onForbidden?(): void
 }
 
 export interface ApiPageStore extends PageStore {
@@ -99,6 +101,12 @@ export function createApiPageStore(
     })
     if (res.status === 401) {
       events.onAuthLost?.()
+      return null
+    }
+    if (res.status === 403) {
+      // Demoted while the tab stayed open — the one NEW error state the
+      // roles feature introduces into the editor's happy path.
+      events.onForbidden?.()
       return null
     }
     if (res.status === 400) return null // unfurlable name or blank content — caller shows save failure
@@ -196,6 +204,11 @@ export function createApiPageStore(
       if (res.status === 401) {
         events.onAuthLost?.()
         throw new Error('authentication lost')
+      }
+
+      if (res.status === 403) {
+        events.onForbidden?.()
+        throw new Error('edit access revoked')
       }
 
       if (res.status === 428) {

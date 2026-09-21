@@ -7,7 +7,10 @@
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import type { ServerConfig } from '../config'
 import type { PagesRepository } from '../db/repository'
-import type { SessionUser } from '../auth/session'
+import type { AuthUser } from '../auth/session'
+import { requireLoginHtml } from '../auth/login-gate'
+import { renderStatusDocument, signInRequiredBodyHtml } from '../render/status-page'
+import { isEditorialRole } from '../../shared/roles'
 import type { NavLink } from '../../shared/dto'
 import { validateSlug, slugDisplayName } from '../../shared/slug'
 import { INDEX_CACHE_KEY, hashEtag, type RenderCache } from '../cache'
@@ -91,7 +94,7 @@ export async function registerPageHtmlRoutes(
     return crumbs
   }
 
-  function chrome(user: SessionUser | null, settings: AppSettings, navLinks: NavLink[]) {
+  function chrome(user: AuthUser | null, settings: AppSettings, navLinks: NavLink[]) {
     return {
       user,
       authDisabled: config.authDisabled,
@@ -101,20 +104,41 @@ export async function registerPageHtmlRoutes(
       navLinks,
       headerHtml: settings.headerHtml,
       footerHtml: settings.footerHtml,
-      faviconMediaId: settings.faviconMediaId,
+      // One principle while login-only: uploaded (override) bytes never
+      // reach anonymous HTML or subresources — gated sites link the bundled
+      // icons for anonymous readers.
+      faviconMediaId: settings.requireLogin && !user ? null : settings.faviconMediaId,
     }
   }
+
+  // Login-only gate: anonymous HTML reads receive the 403 sign-in document
+  // (custom page in Phase B; built-in body until then). Unmatched
+  // api/oidc/assets wildcards keep their JSON answers via the exemption.
+  const gate = requireLoginHtml({
+    getSettings,
+    document: async (_req, returnTo) => {
+      const settings = getSettings()
+      const navLinks = await getNavLinks()
+      return renderStatusDocument(layout, chrome(null, settings, navLinks), {
+        title: 'Sign-in required',
+        bodyHtml: signInRequiredBodyHtml(returnTo),
+        trail: [{ href: '/', label: 'Home' }],
+      })
+    },
+  })
 
   // ── Article render: editor shell for auth, viewer for anonymous ──────────
 
   async function renderArticle(
     reply: FastifyReply,
-    req: { user: SessionUser | null },
+    req: { user: AuthUser | null },
     slug: string,
     home = false,
   ): Promise<FastifyReply> {
     const navLinks = await getNavLinks()
-    if (req.user) {
+    // Allowlist, never `!== 'viewer'`: an unresolvable role must not reach
+    // the write-capable shell.
+    if (req.user && isEditorialRole(req.user.role)) {
       const settings = getSettings()
       const page = await pages.get(slug)
       const html = editorShellHtml(slug, {
@@ -130,6 +154,7 @@ export async function registerPageHtmlRoutes(
         faviconMediaId: settings.faviconMediaId,
         userName: req.user.name ?? req.user.sub,
         authDisabled: config.authDisabled,
+        userRole: req.user.role,
         page: page ? { content: page.content, version: page.version } : null,
       })
       return reply
@@ -189,7 +214,7 @@ export async function registerPageHtmlRoutes(
 
   async function renderIndex(
     reply: FastifyReply,
-    req: { user: SessionUser | null },
+    req: { user: AuthUser | null },
   ): Promise<FastifyReply> {
     const settings = getSettings()
     const navLinks = await getNavLinks()
@@ -220,7 +245,7 @@ export async function registerPageHtmlRoutes(
       .send(html)
   }
 
-  app.get('/', async (req, reply) => {
+  app.get('/', { preHandler: [gate] }, async (req, reply) => {
     const settings = getSettings()
     const homeSlug = settings.homeSlug
     if (homeSlug) {
@@ -240,7 +265,7 @@ export async function registerPageHtmlRoutes(
     return renderIndex(reply, req)
   })
 
-  app.get('/all', async (req, reply) => {
+  app.get('/all', { preHandler: [gate] }, async (req, reply) => {
     const settings = getSettings()
     if (!settings.allPagesEnabled) {
       const html = layout({
@@ -270,7 +295,7 @@ export async function registerPageHtmlRoutes(
     }`
   }
 
-  app.get('/search', async (req, reply) => {
+  app.get('/search', { preHandler: [gate] }, async (req, reply) => {
     const settings = getSettings()
     const html = layout({
       title: 'Search',
@@ -288,7 +313,7 @@ export async function registerPageHtmlRoutes(
       .send(html)
   })
 
-  app.get('/search/*', async (req, reply) => {
+  app.get('/search/*', { preHandler: [gate] }, async (req, reply) => {
     const settings = getSettings()
     const terms = decodeURIComponent((req.params as { '*': string })['*']).trim()
     const html = layout({
@@ -309,7 +334,7 @@ export async function registerPageHtmlRoutes(
 
   // ── Catch-all page route (registered last) ───────────────────────────────
 
-  app.get('/*', async (req, reply) => {
+  app.get('/*', { preHandler: [gate] }, async (req, reply) => {
     const raw = (req.params as { '*': string })['*']
     if (raw.startsWith('api/') || raw.startsWith('oidc/') || raw.startsWith('assets/')) {
       return reply.code(404).send({ error: 'not found' })

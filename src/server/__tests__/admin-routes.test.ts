@@ -352,3 +352,103 @@ describe('admin settings', () => {
     })
   })
 })
+
+describe('admin page roles & users section', () => {
+  const cookieFor = (config: ServerConfig, sub: string) =>
+    'wn_session=' +
+    seal({ exp: Math.floor(Date.now() / 1000) + 300, sub, name: sub }, config.sessionSecrets)
+
+  async function make(users: Record<string, 'viewer' | 'editor' | 'admin'>) {
+    const config = loadConfig(baseEnv)
+    const app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      settings: createMemorySettingsRepository(),
+      media: createMemoryMediaRepository(),
+      users: usersFixture({ users }),
+      relyingParty: null,
+    })
+    return { config, app }
+  }
+
+  it('authenticated viewer gets an HTML 403 document, not a JSON blob', async () => {
+    const { config, app } = await make({ boss: 'admin', peeker: 'viewer' })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/admin',
+      headers: { cookie: cookieFor(config, 'peeker') },
+    })
+    expect(res.statusCode).toBe(403)
+    expect(res.headers['content-type']).toContain('text/html')
+    expect(res.headers['cache-control']).toBe('no-store')
+    expect(res.body).toContain('Forbidden')
+    expect(res.body).not.toContain('id="wn-admin-form"') // no settings form DOM
+    await app.close()
+  })
+
+  it('editor also 403s; admin renders the form', async () => {
+    const { config, app } = await make({ boss: 'admin', writer: 'editor' })
+    expect(
+      (
+        await app.inject({
+          method: 'GET',
+          url: '/admin',
+          headers: { cookie: cookieFor(config, 'writer') },
+        })
+      ).statusCode,
+    ).toBe(403)
+    const admin = await app.inject({
+      method: 'GET',
+      url: '/admin',
+      headers: { cookie: cookieFor(config, 'boss') },
+    })
+    expect(admin.statusCode).toBe(200)
+    expect(admin.body).toContain('wn-admin-form')
+    await app.close()
+  })
+
+  it('renders the Access fieldset with login-only and status-page controls', async () => {
+    const { config, app } = await make({ boss: 'admin' })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/admin',
+      headers: { cookie: cookieFor(config, 'boss') },
+    })
+    expect(res.body).toContain('name="requireLogin"')
+    expect(res.body).toContain('name="notFoundSlug"')
+    expect(res.body).toContain('name="forbiddenSlug"')
+    expect(res.body).toContain('served to every visitor')
+    await app.close()
+  })
+
+  it('lists users with escaped IdP-controlled fields and marks the current admin', async () => {
+    const users = usersFixture()
+    await users.recordLogin('boss', { email: 'boss@x.test', name: 'Boss' })
+    await users.recordLogin('<img src=x onerror=alert(1)>', {
+      email: 'evil@x.test',
+      name: '<script>alert(2)</script>',
+    })
+    const config = loadConfig(baseEnv)
+    const app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      settings: createMemorySettingsRepository(),
+      media: createMemoryMediaRepository(),
+      users,
+      relyingParty: null,
+    })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/admin',
+      headers: { cookie: cookieFor(config, 'boss') },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toContain('<h2>Users</h2>')
+    expect(res.body).toContain('(you)')
+    // Stored-XSS-to-admin sink: IdP fields must arrive escaped.
+    expect(res.body).not.toContain('<script>alert(2)</script>')
+    expect(res.body).toContain('&lt;script&gt;alert(2)&lt;/script&gt;')
+    expect(res.body).not.toContain('<img src=x onerror=alert(1)>')
+    await app.close()
+  })
+})
