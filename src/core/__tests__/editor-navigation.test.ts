@@ -493,26 +493,14 @@ describe('createEditorNavigation', () => {
   // ── Refusal: unfoldable targets never enter the trail ──────────────────
 
   describe('refusing invalid targets', () => {
-    const refuse = [
-      ['', 'empty'],
-      ['中文', 'non-latin'],
-      ['api/x', 'reserved route'],
-      ['/all', 'reserved route'],
-      ['/search/hi', 'app route'],
-    ] as const
+    const refuse = [ ['', 'empty'], ['中文', 'non-latin'], ['api/x', 'reserved route'], ['/all', 'reserved route'], ['/search/hi', 'app route'] ] as const
 
     for (const [target, why] of refuse) {
       it(`refuses "${target || '(empty)'}" (${why}) with a toast and no trail change`, async () => {
         const s = mockState(['home'])
         const st = mockStorage({})
         const notify = vi.fn()
-        const nav = createEditorNavigation(
-          s,
-          st,
-          dom,
-          {},
-          { notify, dismiss: vi.fn(), destroy: vi.fn() },
-        )
+        const nav = createEditorNavigation(s, st, dom, {}, { notify, dismiss: vi.fn(), destroy: vi.fn() })
         nav.setRenderAPI(render)
 
         await nav.navigateToPage(target)
@@ -528,13 +516,7 @@ describe('createEditorNavigation', () => {
       const s = mockState(['home'])
       const st = mockStorage({})
       const notify = vi.fn()
-      const nav = createEditorNavigation(
-        s,
-        st,
-        dom,
-        {},
-        { notify, dismiss: vi.fn(), destroy: vi.fn() },
-      )
+      const nav = createEditorNavigation(s, st, dom, {}, { notify, dismiss: vi.fn(), destroy: vi.fn() })
       nav.setRenderAPI(render)
 
       await nav.navigateToPage('https://example.com/y')
@@ -556,17 +538,11 @@ describe('createEditorNavigation', () => {
       }
       const s = mockState(['home'])
       const notify = vi.fn()
-      const nav = createEditorNavigation(
-        s,
-        errorStorage,
-        dom,
-        {},
-        {
-          notify,
-          dismiss: vi.fn(),
-          destroy: vi.fn(),
-        },
-      )
+      const nav = createEditorNavigation(s, errorStorage, dom, {}, {
+        notify,
+        dismiss: vi.fn(),
+        destroy: vi.fn(),
+      })
       nav.setRenderAPI(render)
 
       await expect(nav.navigateToPage('any')).resolves.toBeUndefined()
