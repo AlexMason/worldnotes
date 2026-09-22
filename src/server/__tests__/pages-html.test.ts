@@ -703,7 +703,7 @@ describe('SSR roles & login-only gate', () => {
   })
 
   it('login-only mode 403s anonymous HTML with a sign-in document and no /media/ URLs', async () => {
-    const { config, app } = await make({ requireLogin: true, faviconMediaId: 7 })
+    const { app } = await make({ requireLogin: true, faviconMediaId: 7 })
     const res = await app.inject({ method: 'GET', url: '/page' })
     expect(res.statusCode).toBe(403)
     expect(res.headers['content-type']).toContain('text/html')
