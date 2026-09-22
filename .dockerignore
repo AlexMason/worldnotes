@@ -1,0 +1,13 @@
+# Build context hygiene only — the Dockerfile COPYs source explicitly.
+# Never exclude files the Dockerfile needs (src/, public/, migrations/,
+# package*.json, tsconfig*.json, vite.client.config.ts).
+node_modules
+dist
+coverage
+.git
+.github
+.pi
+.planning
+.env
+.env.*
+*.log
