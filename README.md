@@ -69,6 +69,15 @@ the first-admin setup), or run with `AUTH_DISABLED=1` in development.
 
 ## Deployment (Docker)
 
+A prebuilt image is published to GHCR on every push to `main` (tagged
+`latest` and with the short commit SHA):
+
+```bash
+docker pull ghcr.io/alexmason/worldnotes:latest
+```
+
+Run the stack (app + Postgres) with `docker-compose.yml`:
+
 ```bash
 docker compose up --build -d
 ```
