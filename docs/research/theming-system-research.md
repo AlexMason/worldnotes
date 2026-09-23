@@ -340,4 +340,6 @@ M2's doc work lands in the final shape; M2 independent of M3's UI).
 
 ## 7. Filed issues
 
-- ISSUE_NUMBER_PLACEHOLDER
+- **#6** — Theming system: admin-authored theme gallery with custom CSS +
+  complete token surface (this research distilled into milestones M1–M4):
+  https://github.com/AlexMason/worldnotes/issues/6
