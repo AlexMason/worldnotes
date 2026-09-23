@@ -154,16 +154,16 @@ Not recommended for this codebase right now: adopting ProseMirror/TipTap wholesa
 
 **The strategic flag (GH-4, §6):** every fix above is "become a small CodeMirror". The Obsidian-style CM6 core (source doc + decoration live-preview, incl. `@codemirror/lang-markdown` + the documented hide-marks pattern) would provide items 1–10 out of the box, and the reader surface (static renderer) would be untouched — but it *would* end the "editor DOM is rendered by the same engine" invariant (editor DOM would be CM6's, decorated with the same plugin token info via `BlockDef`/token patterns — a re-interpretation of "single renderer" as "single tokenizer/grammar", not "single DOM builder"). That's an architecture decision for the maintainers, not a bug fix; the research report's job is to name it, not make it.
 
-## 6. Proposed GitHub issues — four, consolidated (was ten)
+## 6. Proposed GitHub issues — four, consolidated (was ten) — **filed as #2–#5**
 
-The ten symptom-shaped drafts consolidate by *fix site*: items landing in the same event handler, sharing one repro script, or needing one PR should be one issue. Every technical detail from the original ten is preserved in the bodies (§7). All four carry a shared `editor-ux` label.
+The ten symptom-shaped drafts consolidate by *fix site*: items landing in the same event handler, sharing one repro script, or needing one PR should be one issue. Every technical detail from the original ten is preserved in the bodies (§7). All four carry a shared `editor-ux` label. **Filed as #2–#5.**
 
 | Issue | Labels | Title | Folds §5 fixes | Depends on |
 |---|---|---|---|---|
-| **GH-1** | `bug` `editor-ux` | Clipboard payloads are the rendered DOM, not the source markdown | 1, 4, 7 | none — *shares* the `commitModelEdit` helper with GH-2 (whichever lands first extracts it from `runTextOp`) |
-| **GH-2** | `bug` `editor-ux` | Multi-line selection is destroyed by renders and corrupted by native edits | 2, 3, 5, 6 | none — foundational |
-| **GH-3** | `bug` `editor-ux` | Browser-boundary gaps: IME composition, internal drag-drop, native undo, old-Safari clipboard | 8, 9, 10 | soft: drop-insert reuses GH-1's paste helper; IME guard coordinates with GH-2's render changes |
-| **GH-4** | `discussion` `editor-ux` | Evaluate CodeMirror 6 as the editor core (Obsidian model) | — | independent; **its outcome gates whether GH-3 (and any future editor-adjacent work) is ever done** |
+| **GH-1** → [#2](https://github.com/AlexMason/worldnotes/issues/2) | `bug` `editor-ux` | Clipboard payloads are the rendered DOM, not the source markdown | 1, 4, 7 | none — *shares* the `commitModelEdit` helper with GH-2 (whichever lands first extracts it from `runTextOp`) |
+| **GH-2** → [#3](https://github.com/AlexMason/worldnotes/issues/3) | `bug` `editor-ux` | Multi-line selection is destroyed by renders and corrupted by native edits | 2, 3, 5, 6 | none — foundational |
+| **GH-3** → [#4](https://github.com/AlexMason/worldnotes/issues/4) | `bug` `editor-ux` | Browser-boundary gaps: IME composition, internal drag-drop, native undo, old-Safari clipboard | 8, 9, 10 | soft: drop-insert reuses GH-1's paste helper; IME guard coordinates with GH-2's render changes |
+| **GH-4** → [#5](https://github.com/AlexMason/worldnotes/issues/5) | `discussion` `editor-ux` | Evaluate CodeMirror 6 as the editor core (Obsidian model) | — | independent; **its outcome gates whether GH-3 (and any future editor-adjacent work) is ever done** |
 
 ### Dependency & prioritization notes (for whoever picks these up)
 
@@ -176,9 +176,9 @@ The ten symptom-shaped drafts consolidate by *fix site*: items landing in the sa
 
 ---
 
-## 7. Issue bodies (paste-ready)
+## 7. Issue bodies (as filed — #2, #3, #4, #5)
 
-### GH-1 — Clipboard payloads are the rendered DOM, not the source markdown
+### GH-1 (#2) — Clipboard payloads are the rendered DOM, not the source markdown
 
 **Symptoms.** (a) Copy: select `[[blog/post|Client Portal]]` (on a line the cursor is *not* on) and Ctrl+C — the clipboard gets `Client Portal` (target lost). Bullets copy as `• item` instead of `- item`; `[label](https://…)` copies the label only; table rows copy without pipes and one cell per line (`.wn-table-row .wn-punct{display:none}` — invisible text is excluded from copy serialization); pasted back, none of these are the markdown they came from. (b) Paste: Windows clipboards inject literal `\r` into the buffer; pasting while the caret sits inside a `data-raw` token span silently loses the pasted text (the `data-raw` branch in `extractContentText` swallows the subtree); pasting a file URL inserts raw `file:///…`; paste over a multi-line selection inherits GH-2's stray-newline corruption.
 
@@ -192,7 +192,7 @@ The ten symptom-shaped drafts consolidate by *fix site*: items landing in the sa
 
 **Acceptance.** Copy of every token type (wiki link, md link, list item, table row/separator, image, strikethrough, dimmed punctuation) yields exact source bytes; worldnotes→worldnotes round-trip is lossless; cut = copy + model delete + one undo step; CRLF paste yields LF-only source; paste inside/around `data-raw` spans never loses content; empty-selection copy→paste duplicates a line. Extend `editor-lifecycle.test.ts`'s paste suite (currently only asserts preventDefault + plain insert).
 
-### GH-2 — Multi-line selection is destroyed by renders and corrupted by native edits
+### GH-2 (#3) — Multi-line selection is destroyed by renders and corrupted by native edits
 
 **Symptoms.** (a) Click-drag across lines breaks or snaps to one line; shift-click on a far line races the rAF rebuild. (b) Any re-render (line activation, save flush, plugin update, undo, keymap restore) collapses an existing range selection to a caret. (c) Backspace/Delete or type-over with a multi-line selection leaves stray blank lines — the deleted text returns as newlines because the browser removed *text* but not the `div[data-line]` containers, and `extractContentText` counts a `\n` per surviving line div. (d) After any programmatic caret placement the caret can be off-screen; (e) Firefox select-all spans page chrome, making keymap ops consume-and-noop while native fallbacks still mutate DOM. (f) Vertical caret goal-column is lost on ragged lines (up/down jumps to line start/end) because each rebuild resets the browser's hidden selection state.
 
@@ -206,7 +206,7 @@ The ten symptom-shaped drafts consolidate by *fix site*: items landing in the sa
 
 **Acceptance.** Click-drag, shift-click, shift+arrow, Home/End multi-line selections behave like a textarea on Chromium/Firefox/WebKit; selection survives saves, plugin updates, and undo; deleting or typing over an N-line selection removes/replaces exactly those source lines with one undo step; caret scrolls into view after programmatic ops; Ctrl+A selects only the document body; up/down across ragged lines keeps the column (goal-column test).
 
-### GH-3 — Browser-boundary gaps: IME composition, internal drag-drop, native undo, old-Safari clipboard
+### GH-3 (#4) — Browser-boundary gaps: IME composition, internal drag-drop, native undo, old-Safari clipboard
 
 An umbrella for browser interactions the pipeline doesn't model yet. Each item is independently fixable; use checkboxes, one PR each. Low priority for latin-script desktop users — promote if mobile/CJK reports arrive.
 
@@ -216,7 +216,7 @@ An umbrella for browser interactions the pipeline doesn't model yet. Each item i
 - [ ] **Old-Safari/iOS clipboard fallback.** WebKit ≤ 604 and iOS lie about the clipboard API; CM6 and PM both fall back to `capturePaste` via a hidden textarea/contenteditable. Rare today; adopt the technique in GH-1's handlers if reported.
 - [ ] (Deferred, mobile) Android keyboards' composing-always-on behavior — CM6 synthesizes Enter/Backspace from DOM diffs (`applyDOMChange` android branch); document as known limitation until mobile editing is a goal.
 
-### GH-4 — Evaluate CodeMirror 6 as the editor core (Obsidian model)
+### GH-4 (#5) — Evaluate CodeMirror 6 as the editor core (Obsidian model)
 
 **Question.** Every fix in GH-1–GH-3 already exists, battle-tested, inside CodeMirror 6 — model-driven clipboard (copy is `sliceDoc`, so Obsidian's copy is byte-exact source even with marks hidden), state selections with anchor/head/assoc/goal-column mapped through every change, coordinate-derived mouse selection immune to DOM churn, incremental viewport-aware DOM updates that don't disturb native selection or composition, IME machinery, drop handling, line-wise copy/paste, `clipboardInput/OutputFilter` hooks, and multi-caret editing for free. Obsidian pairs that core with a live-preview decoration layer: the document is always the exact markdown source; inactive-line formatting marks are hidden by replace decorations — the same per-line activation UX worldnotes already ships (`activeLines` in `editor-render.ts`), and the pattern the open-source clones (`kenforthewin/atomic-editor`, `fedoup/markdown-editor`, canonical hide-markdown-syntax thread) reimplement.
 
