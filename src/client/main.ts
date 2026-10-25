@@ -63,6 +63,14 @@ async function main(): Promise<void> {
   if (!container) return
   const cfg = readShellConfig()
   const embed = readPageEmbed()
+
+  // GH-4 spike: opt-in CodeMirror 6 editing surface (dynamic import keeps it
+  // out of the default bundle). Everything below is the production editor.
+  if (new URLSearchParams(window.location.search).has('cm6')) {
+    const { mountCm6Spike } = await import('./cm6-spike')
+    mountCm6Spike(container, cfg, embed)
+    return
+  }
   const seeded = embed && embed.exists && embed.version !== null
 
   let instance: EditorInstance | null = null
