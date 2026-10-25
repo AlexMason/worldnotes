@@ -4,7 +4,9 @@
 // The form PUTs /api/settings and reloads on success. Note: the header/footer
 // bands are deliberately NOT rendered on /admin itself — broken or defaced
 // branding must never bury the form used to recover it (site name still
-// decorates the title/breadcrumb, which is escaped chrome).
+// decorates the title/breadcrumb, which is escaped chrome). The same rule
+// covers theme CSS: /admin never receives `themeCss`, so a broken theme can
+// never bury the Themes gallery used to fix or deactivate it.
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { renderLayout, escapeHtml } from '../render/layout'
@@ -12,6 +14,9 @@ import { forbiddenBodyHtml, statusDocument, type StatusDeps } from '../render/st
 import { ROLES } from '../../shared/roles'
 import type { SettingsService } from '../settings'
 import type { NavLinksService } from '../render/nav'
+import type { ThemeService } from '../themes'
+import { THEME_CSS_MAX, THEME_DESCRIPTION_MAX, THEME_NAME_MAX } from '../themes'
+import type { ThemeRow } from '../db/themes-repository'
 import type { MediaRepository } from '../db/media-repository'
 import type { UserRecord, UsersRepository } from '../db/users-repository'
 import type { PagesRepository } from '../db/repository'
@@ -28,6 +33,8 @@ export interface AdminDeps {
   pages: PagesRepository
   cache: RenderCache
   render: { render(src: string): string }
+  /** Theme gallery store (listing only — writes go through /api/themes). */
+  themes: ThemeService
 }
 
 /**
@@ -215,6 +222,135 @@ const USERS_SCRIPT = `
 })();
 `
 
+// Theme gallery: one block per theme, each with its own buttons and message
+// line (favicon/users pattern) so a failed save (400 invalid CSS, 409 name
+// taken / delete-active) never buries the rest of the gallery. Writes hit
+// /api/themes; activation is a partial PUT /api/settings.
+const THEMES_SCRIPT = `
+(function () {
+  async function call(method, url, body) {
+    var res = await fetch(url, {
+      method: method,
+      headers: body === undefined ? {} : { 'content-type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    var detail = '';
+    if (!res.ok) { try { detail = (await res.json()).error || ''; } catch (err) { /* ignore */ } }
+    return { ok: res.ok, status: res.status, detail: detail };
+  }
+  function bind(msg) {
+    function show(text) { msg.hidden = false; msg.textContent = text; }
+    async function run(method, url, body) {
+      show('Working…');
+      var r;
+      try { r = await call(method, url, body); }
+      catch (err) { show('Request failed — network error.'); return; }
+      if (r.ok) { window.location.reload(); return; }
+      show('Failed — ' + (r.detail || r.status));
+    }
+    return run;
+  }
+  function fields(root) {
+    return {
+      name: root.querySelector('[name=themeName]').value,
+      description: root.querySelector('[name=themeDescription]').value,
+      css: root.querySelector('[name=themeCss]').value,
+    };
+  }
+  document.querySelectorAll('[data-theme-id]').forEach(function (root) {
+    var id = root.dataset.themeId;
+    var msg = root.querySelector('.wn-theme-msg');
+    var run = bind(msg);
+    root.querySelector('.wn-theme-save').addEventListener('click', function () {
+      run('PUT', '/api/themes/' + id, fields(root));
+    });
+    var activate = root.querySelector('.wn-theme-activate');
+    if (activate) activate.addEventListener('click', function () {
+      run('PUT', '/api/settings', { activeThemeId: Number(id) });
+    });
+    var deactivate = root.querySelector('.wn-theme-deactivate');
+    if (deactivate) deactivate.addEventListener('click', function () {
+      run('PUT', '/api/settings', { activeThemeId: null });
+    });
+    root.querySelector('.wn-theme-delete').addEventListener('click', function () {
+      if (window.confirm('Delete this theme?')) run('DELETE', '/api/themes/' + id);
+    });
+  });
+  var fresh = document.getElementById('wn-theme-new');
+  if (fresh) {
+    var freshMsg = fresh.querySelector('.wn-theme-msg');
+    var freshRun = bind(freshMsg);
+    fresh.querySelector('.wn-theme-create').addEventListener('click', function () {
+      freshRun('POST', '/api/themes', fields(fresh));
+    });
+  }
+})();
+`
+/** Fields shared by the edit blocks and the create form. The leading newline
+ *  in the textarea survives the HTML parser's first-newline strip. */
+function themeFields(theme: ThemeRow | null): string {
+  return (
+    `<label>Name<input type="text" name="themeName" maxlength="${THEME_NAME_MAX}" value="${escapeHtml(
+      theme?.name ?? '',
+    )}" placeholder="e.g. Midnight"></label>` +
+    `<label>Description (optional)<input type="text" name="themeDescription" maxlength="${THEME_DESCRIPTION_MAX}" value="${escapeHtml(
+      theme?.description ?? '',
+    )}"></label>` +
+    `<label>CSS (up to ${THEME_CSS_MAX} characters)<textarea class="wn-theme-css" name="themeCss" rows="12" spellcheck="false">\n${escapeHtml(
+      theme?.css ?? '',
+    )}</textarea></label>`
+  )
+}
+
+/**
+ * The Themes gallery. Names/descriptions/CSS are admin-authored but still go
+ * through escapeHtml — the CSS is shown as text in a textarea, never emitted
+ * as markup. NOTE: /admin itself never applies the active theme (anti-lockout
+ * — see the file header), so a broken theme cannot bury this form.
+ */
+function themesSection(themes: ThemeRow[], activeId: number | null): string {
+  const active = activeId === null ? null : (themes.find((t) => t.id === activeId) ?? null)
+  const status =
+    activeId === null
+      ? 'No theme is active — readers and editors see the default look.'
+      : active
+        ? `Active theme: \u201c${escapeHtml(active.name)}\u201d.`
+        : `The active theme (#${activeId}) no longer exists — the default look is in use.`
+  const blocks = themes
+    .map(
+      (t) =>
+        `<details class="wn-theme" data-theme-id="${t.id}"${t.id === activeId ? ' open' : ''}>` +
+        `<summary>${escapeHtml(t.name)}${
+          t.id === activeId ? ' <span class="wn-theme-badge">active</span>' : ''
+        }${t.description ? ` \u2014 <span class="wn-theme-desc">${escapeHtml(t.description)}</span>` : ''}</summary>` +
+        themeFields(t) +
+        `<div class="wn-theme-actions">` +
+        `<button type="button" class="wn-theme-save">Save theme</button>` +
+        (t.id === activeId
+          ? `<button type="button" class="wn-theme-deactivate">Deactivate</button>`
+          : `<button type="button" class="wn-theme-activate">Activate</button>`) +
+        `<a class="wn-theme-preview" href="/?previewTheme=${t.id}" target="_blank" rel="noopener">Preview</a>` +
+        `<button type="button" class="wn-theme-delete">Delete</button>` +
+        `</div>` +
+        `<p class="wn-theme-msg wn-admin-msg" hidden></p>` +
+        `</details>`,
+    )
+    .join('')
+  return (
+    `<section class="wn-admin-form wn-themes" style="margin-top:2rem">` +
+    `<h2>Themes</h2>` +
+    `<p class="wn-admin-msg">${status}</p>` +
+    `<p class="wn-admin-msg">A theme is a CSS stylesheet appended after the default styles on the reader and the editor
+       (never on this page). It is raw, admin-trusted CSS shown to every visitor. Preview opens the site
+       with that theme for you only.</p>` +
+    (blocks || `<p class="wn-admin-msg">No themes yet \u2014 create one below.</p>`) +
+    `<div id="wn-theme-new" class="wn-theme wn-theme-new"><h3>New theme</h3>` +
+    themeFields(null) +
+    `<div class="wn-theme-actions"><button type="button" class="wn-theme-create">Create theme</button></div>` +
+    `<p class="wn-theme-msg wn-admin-msg" hidden></p></div>` +
+    `</section>`
+  )
+}
 function formatLogin(ms: number): string {
   return new Date(ms).toISOString().slice(0, 16).replace('T', ' ') + 'Z'
 }
@@ -345,6 +481,7 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
       `<button type="button" id="wn-icon-remove">Use default icons</button></div>` +
       `<p id="wn-icon-msg" class="wn-admin-msg" hidden></p>` +
       `</section>` +
+      themesSection(await deps.themes.list(), s.activeThemeId) +
       usersSection(req.user, await users.list({ limit: 500 }))
 
     const html = renderLayout({
@@ -363,7 +500,7 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
       // they can never deface or bury the recovery form.
       navLinks,
       faviconMediaId: s.requireLogin && !req.user ? null : s.faviconMediaId,
-      scripts: ADMIN_SCRIPT + ICON_SCRIPT + USERS_SCRIPT,
+      scripts: ADMIN_SCRIPT + ICON_SCRIPT + THEMES_SCRIPT + USERS_SCRIPT,
     })
     return reply
       .header('content-type', 'text/html; charset=utf-8')

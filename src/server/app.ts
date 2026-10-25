@@ -7,15 +7,19 @@ import type { PagesRepository } from './db/repository'
 import type { SettingsRepository } from './db/settings-repository'
 import type { MediaRepository } from './db/media-repository'
 import type { UsersRepository } from './db/users-repository'
+import type { ThemesRepository } from './db/themes-repository'
 import { createMemorySettingsRepository } from './db/settings-memory'
 import { createMemoryMediaRepository } from './db/media-memory'
 import { createMemoryUsersRepository } from './db/users-memory'
+import { createMemoryThemesRepository } from './db/themes-memory'
 import { createSettingsService } from './settings'
+import { createThemeService } from './themes'
 import { registerSessions } from './auth/session'
 import { registerRoleResolver } from './auth/roles'
 import { registerAuthRoutes } from './auth/routes'
 import { registerPageApiRoutes } from './routes/pages-api'
 import { registerSettingsApiRoutes } from './routes/settings-api'
+import { registerThemesApiRoutes } from './routes/themes-api'
 import { registerUsersApiRoutes } from './routes/users-api'
 import { registerMediaRoutes } from './routes/media'
 import { registerAdminRoutes } from './routes/admin'
@@ -46,6 +50,8 @@ export interface AppDeps {
   bundledIconsDir?: string | null
   /** Uploaded-media store; defaults to an in-memory store in tests. */
   media?: MediaRepository
+  /** Admin theme gallery store; defaults to an in-memory store in tests. */
+  themes?: ThemesRepository
   /** Identity/role store. REQUIRED whenever auth is enabled — an
    *  authorization store that silently defaults to memory would make every
    *  promotion per-process and evaporate on restart. */
@@ -96,6 +102,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const settingsRepo = deps.settings ?? createMemorySettingsRepository()
   const settingsService = await createSettingsService(settingsRepo)
   const mediaRepo = deps.media ?? createMemoryMediaRepository()
+  const themeService = createThemeService(
+    deps.themes ?? createMemoryThemesRepository(),
+    settingsService,
+  )
 
   // Nav-page links: memoized over the shared render cache (a write to the
   // nav page is a chrome write — evicted by the same hook that busts the
@@ -160,7 +170,12 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     },
   })
 
-  await registerSettingsApiRoutes(app, { settings: settingsService, media: mediaRepo })
+  await registerSettingsApiRoutes(app, {
+    settings: settingsService,
+    media: mediaRepo,
+    themes: themeService,
+  })
+  await registerThemesApiRoutes(app, { themes: themeService, settings: settingsService })
   await registerUsersApiRoutes(app, { users: usersRepo })
   const readerRender = createReaderRenderer()
   await registerAdminRoutes(app, {
@@ -172,6 +187,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     pages: deps.pages,
     cache,
     render: readerRender,
+    themes: themeService,
   })
   await registerMediaRoutes(app, {
     media: mediaRepo,
@@ -198,6 +214,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     autosaveMs: deps.config.env.AUTOSAVE_DEBOUNCE_MS,
     getSettings: () => settingsService.get(),
     getSettingsRevision: () => settingsService.getRevision(),
+    themes: themeService,
     getNavLinks: () => navLinks.links(),
   })
 

@@ -27,6 +27,7 @@ import { escapeHtml, searchFormHtml } from '../render/layout'
 import type { LayoutOptions } from '../render/layout'
 import { editorShellHtml } from '../render/editor-shell'
 import type { AppSettings } from '../settings'
+import type { ThemeService } from '../themes'
 
 export interface PageHtmlDeps {
   config: ServerConfig
@@ -44,6 +45,10 @@ export interface PageHtmlDeps {
   /** Links extracted from the configured nav page (async: the parse may
    *  need to fetch the nav page, though the render cache usually answers). */
   getNavLinks: () => Promise<NavLink[]>
+  /** Theme store: the active theme's CSS (and admin `?previewTheme=` lookups)
+   *  are appended after the default stylesheet on every reader surface and
+   *  embedded in the editor shell. NOT used by /admin (anti-lockout). */
+  themes: ThemeService
 }
 
 interface PageCacheValue {
@@ -60,6 +65,12 @@ function pageUrl(slug: string): string {
   return `/${slug.split('/').map(encodeURIComponent).join('/')}`
 }
 
+/** The request slice the render helpers need (user + raw query). */
+interface ReqLike {
+  user: AuthUser | null
+  query?: unknown
+}
+
 export async function registerPageHtmlRoutes(
   app: FastifyInstance,
   deps: PageHtmlDeps,
@@ -67,11 +78,19 @@ export async function registerPageHtmlRoutes(
   const { config, pages, cache, render, layout, assetPrefix, autosaveMs, getSettings } = deps
   const getSettingsRevision = deps.getSettingsRevision
   const getNavLinks = deps.getNavLinks
+  const themes = deps.themes
   const statusDeps: StatusDeps = { layout, render, pages, cache }
   const MAX_AGE = 'public, max-age=60, stale-while-revalidate=300'
 
-  function respond(reply: FastifyReply, entry: CacheEntry, status = 200): FastifyReply {
-    if (status === 200 && reply.request.headers['if-none-match'] === entry.etag) {
+  function respond(
+    reply: FastifyReply,
+    entry: CacheEntry,
+    status = 200,
+    preview = false,
+  ): FastifyReply {
+    // Previews are never negotiable or cacheable: a trial theme must not be
+    // served from (or stored into) a browser cache.
+    if (status === 200 && !preview && reply.request.headers['if-none-match'] === entry.etag) {
       return reply.code(304).send()
     }
     // 4xx must never sit in a browser cache. A stale 200 is a cosmetic
@@ -85,7 +104,7 @@ export async function registerPageHtmlRoutes(
       .code(status)
       .header('content-type', 'text/html; charset=utf-8')
       .header('etag', entry.etag)
-      .header('cache-control', status === 200 ? MAX_AGE : 'no-store')
+      .header('cache-control', status === 200 && !preview ? MAX_AGE : 'no-store')
       .header('vary', 'Cookie')
       .send(entry.html)
   }
@@ -104,7 +123,35 @@ export async function registerPageHtmlRoutes(
     return crumbs
   }
 
-  function chrome(user: AuthUser | null, settings: AppSettings, navLinks: NavLink[]) {
+  /** Parsed `?previewTheme=<id>` — decimal positive ids only. */
+  function previewId(req: ReqLike): number | null {
+    const q = req.query
+    const raw = q && typeof q === 'object' && 'previewTheme' in q ? q.previewTheme : undefined
+    if (typeof raw !== 'string' || !/^[1-9]\d{0,15}$/.test(raw)) return null
+    return Number(raw)
+  }
+
+  /**
+   * The theme CSS this request renders with. Admins may preview any theme via
+   * `?previewTheme=<id>`; the response is then non-cacheable (`preview`) so a
+   * trial theme can never be served from, or into, a shared/browser cache.
+   * Everyone else (and unknown ids) gets the active theme.
+   */
+  async function resolveTheme(req: ReqLike): Promise<{ css: string; preview: boolean }> {
+    const id = req.user?.role === 'admin' ? previewId(req) : null
+    if (id !== null) {
+      const css = await themes.cssFor(id)
+      if (css !== null) return { css, preview: true }
+    }
+    return { css: await themes.activeCss(), preview: false }
+  }
+
+  function chrome(
+    user: AuthUser | null,
+    settings: AppSettings,
+    navLinks: NavLink[],
+    themeCss: string,
+  ) {
     return {
       user,
       authDisabled: config.authDisabled,
@@ -114,6 +161,7 @@ export async function registerPageHtmlRoutes(
       navLinks,
       headerHtml: settings.headerHtml,
       footerHtml: settings.footerHtml,
+      themeCss,
       // One principle while login-only: uploaded (override) bytes never
       // reach anonymous HTML or subresources — gated sites link the bundled
       // icons for anonymous readers.
@@ -137,7 +185,7 @@ export async function registerPageHtmlRoutes(
         customAppendHtml: signInLineHtml(returnTo),
         trail: [{ href: '/', label: 'Home' }],
         customSlug: settings.forbiddenSlug,
-        chrome: chrome(null, settings, navLinks),
+        chrome: chrome(null, settings, navLinks, await themes.activeCss()),
       })
     },
   })
@@ -145,12 +193,13 @@ export async function registerPageHtmlRoutes(
   /** One 404 document builder for every HTML miss (custom notFoundSlug
    *  page over a per-site fallback body; viewer gets the create-hint). */
   async function status404(
-    req: { user: AuthUser | null },
+    req: ReqLike,
     fallbackHtml: string,
     trail?: { href: string; label: string }[],
   ): Promise<string> {
     const settings = getSettings()
     const navLinks = await getNavLinks()
+    const theme = await resolveTheme(req)
     const hint = req.user ? '<p>Ask an editor to create this page.</p>' : undefined
     return statusDocument(statusDeps, {
       kind: '404',
@@ -159,7 +208,7 @@ export async function registerPageHtmlRoutes(
       customAppendHtml: hint,
       ...(trail ? { trail } : {}),
       customSlug: settings.notFoundSlug,
-      chrome: chrome(req.user, settings, navLinks),
+      chrome: chrome(req.user, settings, navLinks, theme.css),
     })
   }
 
@@ -167,11 +216,12 @@ export async function registerPageHtmlRoutes(
 
   async function renderArticle(
     reply: FastifyReply,
-    req: { user: AuthUser | null },
+    req: ReqLike,
     slug: string,
     home = false,
   ): Promise<FastifyReply> {
     const navLinks = await getNavLinks()
+    const theme = await resolveTheme(req)
     // Allowlist, never `!== 'viewer'`: an unresolvable role must not reach
     // the write-capable shell.
     if (req.user && isEditorialRole(req.user.role)) {
@@ -187,6 +237,7 @@ export async function registerPageHtmlRoutes(
         navLinks,
         headerHtml: settings.headerHtml,
         footerHtml: settings.footerHtml,
+        themeCss: theme.css,
         faviconMediaId: settings.faviconMediaId,
         userName: req.user.name ?? req.user.sub,
         authDisabled: config.authDisabled,
@@ -231,26 +282,33 @@ export async function registerPageHtmlRoutes(
       title,
       body: articleHtml,
       trail: home ? [{ href: '/', label: 'Home' }] : trailFor(slug),
-      ...chrome(req.user, getSettings(), navLinks),
+      ...chrome(req.user, getSettings(), navLinks, theme.css),
     })
-    // ETag covers article bytes, the settings revision AND the nav links:
-    // cached entries are article-only, but the served document embeds chrome
-    // (branding bands, nav toggles, nav-page links) that re-renders per
-    // request — a nav-page edit must bust browser revalidation of every page.
-    return respond(reply, {
-      html,
-      etag: hashEtag(`${articleHtml}\n${getSettingsRevision()}\n${JSON.stringify(navLinks)}`),
-    })
+    // ETag covers article bytes, the settings revision, the nav links AND the
+    // theme CSS: cached entries are article-only, but the served document
+    // embeds chrome (branding bands, nav toggles, nav-page links, theme) that
+    // re-renders per request — a nav-page or theme edit must bust browser
+    // revalidation of every page (the CSS is hashed in, not just the
+    // revision, so a restart that resets the revision can never alias it).
+    return respond(
+      reply,
+      {
+        html,
+        etag: hashEtag(
+          `${articleHtml}\n${getSettingsRevision()}\n${JSON.stringify(navLinks)}\n${theme.css}`,
+        ),
+      },
+      200,
+      theme.preview,
+    )
   }
 
   // ── Index (served at /all, and at / when no home page is configured) ─────
 
-  async function renderIndex(
-    reply: FastifyReply,
-    req: { user: AuthUser | null },
-  ): Promise<FastifyReply> {
+  async function renderIndex(reply: FastifyReply, req: ReqLike): Promise<FastifyReply> {
     const settings = getSettings()
     const navLinks = await getNavLinks()
+    const theme = await resolveTheme(req)
     const cached = cache.get<string>(INDEX_CACHE_KEY)
     let listHtml = cached?.value
     if (!listHtml) {
@@ -269,11 +327,14 @@ export async function registerPageHtmlRoutes(
       body: `<h1>All pages</h1>${searchFormHtml(settings.searchEnabled)}<ul class="wn-page-list">${
         listHtml || '<li><em>No pages yet.</em></li>'
       }</ul>`,
-      ...chrome(req.user, settings, navLinks),
+      ...chrome(req.user, settings, navLinks, theme.css),
     })
     return reply
       .header('content-type', 'text/html; charset=utf-8')
-      .header('cache-control', 'public, max-age=30, stale-while-revalidate=60')
+      .header(
+        'cache-control',
+        theme.preview ? 'no-store' : 'public, max-age=30, stale-while-revalidate=60',
+      )
       .header('vary', 'Cookie')
       .send(html)
   }
@@ -330,6 +391,7 @@ export async function registerPageHtmlRoutes(
 
   app.get('/search', { preHandler: [gate] }, async (req, reply) => {
     const settings = getSettings()
+    const theme = await resolveTheme(req)
     const html = layout({
       title: 'Search',
       body: await searchResults('', settings.searchEnabled),
@@ -337,17 +399,18 @@ export async function registerPageHtmlRoutes(
         { href: '/', label: 'Home' },
         { href: '/search', label: 'Search' },
       ],
-      ...chrome(req.user, settings, await getNavLinks()),
+      ...chrome(req.user, settings, await getNavLinks(), theme.css),
     })
     return reply
       .header('content-type', 'text/html; charset=utf-8')
-      .header('cache-control', 'no-cache')
+      .header('cache-control', theme.preview ? 'no-store' : 'no-cache')
       .header('vary', 'Cookie')
       .send(html)
   })
 
   app.get('/search/*', { preHandler: [gate] }, async (req, reply) => {
     const settings = getSettings()
+    const theme = await resolveTheme(req)
     const terms = decodeURIComponent((req.params as { '*': string })['*']).trim()
     const html = layout({
       title: `Search: ${terms}`,
@@ -356,11 +419,11 @@ export async function registerPageHtmlRoutes(
         { href: '/', label: 'Home' },
         { href: '/search', label: 'Search' },
       ],
-      ...chrome(req.user, settings, await getNavLinks()),
+      ...chrome(req.user, settings, await getNavLinks(), theme.css),
     })
     return reply
       .header('content-type', 'text/html; charset=utf-8')
-      .header('cache-control', 'no-cache')
+      .header('cache-control', theme.preview ? 'no-store' : 'no-cache')
       .header('vary', 'Cookie')
       .send(html)
   })

@@ -12,6 +12,7 @@ import { createPgPagesRepository } from './db/pages-pg'
 import { createPgSettingsRepository } from './db/settings-pg'
 import { createPgMediaRepository } from './db/media-pg'
 import { createPgUsersRepository } from './db/users-pg'
+import { createPgThemesRepository } from './db/themes-pg'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -33,6 +34,7 @@ async function main(): Promise<void> {
     pages: createPgPagesRepository(pool),
     settings: createPgSettingsRepository(pool),
     media: createPgMediaRepository(pool),
+    themes: createPgThemesRepository(pool),
     users: createPgUsersRepository(pool, {
       bootstrapAdminSubs: config.bootstrapAdminSubs,
       defaultRole: config.defaultRole,

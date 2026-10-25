@@ -148,7 +148,7 @@ async function mountEditor(
 ): Promise<EditorInstance> {
   const buffers = createPageBuffers({ historyDepth: options.historyDepth })
   const state = createEditorState(options, buffers)
-  const dom = createEditorDOM(container, options.theme)
+  const dom = createEditorDOM(container, options.theme, options.themeAppend)
   const notifications: NotificationSystem = createNotificationSystem(dom.container)
   const navigation = createEditorNavigation(state, pageStore, dom, options, notifications)
   const renderOpts: EditorRenderOptions = {

@@ -41,6 +41,17 @@ export interface NavLink {
   label: string
 }
 
+/** One admin-authored theme as served by `/api/themes` (css included). */
+export interface ThemeDto {
+  id: number
+  name: string
+  description: string
+  css: string
+  createdAt: number
+  updatedAt: number
+  updatedBy: string | null
+}
+
 /**
  * Shape of the JSON embedded in `<script id="wn-config">` by the editor
  * shell — the single source of truth for the server writer
@@ -61,6 +72,9 @@ export interface EditorShellConfig {
   /** Raw admin-trusted HTML bands, injected around the content column. */
   headerHtml: string
   footerHtml: string
+  /** Active (or previewed) theme CSS, appended by the client after the
+   *  default stylesheet. Absent/'' = default look. Admin-trusted raw CSS. */
+  themeCss?: string
   userName: string | null
   authDisabled: boolean
   /** Viewer/editor/admin role of the session (optional for embedded-config

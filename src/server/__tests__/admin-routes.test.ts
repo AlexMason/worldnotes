@@ -130,6 +130,7 @@ describe('admin settings', () => {
       requireLogin: false,
       notFoundSlug: null,
       forbiddenSlug: null,
+      activeThemeId: null,
     })
     expect(settingsRepo.dump()).toEqual({
       search_enabled: 'false',
@@ -143,6 +144,7 @@ describe('admin settings', () => {
       require_login: 'false',
       not_found_slug: '',
       forbidden_slug: '',
+      active_theme_id: '',
     })
   })
 

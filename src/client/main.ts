@@ -154,6 +154,8 @@ async function main(): Promise<void> {
     homeSlug: cfg.homeSlug,
     homeLabel: cfg.siteName || undefined,
     saveDebounceMs: cfg.autosaveMs,
+    // Admin theme: appended after the default stylesheet (defaults stay).
+    themeAppend: cfg.themeCss || undefined,
     onTrailChange: (trail) => {
       // Trail segments are always canonical slugs: navigateToPage folds every
       // click target via navTargetToSlug, and the initial trail is seeded from

@@ -1,7 +1,7 @@
 // ─── Settings API ────────────────────────────────────────────────────────────
 // PUT /api/settings persists instance-wide settings (search toggle, home page,
-// site branding incl. raw admin-trusted header/footer HTML, login-only mode,
-// and status-page designations). ADMIN ONLY: the raw HTML bands execute for
+// site branding incl. raw admin-trusted header/footer HTML, the active theme
+// pointer, login-only mode, and status-page designations). ADMIN ONLY: the raw HTML bands execute for
 // every reader, so the write surface feeding them is the site's privilege
 // boundary. The admin form and editor shell read settings server-side; there
 // is no GET endpoint because no client fetches settings over HTTP.
@@ -10,6 +10,7 @@ import type { FastifyInstance } from 'fastify'
 import { requireRole, requireSameOrigin } from '../auth/session'
 import type { MediaRepository } from '../db/media-repository'
 import type { SettingsPatch, SettingsService } from '../settings'
+import type { ThemeService } from '../themes'
 
 export interface SettingsApiDeps {
   settings: SettingsService
@@ -17,6 +18,8 @@ export interface SettingsApiDeps {
    *  replaced/cleared override's row is deleted here (the only place that
    *  owns both stores). */
   media: MediaRepository
+  /** `activeThemeId` references are validated against the theme store. */
+  themes: ThemeService
 }
 
 export async function registerSettingsApiRoutes(
@@ -72,6 +75,18 @@ export async function registerSettingsApiRoutes(
           return reply.code(400).send({ error: `unknown media id ${body.faviconMediaId}` })
         }
       }
+      if (body.activeThemeId !== undefined && body.activeThemeId !== null) {
+        if (
+          typeof body.activeThemeId !== 'number' ||
+          !Number.isInteger(body.activeThemeId) ||
+          body.activeThemeId < 1
+        ) {
+          return reply.code(400).send({ error: 'activeThemeId must be a positive integer or null' })
+        }
+        if (!(await deps.themes.exists(body.activeThemeId))) {
+          return reply.code(400).send({ error: `unknown theme id ${body.activeThemeId}` })
+        }
+      }
 
       const patch: SettingsPatch = {}
       if (body.searchEnabled !== undefined) patch.searchEnabled = body.searchEnabled as boolean
@@ -89,6 +104,9 @@ export async function registerSettingsApiRoutes(
       if (body.notFoundSlug !== undefined) patch.notFoundSlug = body.notFoundSlug as string | null
       if (body.forbiddenSlug !== undefined)
         patch.forbiddenSlug = body.forbiddenSlug as string | null
+      if (body.activeThemeId !== undefined) {
+        patch.activeThemeId = body.activeThemeId as number | null
+      }
 
       const previousFavicon = deps.settings.get().faviconMediaId
       let next

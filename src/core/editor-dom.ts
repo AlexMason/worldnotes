@@ -3,7 +3,9 @@
 // The editor palette mirrors the viewer (src/server/render/layout.ts) so the
 // edit surface and the reading surface share one look: warm paper background,
 // ink foreground, serif body text, blue accent — with an automatic dark palette
-// via `prefers-color-scheme`.
+// via `prefers-color-scheme`. Tokens are declared once on `:root`
+// (src/core/styles.ts: palette primitives → semantic tokens); the chrome
+// below only CONSUMES them, each `var()` with a literal fallback.
 
 // ─── Default styles ───────────────────────────────────────────────────────────
 
@@ -32,20 +34,22 @@ const EDITOR_CHROME_CSS = `
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 1rem;
-  padding: .6rem 1.2rem;
-  border-bottom: 1px solid var(--wn-color-border, #e3ded4);
-  font: var(--wn-font-size-small, 14px)/1.4 system-ui, sans-serif;
+  gap: var(--wn-gap-header, 1rem);
+  padding: var(--wn-padding-header, .6rem 1.2rem);
+  background: var(--wn-color-header-bg, transparent);
+  border-bottom: 1px solid var(--wn-color-header-border, var(--wn-color-border, #e3ded4));
+  font: var(--wn-font-size-small, 14px)/1.4 var(--wn-font-ui, system-ui, sans-serif);
   flex-shrink: 0;
 }
 
 .wn-toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--wn-gap-toolbar, 6px);
   flex-shrink: 0;
-  padding: .4rem 1.2rem;
-  border-bottom: 1px solid var(--wn-color-border, #e3ded4);
+  padding: var(--wn-padding-toolbar, .4rem 1.2rem);
+  background: var(--wn-color-toolbar-bg, transparent);
+  border-bottom: 1px solid var(--wn-color-toolbar-border, var(--wn-color-border, #e3ded4));
 }
 .wn-toolbar:empty { display: none; }
 
@@ -55,19 +59,21 @@ const EDITOR_CHROME_CSS = `
 
 .wn-left-sidepanel {
   display: none;
-  width: 240px;
+  width: var(--wn-sidepanel-width, 240px);
   flex-shrink: 0;
   overflow-y: auto;
-  border-right: 1px solid var(--wn-color-border, #e3ded4);
+  background: var(--wn-color-sidepanel-bg, transparent);
+  border-right: 1px solid var(--wn-color-sidepanel-border, var(--wn-color-border, #e3ded4));
 }
 .wn-left-sidepanel:not(:empty) { display: block; }
 
 .wn-right-sidepanel {
   display: none;
-  width: 240px;
+  width: var(--wn-sidepanel-width, 240px);
   flex-shrink: 0;
   overflow-y: auto;
-  border-left: 1px solid var(--wn-color-border, #e3ded4);
+  background: var(--wn-color-sidepanel-bg, transparent);
+  border-left: 1px solid var(--wn-color-sidepanel-border, var(--wn-color-border, #e3ded4));
 }
 .wn-right-sidepanel:not(:empty) { display: block; }
 
@@ -84,21 +90,21 @@ const EDITOR_CHROME_CSS = `
 }
 
 .wn-crumb {
-  color: var(--wn-color-fg-muted, #6f6a61);
+  color: var(--wn-color-crumb, var(--wn-color-fg-muted, #6f6a61));
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 18ch; /* per-crumb width backstop (viewer parity) */
+  max-width: var(--wn-crumb-max-width, 18ch); /* per-crumb width backstop (viewer parity) */
   padding: 3px 6px;
-  border-radius: 4px;
+  border-radius: var(--wn-radius-crumb, 4px);
   transition: var(--wn-transition-color, color 0.15s);
 }
-.wn-crumb:hover { color: var(--wn-color-accent, #1a5fb4); }
-.wn-crumb--active { color: var(--wn-color-fg, #23211d); cursor: default; }
+.wn-crumb:hover { color: var(--wn-color-crumb-hover, var(--wn-color-accent, #1a5fb4)); }
+.wn-crumb--active { color: var(--wn-color-crumb-current, var(--wn-color-fg, #23211d)); cursor: default; }
 
 .wn-crumb-sep {
-  color: var(--wn-color-fg-muted, #6f6a61);
+  color: var(--wn-color-crumb, var(--wn-color-fg-muted, #6f6a61));
   font-size: 13px;
   padding: 0 1px;
   user-select: none;
@@ -110,17 +116,19 @@ const EDITOR_CHROME_CSS = `
 .wn-crumb-more > summary {
   list-style: none;
   cursor: pointer;
-  color: var(--wn-color-fg-muted, #6f6a61);
+  color: var(--wn-color-crumb, var(--wn-color-fg-muted, #6f6a61));
   padding: 0 .2em; line-height: 1;
 }
 .wn-crumb-more > summary::-webkit-details-marker { display: none; }
-.wn-crumb-more[open] > summary { color: var(--wn-color-accent, #1a5fb4); }
+.wn-crumb-more[open] > summary { color: var(--wn-color-crumb-hover, var(--wn-color-accent, #1a5fb4)); }
 .wn-crumb-drop {
   position: absolute; top: calc(100% + .35rem); left: 0; z-index: 40;
   display: flex; flex-direction: column; gap: .2rem; min-width: 10rem;
-  background: var(--wn-color-bg, #fbfaf7);
-  border: 1px solid var(--wn-color-border, #e3ded4); border-radius: 6px;
-  padding: .4rem .7rem; box-shadow: 0 4px 12px rgb(0 0 0 / 12%);
+  background: var(--wn-color-dropdown-bg, var(--wn-color-bg, #fbfaf7));
+  border: 1px solid var(--wn-color-dropdown-border, var(--wn-color-border, #e3ded4));
+  border-radius: var(--wn-radius-dropdown, 6px);
+  padding: var(--wn-padding-dropdown, .4rem .7rem);
+  box-shadow: var(--wn-shadow-dropdown, 0 4px 12px rgb(0 0 0 / 12%));
 }
 .wn-crumb-drop .wn-crumb { cursor: pointer; white-space: nowrap; max-width: none; }
 
@@ -131,7 +139,7 @@ const EDITOR_CHROME_CSS = `
 .wn-nav {
   display: flex;
   align-items: center;
-  gap: .8rem;
+  gap: var(--wn-gap-nav, .8rem);
   margin-left: auto;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -145,40 +153,40 @@ const EDITOR_CHROME_CSS = `
   display: flex;
   align-items: center;
   padding: .4em .5em;
-  border: 1px solid var(--wn-color-border, #e3ded4);
-  border-radius: 6px;
+  border: 1px solid var(--wn-color-menu-border, var(--wn-color-border, #e3ded4));
+  border-radius: var(--wn-radius-control, 6px);
   color: var(--wn-color-fg, #23211d);
 }
 .wn-nav .wn-menu summary::-webkit-details-marker { display: none; }
 .wn-nav .wn-menu[open] summary { color: var(--wn-color-accent, #1a5fb4); }
 .wn-nav-link {
   display: block;
-  max-width: 16ch;
+  max-width: var(--wn-nav-link-max-width, 16ch);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .wn-actions {
   display: flex;
-  gap: .8rem;
+  gap: var(--wn-gap-nav, .8rem);
   align-items: center;
   margin-left: auto;
   flex-shrink: 0;
 }
-.wn-actions a { color: var(--wn-color-fg-muted, #6f6a61); text-decoration: none; }
-.wn-actions a:hover { color: var(--wn-color-accent, #1a5fb4); }
-.wn-actions span { color: var(--wn-color-fg-muted, #6f6a61); }
+.wn-actions a { color: var(--wn-color-nav-link, var(--wn-color-fg-muted, #6f6a61)); text-decoration: none; }
+.wn-actions a:hover { color: var(--wn-color-nav-link-hover, var(--wn-color-accent, #1a5fb4)); }
+.wn-actions span { color: var(--wn-color-nav-link, var(--wn-color-fg-muted, #6f6a61)); }
 
-/* Editor area — mirrors the viewer main (centered ~46rem column) */
+/* Editor area — mirrors the viewer main (centered --wn-measure column) */
 .wn-editor-wrap {
   flex: 1;
   overflow-y: auto;
-  padding: var(--wn-padding-editor-y, 2rem) var(--wn-padding-editor-x, 1.2rem) 5rem;
+  padding: var(--wn-padding-editor-y, 2rem) var(--wn-padding-editor-x, 1.2rem) var(--wn-padding-page-bottom, 5rem);
   position: relative;
 }
 
 .wn-editor-col {
-  max-width: 46rem;
+  max-width: var(--wn-measure, 46rem);
   margin: 0 auto;
   position: relative;
 }
@@ -198,7 +206,7 @@ const EDITOR_CHROME_CSS = `
   top: 0;
   left: 0;
   font: var(--wn-font-size-body, 16px)/var(--wn-line-height, 1.65) var(--wn-font-family, serif);
-  color: var(--wn-color-fg-muted, #6f6a61);
+  color: var(--wn-color-placeholder, var(--wn-color-fg-muted, #6f6a61));
   pointer-events: none;
   user-select: none;
 }
@@ -221,26 +229,26 @@ const EDITOR_CHROME_CSS = `
   transform: translate(-50%, -50%);
   z-index: 25;
   pointer-events: auto;
-  max-width: min(560px, 92vw);
+  max-width: var(--wn-shortcuts-max-width, min(560px, 92vw));
   max-height: 80vh;
   overflow-y: auto;
-  background: var(--wn-color-surface, #fbfaf7);
-  color: var(--wn-color-fg, #23211d);
-  border: 1px solid var(--wn-color-border, #e3ded4);
-  border-radius: var(--wn-toast-radius, 6px);
-  box-shadow: var(--wn-toast-shadow, 0 4px 12px rgba(0, 0, 0, 0.12));
-  padding: 1.2rem 1.4rem;
+  background: var(--wn-color-shortcuts-bg, var(--wn-color-surface, #fbfaf7));
+  color: var(--wn-color-shortcuts-fg, var(--wn-color-fg, #23211d));
+  border: 1px solid var(--wn-color-shortcuts-border, var(--wn-color-border, #e3ded4));
+  border-radius: var(--wn-radius-overlay, var(--wn-toast-radius, 6px));
+  box-shadow: var(--wn-shadow-overlay, var(--wn-toast-shadow, 0 4px 12px rgb(0 0 0 / 12%)));
+  padding: var(--wn-shortcuts-padding, 1.2rem 1.4rem);
   font: var(--wn-font-size-small, 14px)/1.5 var(--wn-font-family, serif);
 }
 .wn-shortcuts-title {
   font-size: var(--wn-font-size-h3, 1.1rem);
-  font-weight: 700;
+  font-weight: var(--wn-font-weight-heading, 700);
   margin-bottom: 0.8rem;
 }
 .wn-shortcuts-group { margin-bottom: 0.9rem; }
 .wn-shortcuts-group-name {
-  color: var(--wn-color-fg-muted, #6f6a61);
-  font-size: 11px;
+  color: var(--wn-color-shortcuts-group, var(--wn-color-fg-muted, #6f6a61));
+  font-size: var(--wn-font-size-xs, 11px);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin-bottom: 0.3rem;
@@ -254,15 +262,15 @@ const EDITOR_CHROME_CSS = `
 }
 .wn-shortcuts-keys {
   font-family: var(--wn-font-mono, monospace);
-  font-size: 12px;
+  font-size: var(--wn-font-size-keys, 12px);
   white-space: nowrap;
-  background: var(--wn-color-code-bg, #f0ede6);
-  color: var(--wn-color-code, #23211d);
-  border: 1px solid var(--wn-color-border, #e3ded4);
+  background: var(--wn-color-shortcuts-keys-bg, var(--wn-color-code-bg, #f0ede6));
+  color: var(--wn-color-shortcuts-keys-fg, var(--wn-color-code, #23211d));
+  border: 1px solid var(--wn-color-shortcuts-border, var(--wn-color-border, #e3ded4));
   border-radius: var(--wn-radius-code, 4px);
   padding: 1px 6px;
 }
-.wn-shortcuts-action { color: var(--wn-color-fg, #23211d); }
+.wn-shortcuts-action { color: var(--wn-color-shortcuts-fg, var(--wn-color-fg, #23211d)); }
 .wn-remote-cursor { position: absolute; pointer-events: none; white-space: nowrap; }
 .wn-remote-cursor-caret {
   width: 2px;
@@ -273,7 +281,7 @@ const EDITOR_CHROME_CSS = `
 }
 .wn-remote-cursor-label {
   font-size: 10px;
-  color: #fff;
+  color: var(--wn-color-cursor-label-fg, #fff);
   padding: 1px 4px;
   border-radius: 3px;
   position: absolute;
@@ -289,27 +297,27 @@ const EDITOR_CHROME_CSS = `
   pointer-events: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-width: 380px;
+  gap: var(--wn-toast-gap, 8px);
+  max-width: var(--wn-toast-max-width, 380px);
 }
-.wn-toast-container--top-right    { top: 12px; right: 12px; align-items: flex-end; }
-.wn-toast-container--top-left     { top: 12px; left: 12px; align-items: flex-start; }
-.wn-toast-container--bottom-right { bottom: 12px; right: 12px; align-items: flex-end; }
-.wn-toast-container--bottom-left  { bottom: 12px; left: 12px; align-items: flex-start; }
+.wn-toast-container--top-right    { top: var(--wn-toast-offset, 12px); right: var(--wn-toast-offset, 12px); align-items: flex-end; }
+.wn-toast-container--top-left     { top: var(--wn-toast-offset, 12px); left: var(--wn-toast-offset, 12px); align-items: flex-start; }
+.wn-toast-container--bottom-right { bottom: var(--wn-toast-offset, 12px); right: var(--wn-toast-offset, 12px); align-items: flex-end; }
+.wn-toast-container--bottom-left  { bottom: var(--wn-toast-offset, 12px); left: var(--wn-toast-offset, 12px); align-items: flex-start; }
 
 .wn-toast {
   pointer-events: auto;
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 8px 12px;
+  padding: var(--wn-toast-padding, 8px 12px);
   border: 1px solid var(--wn-toast-border, #e3ded4);
   border-radius: var(--wn-toast-radius, 6px);
-  font: var(--wn-font-size-small, 14px)/1.4 system-ui, sans-serif;
+  font: var(--wn-font-size-small, 14px)/1.4 var(--wn-font-ui, system-ui, sans-serif);
   color: var(--wn-toast-color, #23211d);
   background: var(--wn-toast-bg, #fbfaf7);
-  min-width: 260px;
-  box-shadow: var(--wn-toast-shadow, 0 4px 12px rgba(0,0,0,0.12));
+  min-width: var(--wn-toast-min-width, 260px);
+  box-shadow: var(--wn-toast-shadow, 0 4px 12px rgb(0 0 0 / 12%));
   animation: wn-toast-enter 0.2s ease-out;
 }
 .wn-toast--success { background: var(--wn-toast-bg-success, #eef6ee); }
@@ -322,22 +330,22 @@ const EDITOR_CHROME_CSS = `
 .wn-toast__actions { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
 .wn-toast__action-btn {
   padding: 2px 8px;
-  background: transparent;
-  color: var(--wn-color-accent, #1a5fb4);
-  border: 1px solid var(--wn-color-accent, #1a5fb4);
-  border-radius: 6px;
+  background: var(--wn-color-button-bg, transparent);
+  color: var(--wn-color-button-fg, var(--wn-color-accent, #1a5fb4));
+  border: 1px solid var(--wn-color-button-border, var(--wn-color-accent, #1a5fb4));
+  border-radius: var(--wn-radius-control, 6px);
   cursor: pointer;
-  font: var(--wn-font-size-small, 14px)/1.4 system-ui, sans-serif;
+  font: var(--wn-font-size-small, 14px)/1.4 var(--wn-font-ui, system-ui, sans-serif);
   white-space: nowrap;
 }
-.wn-toast__action-btn:hover { background: var(--wn-color-accent, #1a5fb4); color: var(--wn-color-bg, #fbfaf7); }
+.wn-toast__action-btn:hover { background: var(--wn-color-accent, #1a5fb4); color: var(--wn-color-on-accent, var(--wn-color-bg, #fbfaf7)); }
 .wn-toast__close-btn {
   padding: 1px 4px;
   background: none;
   color: var(--wn-color-fg-muted, #6f6a61);
   border: none;
   cursor: pointer;
-  font-family: system-ui, sans-serif;
+  font-family: var(--wn-font-ui, system-ui, sans-serif);
   font-size: 15px;
   line-height: 1;
 }
@@ -352,7 +360,9 @@ const EDITOR_CHROME_CSS = `
   to   { opacity: 0; transform: scale(0.95); }
 }
 
-/* Mobile — mirrors the viewer breakpoint */
+/* Mobile — mirrors the viewer breakpoint. 640px is a literal: media
+   conditions cannot read custom properties (see docs/theming.md). Values
+   inside the query still read tokens where they exist. */
 @media (max-width: 640px) {
   .wn-header { flex-wrap: wrap; row-gap: .4rem; padding: .5rem .9rem; }
   /* crumbs + menu share ONE row: the trail shrinks (per-crumb ellipsis,
@@ -363,17 +373,18 @@ const EDITOR_CHROME_CSS = `
   .wn-crumb { padding: 8px 8px; }
   .wn-nav { order: 2; flex: 0 0 auto; margin-left: auto; flex-wrap: nowrap; }
   .wn-nav .wn-menu { display: block; }
-  .wn-nav .wn-menu summary { min-height: 44px; /* comfortable touch targets */ }
+  .wn-nav .wn-menu summary { min-height: var(--wn-touch-target, 44px); /* comfortable touch targets */ }
   .wn-nav:has(.wn-menu:not([open])) .wn-actions { display: none; }
   .wn-nav .wn-actions {
     position: absolute; top: calc(100% + .35rem); right: .9rem; z-index: 60;
     flex-direction: column; align-items: stretch; gap: .1rem;
     min-width: 13rem; max-height: 70vh; overflow-y: auto;
-    background: var(--wn-color-bg, #fbfaf7);
-    border: 1px solid var(--wn-color-border, #e3ded4); border-radius: 8px;
-    padding: .5rem .9rem; box-shadow: 0 6px 16px rgb(0 0 0 / 15%);
+    background: var(--wn-color-dropdown-bg, var(--wn-color-bg, #fbfaf7));
+    border: 1px solid var(--wn-color-dropdown-border, var(--wn-color-border, #e3ded4));
+    border-radius: var(--wn-radius-menu, 8px);
+    padding: .5rem .9rem; box-shadow: var(--wn-shadow-menu, 0 6px 16px rgb(0 0 0 / 15%));
   }
-  .wn-actions a { display: block; padding: .45em .35em; min-height: 44px; }
+  .wn-actions a { display: block; padding: .45em .35em; min-height: var(--wn-touch-target, 44px); }
   .wn-toolbar { flex-wrap: wrap; row-gap: 4px; padding: .4rem .9rem; }
   .wn-editor-wrap { padding: 1.2rem .9rem 4rem; }
   .wn-body { flex-direction: column; }
@@ -381,7 +392,7 @@ const EDITOR_CHROME_CSS = `
   .wn-right-sidepanel:not(:empty) {
     width: 100%; max-height: 38%;
     border-left: none; border-right: none;
-    border-top: 1px solid var(--wn-color-border, #e3ded4);
+    border-top: 1px solid var(--wn-color-sidepanel-border, var(--wn-color-border, #e3ded4));
   }
   .wn-toast-container { max-width: calc(100vw - 16px); }
   .wn-toast { min-width: 0; max-width: 100%; }
@@ -403,21 +414,38 @@ function el(tag: string, cls: string): HTMLElement {
  * Users can override any rule by targeting the same class with higher specificity.
  *
  * @param theme - Optional CSS string that replaces the default stylesheet entirely.
+ * @param themeAppend - Optional CSS appended AFTER the (default or replaced)
+ *   stylesheet in its own `<style id="worldnotes-theme">`, so it wins the
+ *   cascade at equal specificity while the defaults stay intact. `''` removes
+ *   a previously injected theme; `undefined` leaves the current one alone.
  */
 const DEFAULT_CSS = EDITOR_TOKENS_CSS + EDITOR_CHROME_CSS + EDITOR_CONTENT_CSS + SITE_BANDS_CSS
 
-function injectStyles(theme?: string): void {
+function injectStyles(theme?: string, themeAppend?: string): void {
   const STYLE_ID = 'worldnotes-styles'
-  const existing = document.getElementById(STYLE_ID)
-  if (existing) {
-    if (theme !== undefined) existing.textContent = theme
-    return
+  const THEME_ID = 'worldnotes-theme'
+  let base = document.getElementById(STYLE_ID)
+  if (base) {
+    if (theme !== undefined) base.textContent = theme
+  } else {
+    base = document.createElement('style')
+    base.id = STYLE_ID
+    base.textContent = theme ?? DEFAULT_CSS
+    document.head.appendChild(base)
   }
 
-  const style = document.createElement('style')
-  style.id = STYLE_ID
-  style.textContent = theme ?? DEFAULT_CSS
-  document.head.appendChild(style)
+  if (themeAppend === undefined) return
+  const existing = document.getElementById(THEME_ID)
+  if (themeAppend === '') {
+    existing?.remove()
+    return
+  }
+  const themeStyle = existing ?? document.createElement('style')
+  themeStyle.id = THEME_ID
+  // textContent, never innerHTML: the CSS cannot break out of the element.
+  themeStyle.textContent = themeAppend
+  // Always directly after the base sheet, whatever else landed in <head>.
+  base.after(themeStyle)
 }
 
 // ─── Editor DOM ──────────────────────────────────────────────────────────────
@@ -472,8 +500,12 @@ export function insertSiteBands(
   }
 }
 
-export function createEditorDOM(container: HTMLElement, theme?: string): EditorDOM {
-  injectStyles(theme)
+export function createEditorDOM(
+  container: HTMLElement,
+  theme?: string,
+  themeAppend?: string,
+): EditorDOM {
+  injectStyles(theme, themeAppend)
 
   container.innerHTML = ''
   container.className = 'wn-root'

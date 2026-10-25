@@ -35,6 +35,12 @@ export interface EditorShellOptions {
    */
   headerHtml: string
   footerHtml: string
+  /**
+   * Admin-authored theme CSS (active or previewed theme), embedded in the
+   * client config; the client appends it as `<style id="worldnotes-theme">`
+   * right after the default `#worldnotes-styles`. '' = default look.
+   */
+  themeCss: string
   userName: string | null
   authDisabled: boolean
   /** Session role carried into the client config (chrome gating). */
@@ -69,6 +75,7 @@ export function editorShellHtml(slug: string, opts: EditorShellOptions): string 
     navLinks: opts.navLinks ?? [],
     headerHtml: opts.headerHtml,
     footerHtml: opts.footerHtml,
+    themeCss: opts.themeCss,
     userName: opts.userName,
     authDisabled: opts.authDisabled,
     userRole: opts.userRole,

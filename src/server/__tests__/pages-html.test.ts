@@ -57,7 +57,7 @@ describe('SSR pages', () => {
     expect(res.body).not.toContain('/oidc/login')
     // responsive mobile chrome (M1)
     expect(res.body).toContain('@media (max-width: 640px)')
-    expect(res.body).toContain('min-height: 44px')
+    expect(res.body).toContain('min-height: var(--wn-touch-target, 44px)')
   })
 
   it('embeds the editor stylesheets without editor chrome', async () => {
