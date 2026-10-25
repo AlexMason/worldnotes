@@ -26,6 +26,7 @@ const KEY_FAVICON = 'favicon_media_id'
 const KEY_REQUIRE_LOGIN = 'require_login'
 const KEY_NOT_FOUND_SLUG = 'not_found_slug'
 const KEY_FORBIDDEN_SLUG = 'forbidden_slug'
+const KEY_ACTIVE_THEME = 'active_theme_id'
 
 export const DEFAULT_SITE_NAME = 'WorldNotes'
 export const SITE_NAME_MAX = 200
@@ -66,6 +67,10 @@ export interface AppSettings {
   /** Page rendered for the login-required 403 and insufficient-role 403;
    *  null = built-in body. */
   forbiddenSlug: string | null
+  /** Theme (src/server/themes.ts) whose CSS is appended after the default
+   *  stylesheet on the reader and editor; null = default look. A dangling id
+   *  (deleted/restored-over theme) renders as the default look. */
+  activeThemeId: number | null
 }
 
 export interface SettingsPatch {
@@ -80,6 +85,7 @@ export interface SettingsPatch {
   requireLogin?: boolean
   notFoundSlug?: string | null
   forbiddenSlug?: string | null
+  activeThemeId?: number | null
 }
 
 export interface SettingsService {
@@ -107,6 +113,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   requireLogin: false,
   notFoundSlug: null,
   forbiddenSlug: null,
+  activeThemeId: null,
 }
 
 function parseBool(value: string | undefined, fallback: boolean): boolean {
@@ -170,8 +177,9 @@ function coercePageSlug(value: string | null, field: string): string | null {
   return validated.slug
 }
 
-/** Stored favicon media id: ''/corrupt/non-positive → bundled default. */
-function parseFaviconId(raw: string | undefined): number | null {
+/** Stored optional row id (favicon media, active theme): ''/corrupt/
+ *  non-positive → null (bundled icons / default look). */
+function parseOptionalId(raw: string | undefined): number | null {
   if (raw === undefined || raw.trim() === '') return null
   const id = Number(raw)
   return Number.isInteger(id) && id >= 1 ? id : null
@@ -189,12 +197,13 @@ export function parseSettings(raw: Record<string, string>): AppSettings {
       headerHtml: raw[KEY_HEADER_HTML],
       footerHtml: raw[KEY_FOOTER_HTML],
     }),
-    faviconMediaId: parseFaviconId(raw[KEY_FAVICON]),
+    faviconMediaId: parseOptionalId(raw[KEY_FAVICON]),
     // Absent/corrupt rows MUST parse false: pre-feature instances keep
     // anonymous reading until an admin opts in.
     requireLogin: parseBool(raw[KEY_REQUIRE_LOGIN], false),
     notFoundSlug: normalizePageSlug(raw[KEY_NOT_FOUND_SLUG] ?? ''),
     forbiddenSlug: normalizePageSlug(raw[KEY_FORBIDDEN_SLUG] ?? ''),
+    activeThemeId: parseOptionalId(raw[KEY_ACTIVE_THEME]),
   }
 }
 
@@ -211,6 +220,7 @@ function serialize(settings: AppSettings): Record<string, string> {
     [KEY_REQUIRE_LOGIN]: settings.requireLogin ? 'true' : 'false',
     [KEY_NOT_FOUND_SLUG]: settings.notFoundSlug ?? '',
     [KEY_FORBIDDEN_SLUG]: settings.forbiddenSlug ?? '',
+    [KEY_ACTIVE_THEME]: settings.activeThemeId === null ? '' : String(settings.activeThemeId),
   }
 }
 
@@ -271,6 +281,11 @@ export async function createSettingsService(repo: SettingsRepository): Promise<S
           throw new Error('faviconMediaId must be a positive integer or null')
         }
       }
+      if (patch.activeThemeId !== undefined && patch.activeThemeId !== null) {
+        if (!Number.isInteger(patch.activeThemeId) || patch.activeThemeId < 1) {
+          throw new Error('activeThemeId must be a positive integer or null')
+        }
+      }
 
       const next: AppSettings = {
         searchEnabled: patch.searchEnabled ?? current.searchEnabled,
@@ -287,6 +302,8 @@ export async function createSettingsService(repo: SettingsRepository): Promise<S
         requireLogin: patch.requireLogin ?? current.requireLogin,
         notFoundSlug,
         forbiddenSlug,
+        activeThemeId:
+          patch.activeThemeId === undefined ? current.activeThemeId : patch.activeThemeId,
       }
 
       // With the index disabled, `/` must still have a landing page.

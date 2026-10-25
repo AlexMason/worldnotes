@@ -31,13 +31,13 @@ same-origin `Origin` (CSRF guard), and are rate-unlimited but size-capped.
 Unauthenticated writes keep the 401 contract (the editor's expiry toast);
 a viewer's write is a 403.
 
-| Verb                         | Path   | Auth                                                                                                                                                                         | Notes                                                       |
-| ---------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `GET /api/pages[?q=&limit=]` | —      | no¹                                                                                                                                                                           | list/search (ILIKE), newest first, default limit 100        |
-| `GET /api/pages/{slug}`      | —      | no¹                                                                                                                                                                           | `{slug,title,content,version,updatedAt,updatedBy}` + `ETag` |
-| `POST /api/pages`            | editor | body `{slug, title?, content}` — **content required and non-blank** (400 otherwise); title defaults to the first `#` heading, else humanized slug; 409 on exists             |
+| Verb                         | Path   | Auth                                                                                                                                                                                     | Notes                                                       |
+| ---------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `GET /api/pages[?q=&limit=]` | —      | no¹                                                                                                                                                                                      | list/search (ILIKE), newest first, default limit 100        |
+| `GET /api/pages/{slug}`      | —      | no¹                                                                                                                                                                                      | `{slug,title,content,version,updatedAt,updatedBy}` + `ETag` |
+| `POST /api/pages`            | editor | body `{slug, title?, content}` — **content required and non-blank** (400 otherwise); title defaults to the first `#` heading, else humanized slug; 409 on exists                         |
 | `PUT /api/pages/{slug}`      | editor | body `{content, title?}` **requires `If-Match: "<version>"`**; 409 `{current:{version}}` on stale, 428 without header, 404 unknown, 403 viewer. **Blank content DELETES the page** → 204 |
-| `DELETE /api/pages/{slug}`   | editor | 204 / 404 / 403 viewer                                                                                                                                                                    |
+| `DELETE /api/pages/{slug}`   | editor | 204 / 404 / 403 viewer                                                                                                                                                                   |
 
 ¹ Anonymous reads are refused (`403 {error:"login required"}`) while `requireLogin` is set.
 
@@ -89,8 +89,8 @@ a re-login action, since re-authenticating cannot restore a revoked role.
 
 Role management (admin only, `src/server/routes/users-api.ts`).
 
-| Verb                  | Path | Auth                           | Notes |
-| --------------------- | ---- | ------------------------------ | ----- |
+| Verb                  | Path | Auth                           | Notes                                                                                                                                   |
+| --------------------- | ---- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `PUT /api/users/role` | —    | admin + **strict** same-origin | body `{sub, role}` (`sub` travels in the BODY — OIDC subs may contain `/`); `role` validated against the enum before touching the store |
 
 - **No `GET /api/users`**: the `/admin` Users table renders server-side from
@@ -110,9 +110,9 @@ Role management (admin only, `src/server/routes/users-api.ts`).
 Instance-wide settings — **admin only**, persisted in a `settings`
 key/value table and editable from `GET /admin`.
 
-| Verb                | Path   | Auth                                                                                                                                                                                                                                                                                                                                           | Notes |
-| ------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| `PUT /api/settings` | admin | body `{searchEnabled?: boolean, homeSlug?: string\|null, navSlug?: string\|null, allPagesEnabled?: boolean, siteName?: string, headerHtml?: string, footerHtml?: string, faviconMediaId?: number\|null, requireLogin?: boolean, notFoundSlug?: string\|null, forbiddenSlug?: string\|null}`; `homeSlug`/`navSlug` blank/`null` clears them; invalid slugs 400; `faviconMediaId` must reference an existing media row (400 otherwise); returns the normalized settings |
+| Verb                | Path  | Auth                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Notes |
+| ------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `PUT /api/settings` | admin | body `{searchEnabled?: boolean, homeSlug?: string\|null, navSlug?: string\|null, allPagesEnabled?: boolean, siteName?: string, headerHtml?: string, footerHtml?: string, faviconMediaId?: number\|null, activeThemeId?: number\|null, requireLogin?: boolean, notFoundSlug?: string\|null, forbiddenSlug?: string\|null}`; `homeSlug`/`navSlug` blank/`null` clears them; invalid slugs 400; `faviconMediaId` must reference an existing media row and `activeThemeId` an existing theme (400 otherwise); returns the normalized settings |
 
 - `searchEnabled` (default `true`) — hides the search form/links everywhere;
   `/search` and `/search/{terms}` remain functional.
@@ -160,7 +160,7 @@ key/value table and editable from `GET /admin`.
   an anonymous request in this mode** — gated chrome links bundled icons
   only, and the blind `/favicon.ico` / `/apple-touch-icon.png` routes serve
   bundled bytes only. What it does NOT do: make the site private from
-  *authenticated* visitors — any IdP-admitted account (default role
+  _authenticated_ visitors — any IdP-admitted account (default role
   `editor`, or `viewer` with `DEFAULT_ROLE=viewer`) can still read
   **everything**. There are no per-page ACLs. The toggle is per-process
   (in-memory settings snapshot): correct for the single-instance assumption,
@@ -176,6 +176,11 @@ key/value table and editable from `GET /admin`.
   are public by definition**: their body is served to anonymous visitors
   even while login-only mode is on. A dangling/removed slug falls back to
   the built-in document.
+- `activeThemeId` (default `null` = default look) — the theme from the gallery
+  (see **Themes**) whose CSS is appended after the default stylesheet on the
+  reader and the editor. Activation is a settings write, so it bumps the
+  settings revision like every other chrome change. A pointer to a theme that
+  no longer exists (restore, manual SQL) renders the default look.
 
 **Trust model:** settings writes — including the raw HTML bands — are
 restricted to the `admin` role (see Roles). Admin is effectively
@@ -188,6 +193,16 @@ deliberately renders the bands nowhere — broken branding cannot bury the
 recovery form. Nav-page links ARE rendered on `/admin` (server-escaped
 chrome, not raw content — same reasoning as the site name).
 
+**Theme CSS trust note:** theme CSS is raw, admin-authored text emitted
+verbatim into an inline `<style>` — **no new privilege class**: the header/
+footer HTML bands above already run arbitrary admin script for every reader.
+Guardrails only protect the document, not the readers: 64 KiB cap, control
+characters rejected, and `</style` (case-insensitive) rejected because it is
+the only sequence that can leave an inline `<style>`. The session cookie is
+`httpOnly` and no secret sits in DOM attributes, so CSS-exfiltration
+selectors reach nothing an admin cannot already read. **Non-admin theme
+authoring is out of scope** — it would need a CSS sanitizer and a CSP.
+
 Reader chrome and 404 documents carry **no** sign-in affordance — reading is
 open by default, and authentication stays a known route:
 `GET /oidc/login?returnTo=/{slug}` (typically bookmarked by operators). The
@@ -198,10 +213,50 @@ The editor's session-expiry toast keeps its re-login action (recovery UX).
 First-admin bootstrap: see Roles (upgrade order), or run with
 `AUTH_DISABLED=1` (dev mode, which grants admin).
 
-Reader `ETag`s mix in a settings revision and the extracted nav links, so
+Reader `ETag`s mix in a settings revision, the extracted nav links and the theme CSS, so
 branding/toggle/nav-page changes bust browser revalidation even when the
 article bytes are unchanged — including a favicon change (the head `<link>`
 tags are part of the cached chrome).
+
+## Themes
+
+Admin-authored CSS stylesheets (`themes` table, migration `006_themes.sql`):
+a named, raw `css` blob (≤ 65 536 characters), an optional `description`
+(≤ 500) and a unique `name` (whitespace-collapsed, ≤ 100). One theme — or
+none — is **active** (`activeThemeId`, see Settings). The active theme's CSS
+is emitted as `<style id="worldnotes-theme">` **after** the default
+stylesheet (reader: in `<head>` after the built-in sheet; editor: embedded in
+the shell config and appended by the client directly after
+`#worldnotes-styles`), so a theme overrides tokens/rules through the cascade
+without `!important` and a syntactically broken theme degrades to the default
+look. `/admin` never receives theme CSS (anti-lockout, same precedent as the
+HTML bands). Themes ride the existing gates: login-only mode withholds
+nothing extra, because the CSS is part of the (already gated) HTML.
+
+All routes are **admin only**; writes additionally require a same-origin
+request (`Origin` matches or is absent), mirroring `PUT /api/settings`.
+Anonymous → `401`, viewer/editor → `403`.
+
+| Verb                      | Path  | Notes                                                                                        |
+| ------------------------- | ----- | -------------------------------------------------------------------------------------------- |
+| `GET /api/themes`         | admin | `200 {themes: Theme[], activeThemeId}`, oldest first, `css` included, `no-store`             |
+| `POST /api/themes`        | admin | body `{name, description?, css?}` → `201 Theme`; `400` invalid; `409` name taken             |
+| `GET /api/themes/{id}`    | admin | `200 Theme`; `400` malformed id (decimal positive integers only); `404`                      |
+| `PUT /api/themes/{id}`    | admin | partial body `{name?, description?, css?}` → `200 Theme`; `400`/`404`/`409` as above         |
+| `DELETE /api/themes/{id}` | admin | `204`; `404`; `409` while the theme is **active** — activate another theme (or `null`) first |
+
+`Theme` = `{id, name, description, css, createdAt, updatedAt, updatedBy}`
+(timestamps are epoch milliseconds). Validation messages are operator-facing
+`{error}` strings. Edits to the **active** theme take effect on the next
+render with no restart: the server drops its memoized CSS on every write and
+reader `ETag`s hash the theme CSS itself (not just the settings revision), so
+browsers revalidate within the normal ≤ 60 s window.
+
+**Preview:** an **admin** session may append `?previewTheme={id}` to any
+HTML read route (`/`, `/{slug}`, `/all`, `/search…`, 404 documents) to render
+with that theme instead of the active one. The response is `no-store` and
+never answers `304`; every other session and unknown/malformed ids ignore the
+parameter. The `/admin` gallery's Preview links use it.
 
 ## Media
 
@@ -210,9 +265,9 @@ image stays disposable and `pg_dump` covers them. Rows are **immutable**: a
 new upload gets a new id, which is what lets `/media/{id}` cache forever.
 Reusing the store for editor-inserted images is the planned next consumer.
 
-| Verb              | Path    | Auth                                                                                                      | Notes                                                                                                                                                                     |
-| ----------------- | ------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /api/media` | editor  | `requireSameOrigin` + `requireRole('editor','admin')` at `onRequest` (auth runs before the multipart parser touches a byte) | `multipart/form-data`, one `file` part; returns `{id, url, mediaType, sizeBytes, width, height}` (201)                                                                    |
+| Verb              | Path     | Auth                                                                                                                        | Notes                                                                                                                                                                     |
+| ----------------- | -------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/media` | editor   | `requireSameOrigin` + `requireRole('editor','admin')` at `onRequest` (auth runs before the multipart parser touches a byte) | `multipart/form-data`, one `file` part; returns `{id, url, mediaType, sizeBytes, width, height}` (201)                                                                    |
 | `GET /media/{id}` | anon ok¹ | `403 {error:"login required"}` for anonymous while `requireLogin` is on; authed responses become `private` + `Vary: Cookie` | serves the stored bytes; `public, max-age=31536000, immutable`, strong ETag `"m{id}"` (304 revalidation), `nosniff` + `CSP: default-src 'none'` + `X-Frame-Options: DENY` |
 
 **Content sniffing, not declared types:** the stored `media_type` comes from
@@ -273,6 +328,7 @@ link), falling back to the built-in bodies. Custom bodies are rendered
 through the same read-path engine — raw HTML inside them is escaped, so a
 status page cannot script its readers. All 4xx are `no-store`. (The OIDC
 callback-failure page is its own diagnostic document and not customizable.)
+
 - `GET /edit` / `GET /edit/{slug}` — 302 redirects to `/` / `/{slug}`
   (legacy paths).
 - `GET /assets/*` — client bundle; `GET /icons/*` — the bundled default icon

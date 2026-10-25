@@ -276,6 +276,61 @@ describe('createEditorDOM theme option', () => {
   })
 })
 
+// ─── Theme append layer ────────────────────────────────────────────────────────
+
+describe('createEditorDOM themeAppend option', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    document.getElementById('worldnotes-styles')?.remove()
+    document.getElementById('worldnotes-theme')?.remove()
+    container = document.createElement('div')
+    document.body.appendChild(container)
+  })
+
+  const themeEl = () => document.getElementById('worldnotes-theme')
+
+  it('keeps the default stylesheet and appends the theme right after it', () => {
+    createEditorDOM(container, undefined, '.wn-root { --wn-color-bg: #000; }')
+    expect(getStyleText()).toContain('var(--wn-color-bg')
+    expect(themeEl()?.textContent).toBe('.wn-root { --wn-color-bg: #000; }')
+    // Cascade order: base sheet first, theme immediately after.
+    expect(getInjectedStyle()?.nextElementSibling).toBe(themeEl())
+  })
+
+  it('stays directly after the base sheet even when other head nodes follow it', () => {
+    createEditorDOM(container)
+    document.head.appendChild(document.createElement('style'))
+    createEditorDOM(container, undefined, 'a{}')
+    expect(getInjectedStyle()?.nextElementSibling).toBe(themeEl())
+  })
+
+  it('treats the CSS as text, never markup', () => {
+    createEditorDOM(container, undefined, '</style><script>window.__pwned = 1</script>')
+    expect(themeEl()?.textContent).toBe('</style><script>window.__pwned = 1</script>')
+    expect(document.querySelector('script')).toBeNull()
+  })
+
+  it('updates in place, leaves an existing theme alone for undefined, removes it for empty', () => {
+    createEditorDOM(container, undefined, 'a{}')
+    createEditorDOM(container, undefined, 'b{}')
+    expect(document.querySelectorAll('#worldnotes-theme')).toHaveLength(1)
+    expect(themeEl()?.textContent).toBe('b{}')
+
+    createEditorDOM(container)
+    expect(themeEl()?.textContent).toBe('b{}')
+
+    createEditorDOM(container, undefined, '')
+    expect(themeEl()).toBeNull()
+  })
+
+  it('layers over a replaced base theme too', () => {
+    createEditorDOM(container, '.custom{}', 'a{}')
+    expect(getStyleText()).toBe('.custom{}')
+    expect(themeEl()?.textContent).toBe('a{}')
+  })
+})
+
 // ─── Toolbar slot (Plan 05-01 Task 1) ──────────────────────────────────────────
 
 describe('wn-toolbar slot', () => {

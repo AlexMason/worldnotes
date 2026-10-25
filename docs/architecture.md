@@ -22,21 +22,22 @@ Browser (anonymous)                  Browser (authenticated)
 │ /api/settings ── SettingsRepository ── key/value table          │
 │ /api/users/role ── UsersRepository (advisory-locked guard)      │
 │ /api/media upload ── MediaRepository (pg bytea) ── /media/{id}  │
+│ /api/themes CRUD ── ThemeService/ThemesRepository ── requireRole(admin) │
 │ @fastify/static /assets/* (dist/client) · /icons/* (public)     │
 └──────────────────────────────────────────────────────────────────┘
                               │ pg pool + advisory-locked migrations
                               ▼
-              PostgreSQL `pages`, `settings`, `media`, `users`
+              PostgreSQL `pages`, `settings`, `media`, `users`, `themes`
 ```
 
 ## Source layout
 
-| Directory     | Runs in        | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Directory     | Runs in        | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/core/`   | browser + node | The ONE render engine: line tokenizer + document-level **block pass** (`document.ts` — fenced code, pipe tables as multi-line regions), content plugins (each with an interactive `render()` and a static `renderToHTML()`; block plugins add a declarative `BlockDef`), interactive DOM renderer (`renderer.ts`/`line-renderer.ts`) + DOM-free static renderer (`static-renderer.ts`, used by the SSR read path), shared DOM↔source text model (`content-text.ts`), editor DOM/state/render/navigation/lifecycle, editing shortcuts (`editor-keymap.ts` + pure `editor-text-ops.ts`/`editor-format.ts`), plugin registry, `PageBuffers` (content model), `PageStore` contract, editor stylesheets (`styles.ts`) |
-| `src/client/` | browser        | Editor bootstrap: `main.ts` mounts the editor over `api-page-store.ts` (fetch + versions + conflicts) and builds the header actions (Search / All pages / Admin — admins only / sign-out)                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `src/server/` | node           | Fastify app: config, auth (OIDC/sessions/role resolver/login gate), DB (pool/migrations/repositories incl. users), render (reader adapter over core static renderer, layout, status documents, title extraction), routes, LRU cache                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `src/shared/` | both           | Env-agnostic code: `slug.ts` policy, `roles.ts` (role enum, single source of truth), `url-policy.ts`, `url-helpers.ts`, `dto.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `src/client/` | browser        | Editor bootstrap: `main.ts` mounts the editor over `api-page-store.ts` (fetch + versions + conflicts) and builds the header actions (Search / All pages / Admin — admins only / sign-out)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `src/server/` | node           | Fastify app: config, auth (OIDC/sessions/role resolver/login gate), DB (pool/migrations/repositories incl. users), render (reader adapter over core static renderer, layout, status documents, title extraction), routes, LRU cache                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `src/shared/` | both           | Env-agnostic code: `slug.ts` policy, `roles.ts` (role enum, single source of truth), `url-policy.ts`, `url-helpers.ts`, `dto.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 Boundary rules (enforced by tooling):
 
@@ -98,6 +99,19 @@ Boundary rules (enforced by tooling):
   `/assets/` static mount registers (never in tests). `@fastify/static` is
   skip-override, so the second mount uses `decorateReply: false` (a duplicate
   `sendFile` decorator would throw at boot). No core/rendering change.
+- **Themes are an admin-trusted CSS sink (second raw sink, after the
+  bands):** `themes` rows (`ThemesRepository` pg/memory pair, validation in
+  `src/server/themes.ts`) hold raw CSS; the active one is the
+  `activeThemeId` setting. `ThemeService.activeCss()` (memoized, cleared on
+  every theme write) feeds `LayoutOptions.themeCss` on every reader surface
+  — emitted as `<style id="worldnotes-theme">` AFTER the default sheet — and
+  `EditorShellConfig.themeCss`, which the client hands to
+  `EditorOptions.themeAppend` so `injectStyles` (`editor-dom.ts`) appends the
+  same-id style directly after `#worldnotes-styles` (the older `theme` option
+  still REPLACES the base sheet and is untouched). Reader ETags hash the theme
+  CSS; `/admin` is deliberately passed no `themeCss` (anti-lockout). Admin
+  `?previewTheme=<id>` is resolved per request in `routes/pages-html.ts`
+  (`resolveTheme`) and forces `no-store`/no-304. No renderer grammar changes.
 - **Text fidelity:** region lines render byte-exact DOM text — fences, pipes
   and separator dashes stay present as text (dimmed/zero-sized by CSS), so
   `extractContentText` round-trips with no `data-raw` on lines. `data-raw`
@@ -186,24 +200,25 @@ platform caveats.
 
 Public, no query strings anywhere:
 
-| Route                                           | Handler                                                             | Auth                   |
-| ----------------------------------------------- | ------------------------------------------------------------------- | ---------------------- | ---- | ----- |
-| `GET /`                                         | configured home page, else the index listing                        | anon ok                |
-| `GET /all`                                      | index (page list + search form island)                              | anon ok                |
-| `GET /search`, `GET /search/{terms}`            | search form + ILIKE results                                         | anon ok                |
-| `GET /admin`                                    | settings form (search, home page, branding, access, Users; bands omitted) | admins (`403` HTML for others) |
-| `GET /edit`, `GET /edit/{slug}`                 | legacy 302s → `/`, `/{slug}`                                        | —                      |
-| `GET /{slug}` (catch-all, last)                 | editor shell (editor\|admin) / SSR article (viewer/anon); miss → 404 document (customizable) | mixed (anon reads gate) |
-| `GET /api/pages`, `GET /api/pages/{slug}`       | JSON reads + ETags                                                  | anon ok (403 when login-only) |
-| `POST/PUT/DELETE /api/pages[/{slug}]`           | writes; `requireSameOrigin` + `requireRole(editor,admin)`            | editors                |
-| `PUT /api/settings`                             | instance settings write; `requireSameOrigin` + `requireRole(admin)`  | admins                 |
-| `PUT /api/users/role`                           | guarded role change; **strict** Origin (no Origin-less pass)        | admins                 |
-| `POST /api/media`                               | multipart upload; sniff + size/dimension caps                       | editors (`onRequest`)  |
-| `GET /media/{id}`                               | stored bytes, immutable cache + hardening headers                   | anon ok (gated when login-only) |
-| `GET /favicon.ico`, `GET /apple-touch-icon.png` | blind-request favicon (override row or bundled `public/icons/`)     | anon ok                |
-| `GET /oidc/login                                | callback                                                            | logout`, `GET /api/me` | auth | mixed |
-| `GET /assets/*`                                 | built client bundle                                                 | anon ok                |
-| `GET /healthz`                                  | liveness                                                            | anon ok                |
+| Route                                                     | Handler                                                                                                    | Auth                            |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------- | ---- | ----- |
+| `GET /`                                                   | configured home page, else the index listing                                                               | anon ok                         |
+| `GET /all`                                                | index (page list + search form island)                                                                     | anon ok                         |
+| `GET /search`, `GET /search/{terms}`                      | search form + ILIKE results                                                                                | anon ok                         |
+| `GET /admin`                                              | settings form (search, home page, branding, access, Users; bands omitted)                                  | admins (`403` HTML for others)  |
+| `GET /edit`, `GET /edit/{slug}`                           | legacy 302s → `/`, `/{slug}`                                                                               | —                               |
+| `GET /{slug}` (catch-all, last)                           | editor shell (editor\|admin) / SSR article (viewer/anon); miss → 404 document (customizable)               | mixed (anon reads gate)         |
+| `GET /api/pages`, `GET /api/pages/{slug}`                 | JSON reads + ETags                                                                                         | anon ok (403 when login-only)   |
+| `POST/PUT/DELETE /api/pages[/{slug}]`                     | writes; `requireSameOrigin` + `requireRole(editor,admin)`                                                  | editors                         |
+| `PUT /api/settings`                                       | instance settings write; `requireSameOrigin` + `requireRole(admin)`                                        | admins                          |
+| `GET/POST /api/themes`, `GET/PUT/DELETE /api/themes/{id}` | theme gallery CRUD (409 deleting the active theme); `requireRole(admin)` (+ `requireSameOrigin` on writes) | admins                          |
+| `PUT /api/users/role`                                     | guarded role change; **strict** Origin (no Origin-less pass)                                               | admins                          |
+| `POST /api/media`                                         | multipart upload; sniff + size/dimension caps                                                              | editors (`onRequest`)           |
+| `GET /media/{id}`                                         | stored bytes, immutable cache + hardening headers                                                          | anon ok (gated when login-only) |
+| `GET /favicon.ico`, `GET /apple-touch-icon.png`           | blind-request favicon (override row or bundled `public/icons/`)                                            | anon ok                         |
+| `GET /oidc/login                                          | callback                                                                                                   | logout`, `GET /api/me`          | auth | mixed |
+| `GET /assets/*`                                           | built client bundle                                                                                        | anon ok                         |
+| `GET /healthz`                                            | liveness                                                                                                   | anon ok                         |
 
 Slugs are lowercase `[a-z0-9-]` segments (`blog/post-name`), validated by a
 shared `validateSlug()` **and** a DB `CHECK` constraint. Nesting is cosmetic:
@@ -244,11 +259,12 @@ bootstrap winner and the last-admin lockout — are serialized by a
 `/api|/oidc|/assets` wildcards keep JSON answers); JSON/media reads answer
 `403 {error:"login required"}`. The gate runs at preHandler, before the
 render cache is consulted, and authenticated cache headers flip to `private`
-+ `Vary: Cookie` while gated. Status documents (`render/status-page.ts`)
-compose through `renderLayout`, so they inherit chrome — and the chrome
-never points anonymous visitors at override `/media/` URLs in this mode.
-Designated status pages are public surfaces by definition (docs call this
-out loudly in the admin form and in `docs/api.md`).
+
+- `Vary: Cookie` while gated. Status documents (`render/status-page.ts`)
+  compose through `renderLayout`, so they inherit chrome — and the chrome
+  never points anonymous visitors at override `/media/` URLs in this mode.
+  Designated status pages are public surfaces by definition (docs call this
+  out loudly in the admin form and in `docs/api.md`).
 
 ## Caching
 
@@ -281,8 +297,10 @@ revisions diverge; branding on every page makes that failure mode visible.
 content, version, created_at, updated_at, updated_by)` + index on
 `updated_at DESC` and seeds the `home` page (fixed in `002` to store real
 newlines); `003_settings.sql` adds a `settings(key PK, value, updated_at,
-updated_by)` key/value table for instance settings. `PagesRepository` and
-`SettingsRepository` each have two implementations (`-pg` production, `-memory`
+updated_by)` key/value table for instance settings; `006_themes.sql` adds
+`themes(id, name UNIQUE, description, css ≤ 64 KiB, timestamps)`.
+`PagesRepository`,
+`SettingsRepository` and `ThemesRepository` each have two implementations (`-pg` production, `-memory`
 tests); route tests run against memory, CI also runs the pg suite against a
 service container (`WN_TEST_PG_URL`).
 

@@ -74,6 +74,7 @@ describe('createSettingsService', () => {
       requireLogin: false,
       notFoundSlug: null,
       forbiddenSlug: null,
+      activeThemeId: null,
     })
     s.searchEnabled = true
     expect(svc.get().searchEnabled).toBe(false)
@@ -95,6 +96,7 @@ describe('createSettingsService', () => {
       requireLogin: false,
       notFoundSlug: null,
       forbiddenSlug: null,
+      activeThemeId: null,
     })
     expect(svc.get()).toEqual(next)
     expect(await repo.getAll()).toEqual({
@@ -109,6 +111,7 @@ describe('createSettingsService', () => {
       require_login: 'false',
       not_found_slug: '',
       forbidden_slug: '',
+      active_theme_id: '',
     })
   })
 
@@ -239,6 +242,21 @@ describe('createSettingsService', () => {
       /positive integer or null/,
     )
     expect(svc.get().faviconMediaId).toBeNull()
+  })
+
+  it('round-trips activeThemeId; corrupt stored values degrade to null', async () => {
+    expect(parseSettings({ active_theme_id: '3' }).activeThemeId).toBe(3)
+    for (const raw of ['', 'x', '0', '-1', '2.5']) {
+      expect(parseSettings({ active_theme_id: raw }).activeThemeId).toBeNull()
+    }
+    const repo = createMemorySettingsRepository()
+    const svc = await createSettingsService(repo)
+    await svc.update({ activeThemeId: 9 })
+    expect(await repo.getAll()).toMatchObject({ active_theme_id: '9' })
+    expect((await createSettingsService(repo)).get().activeThemeId).toBe(9)
+    await svc.update({ activeThemeId: null })
+    expect(svc.get().activeThemeId).toBeNull()
+    await expect(svc.update({ activeThemeId: 0 })).rejects.toThrow(/positive integer or null/)
   })
 
   it('bumps the revision on every successful update only', async () => {

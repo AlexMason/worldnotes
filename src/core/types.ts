@@ -316,6 +316,17 @@ export interface EditorOptions {
    * })
    */
   theme?: string
+  /**
+   * Optional CSS appended AFTER the stylesheet in its own
+   * <style id="worldnotes-theme">. Unlike `theme`, the defaults stay in place
+   * and this layer overrides them (tokens or rules) through the cascade —
+   * the hook the server's admin theme gallery uses. `''` removes a
+   * previously appended theme.
+   *
+   * @example
+   * createEditor(el, { themeAppend: ':root { --wn-palette-accent: #b00; }' })
+   */
+  themeAppend?: string
   onTrailChange?: (trail: string[]) => void
   onPageLoad?: (page: string, content: string) => void
   onSave?: (page: string, content: string) => void
