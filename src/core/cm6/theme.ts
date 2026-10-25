@@ -8,10 +8,11 @@
 // overrides below; each one is a known-issues entry (findings doc §Theming).
 
 export const CM6_CSS = `
-.wn-cm-host { max-width: 46rem; margin: 0 auto; padding: var(--wn-padding-editor-y, 2rem) var(--wn-padding-editor-x, 1.2rem); }
+/* Layout (column width, padding, scroll) comes from the shared .wn-editor-wrap / .wn-editor-col chrome. */
+.wn-cm-host { min-height: 100%; }
 .wn-cm-host .cm-editor { background: transparent; color: var(--wn-color-fg, #23211d); font-size: var(--wn-font-size-body, 16px); line-height: var(--wn-line-height, 1.65); }
 .wn-cm-host .cm-editor.cm-focused { outline: none; }
-.wn-cm-host .cm-scroller { font-family: system-ui, sans-serif; line-height: inherit; }
+.wn-cm-host .cm-scroller { font-family: var(--wn-font-family, serif); line-height: inherit; }
 .wn-cm-host .cm-content { padding: 0; caret-color: var(--wn-caret-color, #1a5fb4); }
 .wn-cm-host .cm-line { padding: 0; }
 .wn-cm-host .cm-cursor { border-left-color: var(--wn-caret-color, #1a5fb4); }

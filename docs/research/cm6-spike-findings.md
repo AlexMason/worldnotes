@@ -14,7 +14,9 @@ that decision.
 | `src/core/cm6/live-preview.ts` | `ViewPlugin`: spans → `Decoration`s. Per-line activation (selection-touched lines expand; fences/tables block-expand). |
 | `src/core/cm6/editor.ts` | `createCm6Editor`: history, default keymap, list Enter/Tab/Shift-Tab (reuses `editor-indentation.ts` helpers), link clicks, `setText`. |
 | `src/core/cm6/theme.ts` | The only CSS written for CM6: overrides where reader CSS assumes tree *shape*. |
-| `src/client/cm6-spike.ts` | Mount + unchanged `ApiPageStore` / If-Match / debounced autosave. |
+| `src/client/cm6-spike.ts` | Mounts the shared shell + CM6 view; breadcrumb/nav/popstate/toasts via shared modules; unchanged `ApiPageStore` / If-Match / debounced autosave (dirty-only). |
+| `src/client/chrome.ts` | Shared by BOTH surfaces: header actions, popstate bridge, save/conflict/auth toast events. |
+| `src/core/breadcrumb.ts` | Shared by BOTH surfaces: breadcrumb painter (extracted from `editor-render.ts`). |
 | `src/client/main.ts` | `?cm6=1` opt-in, via dynamic import (keeps CM6 out of the default chunk). |
 
 Try it: `npm run build`, run the server, open `/{slug}?cm6=1` while signed in.
@@ -96,9 +98,15 @@ Divergences and gaps — each is work a real cutover must do or consciously drop
    markers (`wn-punct`). Deliberate (avoids heading collapse on click) but a
    product call. Click-to-edit layout shift on collapse/expand is inherent to
    the model (same as Obsidian).
-8. **Chrome not ported:** breadcrumbs, toolbar, shortcuts overlay, site bands,
-   notifications (replaced by a one-line status), formatting shortcuts
-   (`editor-format.ts` — portable via `changeByRange`), home/trail handling.
+8. **Chrome is shared; two pieces are not ported.** The CM6 surface mounts the
+   production shell (`createEditorDOM`: header, breadcrumb trail, site nav
+   actions, site bands, admin theme, toasts, popstate) and navigates through the
+   same code as the production editor (`applyTrailNavigation`,
+   `pageAddressToSlug`, `seedContentFor`, `renderBreadcrumb`, `createStoreEvents`
+   — all extracted and used by both surfaces). Not ported: the shortcuts overlay
+   (its table lists production bindings that do not all exist under CM6) and the
+   formatting shortcuts (`editor-format.ts` — portable via `changeByRange`).
+   UI plugin slots (`wn-toolbar`) are not mounted.
 9. **Undo** is CM6 `history()` (per page via fresh state on `setText`), not
    `PageBuffers`/`EditorHistory`; undo depth/semantics differ (CM6 groups typing
    by time).

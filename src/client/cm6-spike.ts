@@ -1,17 +1,22 @@
 // ─── CM6 spike client — GH-4 / issue #5 ──────────────────────────────────────
-// Opt-in via `?cm6=1` on /{slug} (see main.ts). Edits ONE page in a CodeMirror
-// 6 EditorView with live-preview hiding driven by the existing tokenizer +
-// BlockDef grammar. Save / If-Match flow is the unchanged ApiPageStore +
-// debounced autosave; chrome (breadcrumbs, toolbar, panels) is NOT ported —
-// see docs/research/cm6-spike-findings.md.
+// Opt-in via `?cm6=1` on /{slug} (see main.ts). Same chrome and navigation as
+// the production editor — shell DOM (createEditorDOM), breadcrumb trail, header
+// actions, site bands, admin theme, toasts, popstate — with the editing surface
+// swapped for a CodeMirror 6 EditorView driven by the existing grammar. Only
+// the surface differs; shared pieces are imported, not copied.
 
 import { createCm6Editor } from '../core/cm6/editor'
 import type { Cm6Editor } from '../core/cm6/editor'
 import { CM6_CSS } from '../core/cm6/theme'
+import { renderBreadcrumb } from '../core/breadcrumb'
+import { createEditorDOM, insertSiteBands } from '../core/editor-dom'
+import { createEditorState } from '../core/editor-state'
+import { applyTrailNavigation, pageAddressToSlug, seedContentFor } from '../core/editor-navigation'
+import { createNotificationSystem } from '../core/notifications'
 import { defaultPlugins } from '../core/plugins/defaults'
-import { EDITOR_TOKENS_CSS, EDITOR_CONTENT_CSS } from '../core/styles'
 import { createApiPageStore } from './api-page-store'
-import { navTargetToSlug, slugDisplayName } from '../shared/slug'
+import { bindPopstate, createStoreEvents, mountHeaderActions } from './chrome'
+import { slugDisplayName } from '../shared/slug'
 import { pageUrlPath } from '../shared/url-helpers'
 import { composeDocTitle } from '../shared/doc-title'
 import type { EditorShellConfig } from '../shared/dto'
@@ -28,95 +33,143 @@ export function mountCm6Spike(
   cfg: EditorShellConfig,
   embed: Cm6SpikePage | null,
 ): Cm6Editor {
+  const seeded = embed !== null && embed.exists && embed.version !== null
+  const state = createEditorState({ initialPage: cfg.slug, homeSlug: cfg.homeSlug })
+  const dom = createEditorDOM(container, undefined, cfg.themeCss || undefined)
+  const notifications = createNotificationSystem(dom.container)
+
   const style = document.createElement('style')
-  style.textContent = EDITOR_TOKENS_CSS + EDITOR_CONTENT_CSS + CM6_CSS
+  style.textContent = CM6_CSS
   document.head.appendChild(style)
 
-  container.innerHTML = ''
-  container.className = 'wn-root'
-  container.style.background = 'var(--wn-color-bg)'
-  container.style.overflow = 'auto'
-
-  const status = document.createElement('div')
-  status.style.cssText =
-    'position:sticky;top:0;padding:.4rem 1rem;font:13px system-ui;color:var(--wn-color-fg-muted);' +
-    'background:var(--wn-color-surface);border-bottom:1px solid var(--wn-color-border)'
+  // The CM6 view replaces the contenteditable surface inside the shared column.
   const host = document.createElement('div')
   host.className = 'wn-cm-host'
-  container.append(status, host)
+  dom.editorDiv.replaceWith(host)
 
   let currentSlug = cfg.slug
   let editor: Cm6Editor | null = null
-  const setStatus = (msg: string, action?: { label: string; run(): void }): void => {
-    status.textContent = `CM6 spike · ${currentSlug} · ${msg}`
-    if (action) {
-      const b = document.createElement('button')
-      b.textContent = action.label
-      b.style.marginLeft = '.6rem'
-      b.addEventListener('click', action.run)
-      status.appendChild(b)
-    }
-  }
 
   const store = createApiPageStore(
-    {
-      onSaved: () => setStatus('saved'),
-      onDeleted: () => setStatus('page deleted (blank save)'),
-      onAuthLost: () => setStatus('session expired — log in again'),
-      onForbidden: () => setStatus('edit access revoked'),
-      onConflict(_page, server) {
-        if (!server) return setStatus('page deleted elsewhere; next save recreates it')
-        setStatus('someone saved a newer version', {
-          label: 'Load theirs',
-          run: () => {
-            editor?.setText(server.content)
-            setStatus('loaded server version')
-          },
-        })
+    createStoreEvents(() => notifications, {
+      onSaved: (page) => {
+        document.title = composeDocTitle(slugDisplayName(page), cfg.siteName)
       },
-    },
-    embed && embed.exists && embed.version !== null
-      ? [{ slug: cfg.slug, version: embed.version }]
-      : [],
+      loadServerContent: (content) => editor?.setText(content),
+    }),
+    // Seed the store version from the SSR embed so the first autosave sends
+    // the correct If-Match.
+    seeded ? [{ slug: cfg.slug, version: embed.version! }] : [],
   )
 
-  // Debounced autosave — same cadence/contract as the production editor.
+  const paintBreadcrumb = (): void =>
+    renderBreadcrumb(dom.breadcrumb, dom.container, state.getTrail(), {
+      homeLabel: cfg.siteName || undefined,
+      // Crumb click: trail is truncated, the (already-known) page re-shown.
+      onCrumb: (i) => {
+        state.truncateTrail(i)
+        void show(state.getCurrentPage()).catch(reportLoadFailure)
+      },
+    })
+
+  // Debounced autosave — same cadence/contract as the production editor. Only
+  // dirty buffers are written, so flushing before navigation never re-PUTs.
   let timer: ReturnType<typeof setTimeout> | undefined
+  let dirty = false
   const flush = async (): Promise<void> => {
     clearTimeout(timer)
     timer = undefined
-    if (!editor) return
-    setStatus('saving…')
+    if (!editor || !dirty) return
+    dirty = false
     try {
       await store.save(currentSlug, editor.getText())
     } catch (err) {
-      setStatus(`save failed: ${(err as Error).message}`)
+      dirty = true
+      console.error('worldnotes: save failed', err)
+      notifications.notify({
+        id: 'wn-save',
+        message: 'Save failed — your edits are still in the editor.',
+        type: 'error',
+        duration: 0,
+      })
     }
   }
   const schedule = (): void => {
-    setStatus('unsaved')
+    dirty = true
+    dom.placeholder.style.display = editor && editor.getText().length ? 'none' : 'block'
     clearTimeout(timer)
     timer = setTimeout(() => void flush(), cfg.autosaveMs)
   }
 
-  const navigate = async (target: string): Promise<void> => {
-    const slug = navTargetToSlug(target)
-    if (slug === null || slug === currentSlug) return
-    if (timer) await flush()
-    const content = await store.load(slug)
-    currentSlug = slug
-    window.history.pushState(null, '', `${pageUrlPath(slug)}?cm6=1`)
-    document.title = composeDocTitle(slugDisplayName(slug), cfg.siteName)
-    editor?.setText(content ?? '')
-    setStatus(content === null ? 'new page' : 'loaded')
+  const reportLoadFailure = (err: unknown): void => {
+    console.error('worldnotes: navigation failed', err)
+    notifications.notify({
+      id: 'wn-nav',
+      message: 'Failed to load the page — you are still on the previous one.',
+      type: 'error',
+      duration: 3000,
+    })
   }
 
+  /** Flush pending edits, then swap `slug`'s content (or its seed) into the view. */
+  async function show(slug: string, content?: string): Promise<void> {
+    await flush()
+    const text = content ?? (await store.load(slug)) ?? seedContentFor(slug, cfg.homeSlug)
+    if (slug !== currentSlug) {
+      currentSlug = slug
+      window.history.pushState(null, '', `${pageUrlPath(slug)}${window.location.search}`)
+    }
+    document.title = composeDocTitle(slugDisplayName(slug), cfg.siteName)
+    editor?.setText(text)
+    dom.placeholder.style.display = text.length ? 'none' : 'block'
+    paintBreadcrumb()
+    // A navigation happened — do not leave an open menu hovering over the new
+    // page on mobile.
+    container.querySelector('details[open]')?.removeAttribute('open')
+  }
+
+  /** Link / nav / popstate target → canonical slug → trail + page. */
+  const navigate = async (target: string): Promise<void> => {
+    const slug = pageAddressToSlug(target)
+    if (slug === null) {
+      notifications.notify({
+        id: 'wn-nav',
+        message: `"${target}" is not a valid page address.`,
+        type: 'warning',
+        duration: 3000,
+      })
+      return
+    }
+    // Load BEFORE touching the trail: a rejecting store leaves chrome and view
+    // consistent with the page the user is still on.
+    await flush()
+    const content = (await store.load(slug)) ?? seedContentFor(slug, cfg.homeSlug)
+    applyTrailNavigation(state, slug)
+    await show(state.getCurrentPage(), content)
+  }
+  const navigateSafe = (target: string): void => void navigate(target).catch(reportLoadFailure)
+
   editor = createCm6Editor(host, {
-    doc: embed?.content ?? '',
+    doc: embed ? (seeded ? (embed.content ?? '') : seedContentFor(cfg.slug, cfg.homeSlug)) : '',
     plugins: defaultPlugins,
     onChange: schedule,
-    onNavigate: (page) => void navigate(page),
+    onNavigate: navigateSafe,
+    onSave: () => void flush(),
   })
-  setStatus('ready')
+  dom.placeholder.style.display = editor.getText().length ? 'none' : 'block'
+
+  // No SSR embed (older server / parse failure): fall back to fetching.
+  if (!embed) void show(cfg.slug).catch(reportLoadFailure)
+  paintBreadcrumb()
+  insertSiteBands(dom.editorWrap, cfg.headerHtml, cfg.footerHtml)
+  mountHeaderActions(container, cfg, navigateSafe)
+  bindPopstate(
+    () => currentSlug,
+    (slug) => {
+      currentSlug = slug
+    },
+    navigateSafe,
+  )
+
   return editor
 }

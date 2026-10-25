@@ -43,7 +43,6 @@ export default defineConfig({
         'src/server/index.ts',    // bootstrap only; server modules ARE covered
         'src/server/app.ts',      // composition root
         'src/client/main.ts',     // bootstrap only
-        'src/client/cm6-spike.ts', // bootstrap only (GH-4 spike)
         'src/shared/dto.ts',      // types only
       ],
       // Coverage thresholds enforce quality gates in CI.

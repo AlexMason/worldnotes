@@ -6,6 +6,7 @@ import { createEditor } from '../core/editor'
 import type { EditorInstance } from '../core/types'
 import { insertSiteBands } from '../core/editor-dom'
 import { createApiPageStore } from './api-page-store'
+import { mountHeaderActions, bindPopstate, createStoreEvents } from './chrome'
 import { slugFromPath, pageUrlPath } from '../shared/url-helpers'
 import { slugDisplayName } from '../shared/slug'
 import { composeDocTitle } from '../shared/doc-title'
@@ -77,78 +78,12 @@ async function main(): Promise<void> {
   let currentSlug = cfg.slug
 
   const store = createApiPageStore(
-    {
-      onSaved(page) {
-        instance?.notify({ id: 'wn-save', message: 'Saved', type: 'success', duration: 1500 })
+    createStoreEvents(() => instance, {
+      onSaved: (page) => {
         document.title = composeDocTitle(slugDisplayName(page), cfg.siteName)
       },
-      onDeleted() {
-        // A blank save deleted the page. Stay put: the empty buffer plus the
-        // cleared store version mean the next non-blank save recreates it.
-        // Dismiss first — notify() ignores an id that is still on screen.
-        instance?.dismiss('wn-save')
-        instance?.notify({
-          id: 'wn-save',
-          message: 'Page deleted',
-          type: 'warning',
-          duration: 2500,
-        })
-      },
-      onAuthLost() {
-        const target = encodeURIComponent(window.location.pathname)
-        instance?.notify({
-          id: 'wn-auth',
-          message: 'Session expired.',
-          type: 'warning',
-          duration: 0,
-          action: {
-            label: 'Log in',
-            onClick: () => {
-              window.location.href = `/oidc/login?returnTo=${target}`
-            },
-          },
-        })
-      },
-      onForbidden() {
-        instance?.notify({
-          id: 'wn-forbidden',
-          message: 'You no longer have edit access on this site.',
-          type: 'warning',
-          duration: 0,
-        })
-      },
-      onConflict(page, server) {
-        const editor = instance
-        if (!editor) return
-        if (!server) {
-          editor.notify({
-            id: 'wn-conflict',
-            message: 'Page was deleted; your edits will recreate it on save.',
-            type: 'warning',
-            duration: 0,
-          })
-          return
-        }
-        editor.notify({
-          id: 'wn-conflict',
-          message: 'Someone else saved a newer version of this page.',
-          type: 'warning',
-          duration: 0,
-          action: {
-            label: 'Load theirs',
-            onClick: () => {
-              editor.setContent(server.content)
-              editor.notify({
-                id: 'wn-conflict-done',
-                message: 'Loaded the server version.',
-                type: 'info',
-                duration: 2000,
-              })
-            },
-          },
-        })
-      },
-    },
+      loadServerContent: (content) => instance?.setContent(content),
+    }),
     // Seed the store version from the SSR embed so the first autosave sends
     // the correct If-Match (avoids a needless 428 → refetch → retry).
     seeded ? [{ slug: cfg.slug, version: embed.version! }] : [],
@@ -187,64 +122,14 @@ async function main(): Promise<void> {
   const editorWrap = container.querySelector<HTMLElement>('.wn-editor-wrap')
   if (editorWrap) insertSiteBands(editorWrap, cfg.headerHtml, cfg.footerHtml)
 
-  // Header actions — mirror the viewer chrome (nav links / Search / All
-  // pages / Admin / sign-out). No login affordance: sign-in is a known route.
-  const actions = container.querySelector('.wn-actions')
-  if (actions) {
-    for (const link of cfg.navLinks ?? []) {
-      const a = document.createElement('a')
-      a.href = link.href
-      a.className = 'wn-nav-link'
-      a.textContent = link.label
-      // Internal link → SPA navigate (keeps the debounced autosave buffer,
-      // the sanctioned divergence for in-wiki links on the edit surface).
-      a.addEventListener('click', (e) => {
-        e.preventDefault()
-        instance?.navigate(link.slug)
-      })
-      actions.appendChild(a)
-    }
-    if (cfg.searchEnabled) {
-      const search = document.createElement('a')
-      search.href = '/search'
-      search.textContent = 'Search'
-      actions.appendChild(search)
-    }
-    if (cfg.allPagesEnabled) {
-      const all = document.createElement('a')
-      all.href = '/all'
-      all.textContent = 'All pages'
-      actions.appendChild(all)
-    }
-    // Role-gated chrome: the Admin link is for admins only (absent role in
-    // a fallback/legacy config = least privilege — no link).
-    if (cfg.userRole === 'admin') {
-      const admin = document.createElement('a')
-      admin.href = '/admin'
-      admin.textContent = 'Admin settings'
-      actions.appendChild(admin)
-    }
-    if (cfg.authDisabled) {
-      const name = document.createElement('span')
-      name.title = 'dev mode'
-      name.textContent = cfg.userName ?? 'dev'
-      actions.appendChild(name)
-    } else {
-      const signOut = document.createElement('a')
-      signOut.href = '/oidc/logout'
-      signOut.textContent = `Sign out (${cfg.userName ?? ''})`
-      actions.appendChild(signOut)
-    }
-  }
-
-  // Back/forward within the SPA
-  window.addEventListener('popstate', () => {
-    const slug = slugFromPath(window.location.pathname)
-    if (slug !== currentSlug && instance) {
+  mountHeaderActions(container, cfg, (slug) => instance?.navigate(slug))
+  bindPopstate(
+    () => currentSlug,
+    (slug) => {
       currentSlug = slug
-      instance.navigate(slug)
-    }
-  })
+    },
+    (slug) => instance?.navigate(slug),
+  )
 
   // Ctrl+S is owned by the editor keymap (saveNow flush through the store's
   // full save path — onError toast + onSave callback included). The old

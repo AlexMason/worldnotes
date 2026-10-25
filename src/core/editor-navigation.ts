@@ -28,6 +28,57 @@ Start writing here. Use [[page name]] to link into new pages.
 
 > Every link opens a door.`
 
+/**
+ * Canonical slug for a navigation target, or null when it is not a page
+ * address. Only page-addresses navigate: scheme'd/protocol-relative URLs and
+ * same-doc #fragments are not pages (the nav-link extractor applies the same
+ * internal-only rule server-side). Note slugify would happily fold
+ * 'https://x.com/y' into a junk 'https/x-com/y' key — refuse first.
+ */
+export function pageAddressToSlug(page: string): string | null {
+  return classifyLinkTarget(page) === 'internal' ? navTargetToSlug(page) : null
+}
+
+/**
+ * Seed for a page that exists nowhere. It opens in a SEEDED editor — the
+ * create-on-save flow persists it on the first edit. There is no 404 dead-end
+ * and no create dialog: the editor IS the create flow (the reader keeps its
+ * plain 404 for anonymous visitors).
+ */
+export function seedContentFor(page: string, homeSlug: string | null | undefined): string {
+  return page === (homeSlug ?? 'home') ? DEFAULT_HOME : `# ${slugDisplayName(page)}\n\n`
+}
+
+/**
+ * Move the breadcrumb trail to the canonical slug `canonical`: home truncates
+ * to the root; otherwise the longest matching path prefix of the current trail
+ * is kept and the remaining segments pushed.
+ */
+export function applyTrailNavigation(state: EditorStateAPI, canonical: string): void {
+  const trail = state.getTrail()
+
+  if (canonical === trail[0]) {
+    state.truncateTrail(0)
+    return
+  }
+
+  const segments = canonical.split('/').filter(Boolean)
+
+  let matchCount = 0
+  for (let i = 1; i < trail.length && matchCount < segments.length; i++) {
+    if (trail[i] === segments[matchCount]) {
+      matchCount++
+    } else {
+      break
+    }
+  }
+
+  state.truncateTrail(matchCount)
+  for (let i = matchCount; i < segments.length; i++) {
+    state.pushTrail(segments[i]!)
+  }
+}
+
 export interface EditorNavigationAPI {
   navigateToPage(page: string): Promise<void>
   loadPage(page: string): Promise<void>
@@ -48,19 +99,11 @@ export function createEditorNavigation(
   }
 
   function seedFor(page: string): string {
-    // A page that exists nowhere opens in a SEEDED editor — the create-on-save
-    // flow persists it on the first edit. There is no 404 dead-end and no
-    // create dialog: the editor IS the create flow (the reader keeps its
-    // plain 404 for anonymous visitors).
-    return page === (options.homeSlug ?? 'home') ? DEFAULT_HOME : `# ${slugDisplayName(page)}\n\n`
+    return seedContentFor(page, options.homeSlug)
   }
 
   async function navigateToPage(page: string): Promise<void> {
-    // Only page-addresses navigate: scheme'd/protocol-relative URLs and
-    // same-doc #fragments are not pages (the nav-link extractor applies the
-    // same internal-only rule server-side). Note slugify would happily fold
-    // 'https://x.com/y' into a junk 'https/x-com/y' key — refuse first.
-    const canonical = classifyLinkTarget(page) === 'internal' ? navTargetToSlug(page) : null
+    const canonical = pageAddressToSlug(page)
     if (canonical === null) {
       notifications?.notify({
         id: 'wn-nav',
@@ -84,30 +127,7 @@ export function createEditorNavigation(
       buffers.clearHistory(canonical)
     }
 
-    const trail = state.getTrail()
-
-    if (canonical === trail[0]) {
-      state.truncateTrail(0)
-      await loadPage(canonical)
-      return
-    }
-
-    const segments = canonical.split('/').filter(Boolean)
-
-    let matchCount = 0
-    for (let i = 1; i < trail.length && matchCount < segments.length; i++) {
-      if (trail[i] === segments[matchCount]) {
-        matchCount++
-      } else {
-        break
-      }
-    }
-
-    state.truncateTrail(matchCount)
-    for (let i = matchCount; i < segments.length; i++) {
-      state.pushTrail(segments[i]!)
-    }
-
+    applyTrailNavigation(state, canonical)
     await loadPage(canonical)
   }
 

@@ -24,6 +24,8 @@ export interface Cm6EditorOptions {
   onChange?(doc: string): void
   /** Wiki / internal link activated (click on a collapsed line, or Ctrl/Cmd-click). */
   onNavigate?(page: string): void
+  /** Ctrl/Cmd+S — flush the save immediately. */
+  onSave?(): void
 }
 
 export interface Cm6Editor {
@@ -151,6 +153,14 @@ export function createCm6Editor(parent: HTMLElement, opts: Cm6EditorOptions): Cm
         history(),
         keymap.of([
           { key: 'Enter', run: list.enter },
+          {
+            key: 'Mod-s',
+            preventDefault: true,
+            run: () => {
+              opts.onSave?.()
+              return true
+            },
+          },
           { key: 'Tab', run: list.tab },
           { key: 'Shift-Tab', run: list.shiftTab },
           ...defaultKeymap,
