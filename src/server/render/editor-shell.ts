@@ -7,6 +7,7 @@
 
 import { escapeHtml } from './layout'
 import { iconTagsHtml } from './icons'
+import { pwaTagsHtml, SW_REGISTER_SCRIPT } from './pwa'
 import { composeDocTitle } from '../../shared/doc-title'
 import type { Role } from '../../shared/roles'
 import type { EditorShellConfig, NavLink } from '../../shared/dto'
@@ -90,6 +91,7 @@ export function editorShellHtml(slug: string, opts: EditorShellOptions): string 
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${escapeHtml(composeDocTitle(slugDisplayName(slug), opts.siteName))}</title>
 ${iconTagsHtml(opts.faviconMediaId)}
+${pwaTagsHtml()}
 <style>
   html, body { height: 100%; margin: 0; }
   #wn-app { height: 100%; height: 100dvh; }
@@ -99,6 +101,7 @@ ${iconTagsHtml(opts.faviconMediaId)}
 <div id="wn-app"></div>
 <script id="wn-config" type="application/json">${embedJson(config, true)}</script>
 <script id="wn-page" type="application/json">${embedJson(page)}</script>
+<script>${SW_REGISTER_SCRIPT}</script>
 <script src="${escapeHtml(opts.assetPrefix)}/client.js" type="module"></script>
 </body>
 </html>`

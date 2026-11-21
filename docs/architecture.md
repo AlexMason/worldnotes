@@ -218,6 +218,7 @@ Public, no query strings anywhere:
 | `GET /favicon.ico`, `GET /apple-touch-icon.png`           | blind-request favicon (override row or bundled `public/icons/`)                                            | anon ok                         |
 | `GET /oidc/login                                          | callback                                                                                                   | logout`, `GET /api/me`          | auth | mixed |
 | `GET /assets/*`                                           | built client bundle                                                                                        | anon ok                         |
+| `GET /manifest.webmanifest`, `GET /sw.js`                 | PWA manifest + network-only service worker (offline fallback page, no Cache API); `render/pwa.ts` + `routes/pwa.ts` | anon ok (never gated)           |
 | `GET /healthz`                                            | liveness                                                                                                   | anon ok                         |
 
 Slugs are lowercase `[a-z0-9-]` segments (`blog/post-name`), validated by a

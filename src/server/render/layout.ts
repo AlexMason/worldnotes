@@ -10,6 +10,7 @@ import type { NavLink } from '../../shared/dto'
 import { EDITOR_TOKENS_CSS, EDITOR_CONTENT_CSS, SITE_BANDS_CSS } from '../../core/styles'
 import { composeDocTitle } from '../../shared/doc-title'
 import { iconTagsHtml } from './icons'
+import { pwaTagsHtml, SW_REGISTER_SCRIPT } from './pwa'
 
 export function escapeHtml(text: string): string {
   return text
@@ -333,7 +334,8 @@ export function renderLayout(opts: LayoutOptions): string {
 
   const scripts =
     (opts.searchEnabled !== false ? `<script>${SEARCH_SCRIPT}</script>` : '') +
-    (opts.scripts ? `<script>${opts.scripts}</script>` : '')
+    (opts.scripts ? `<script>${opts.scripts}</script>` : '') +
+    `<script>${SW_REGISTER_SCRIPT}</script>`
 
   // Admin-trusted raw HTML bands, inside <main> around the content.
   const headerBand = opts.headerHtml ? `<div class="wn-site-header">${opts.headerHtml}</div>` : ''
@@ -346,6 +348,7 @@ export function renderLayout(opts: LayoutOptions): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
 ${iconTagsHtml(opts.faviconMediaId ?? null)}
+${pwaTagsHtml()}
 <style>${EDITOR_TOKENS_CSS}${EDITOR_CONTENT_CSS}${VIEW_CSS}${SITE_BANDS_CSS}</style>${themeStyle}
 </head>
 <body class="wn-view">

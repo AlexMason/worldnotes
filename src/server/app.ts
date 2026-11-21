@@ -24,6 +24,7 @@ import { registerUsersApiRoutes } from './routes/users-api'
 import { registerMediaRoutes } from './routes/media'
 import { registerAdminRoutes } from './routes/admin'
 import { registerPageHtmlRoutes } from './routes/pages-html'
+import { registerPwaRoutes } from './routes/pwa'
 import { registerEditRoutes } from './routes/edit'
 import { createRenderCache, INDEX_CACHE_KEY } from './cache'
 import { createNavLinksService } from './render/nav'
@@ -194,6 +195,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     settings: settingsService,
     iconsDir: iconsMounted ? iconsDir : null,
   })
+  await registerPwaRoutes(app, { settings: settingsService })
 
   await registerPageApiRoutes(app, {
     pages: deps.pages,

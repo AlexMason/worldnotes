@@ -470,7 +470,7 @@ describe('favicon icon chrome', () => {
     expect(reader.body).toContain(
       '<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">',
     )
-    expect(reader.body).toContain('<link rel="manifest" href="/icons/site.webmanifest">')
+    expect(reader.body).toContain('<link rel="manifest" href="/manifest.webmanifest">')
     expect(reader.body).not.toContain('href="data:,"')
 
     const editor = await app.inject({ method: 'GET', url: '/page', headers: { cookie: auth } })
@@ -495,7 +495,8 @@ describe('favicon icon chrome', () => {
     const res = await app.inject({ method: 'GET', url: '/page' })
     expect(res.body).toContain('<link rel="icon" href="/media/1">')
     expect(res.body).toContain('<link rel="apple-touch-icon" href="/media/1">')
-    expect(res.body).not.toContain('site.webmanifest') // bundled set omitted under override
+    expect(res.body).toContain('<link rel="manifest" href="/manifest.webmanifest">') // always bundled-icon manifest
+    expect(res.body).not.toContain('/icons/favicon-32x32.png')
 
     const editor = await app.inject({ method: 'GET', url: '/page', headers: { cookie: auth } })
     expect(editor.body).toContain('<link rel="icon" href="/media/1">')

@@ -141,8 +141,9 @@ key/value table and editable from `GET /admin`.
 - `faviconMediaId` (default `null`) — id of a `media` row that overrides the
   bundled default icon set. When set, both page heads emit
   `<link rel="icon">` + `<link rel="apple-touch-icon">` pointing at the
-  extensionless `/media/{id}` URL (no manifest link — an installed PWA keeps
-  the bundled icons until the override is cleared); the blind `/favicon.ico`
+  extensionless `/media/{id}` URL (the manifest link stays and keeps the
+  bundled icons — an installed Android PWA keeps them until the override is
+  cleared; the iOS home-screen icon follows the override); the blind `/favicon.ico`
   and `/apple-touch-icon.png` requests follow the override too, self-healing
   to the bundled bytes if the referenced row is gone. Upload via
   `POST /api/media` (below); setting a new id **deletes the row the setting
@@ -336,6 +337,16 @@ callback-failure page is its own diagnostic document and not customizable.)
   filenames are stable across deploys while bytes change);
   `GET /favicon.ico`, `GET /apple-touch-icon.png` and `GET /media/{id}` —
   favicon and uploaded media (see **Media**); `GET /healthz` — liveness.
+- `GET /manifest.webmanifest` — web app manifest (`start_url`/`scope` `/`,
+  `display: standalone`, bundled 192/512 icons, `name` = `siteName`;
+  `max-age=300`). `GET /sw.js` — root-scoped service worker (`no-cache`).
+  Both are public and **not** subject to login-only mode (browsers fetch them
+  without credentials; they expose only the site name and icon paths). Every
+  reader/editor/status page links the manifest and registers the worker. The
+  worker is network-only: it never uses the Cache API and only answers a
+  *failed navigation* with a static “You’re offline” document, so no page,
+  API or media bytes persist on the device (no stale editor after sign-out,
+  no gated content surviving logout). Installing needs HTTPS (or `localhost`).
 
 ## Viewer markdown
 

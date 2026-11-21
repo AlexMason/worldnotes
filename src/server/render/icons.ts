@@ -9,8 +9,9 @@
 //   `<link rel="apple-touch-icon">` — pointing at the extensionless immutable
 //   /media/{id} URL. No type/sizes (the render path is a pure sync function
 //   of settings and cannot know the stored image's format or dimensions;
-//   browsers cope), no manifest link (an already-installed PWA keeps the
-//   bundled icons until the override is cleared — accepted caveat).
+//   browsers cope). The manifest link lives in render/pwa.ts and always uses
+//   the bundled icons (an installed Android PWA keeps them until the override
+//   is cleared — accepted caveat; the iOS home-screen icon follows the override).
 //
 // A dangling override (row gone: crashed two-step upload / partial restore)
 // emits a dead link — browsers fall back to their default icon, and the
@@ -25,7 +26,6 @@ export function iconTagsHtml(faviconMediaId: number | null): string {
   return (
     '<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">\n' +
     '<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">\n' +
-    '<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">\n' +
-    '<link rel="manifest" href="/icons/site.webmanifest">'
+    '<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">'
   )
 }
