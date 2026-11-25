@@ -33,7 +33,23 @@ import { renderLayout } from './render/layout'
 import type { OidcRelyingParty } from './auth/oidc'
 import fastifyStatic from '@fastify/static'
 import fastifyMultipart from '@fastify/multipart'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { join } from 'node:path'
+
+/**
+ * URL of the client entry script, versioned by its CONTENT. The entry keeps a
+ * stable filename (`client.js`) and is served `immutable`, so an unversioned
+ * URL would keep browsers on the previous build after a deploy. `client.js`
+ * only imports the content-hashed `main-<hash>.js`, so its bytes change
+ * whenever any client code changes — and so does `?v=`.
+ */
+export function clientEntrySrc(assetsDir: string | null): string {
+  const entry = assetsDir === null ? null : join(assetsDir, 'client.js')
+  if (entry === null || !existsSync(entry)) return '/assets/client.js'
+  const version = createHash('sha256').update(readFileSync(entry)).digest('hex').slice(0, 12)
+  return `/assets/client.js?v=${version}`
+}
 
 export interface AppDeps {
   config: ServerConfig
@@ -218,7 +234,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     cache,
     render: readerRender,
     layout: renderLayout,
-    assetPrefix: assetsMounted ? '/assets' : '',
+    clientScriptSrc: clientEntrySrc(assetsMounted ? assetsDir : null),
     autosaveMs: deps.config.env.AUTOSAVE_DEBOUNCE_MS,
     getSettings: () => settingsService.get(),
     getSettingsRevision: () => settingsService.getRevision(),

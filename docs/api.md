@@ -334,7 +334,10 @@ callback-failure page is its own diagnostic document and not customizable.)
 
 - `GET /edit` / `GET /edit/{slug}` — 302 redirects to `/` / `/{slug}`
   (legacy paths).
-- `GET /assets/*` — client bundle; `GET /icons/*` — the bundled default icon
+- `GET /assets/*` — client bundle (`public, max-age=1h, immutable`; chunks are
+  content-hashed, and the editor shell loads the stable-named entry as
+  `/assets/client.js?v=<content hash>`, so every client build gets a new URL
+  and browsers pick it up on the next page load); `GET /icons/*` — the bundled default icon
   set (`public/icons/`, shipped in the image, `max-age=1h` not immutable —
   filenames are stable across deploys while bytes change);
   `GET /favicon.ico`, `GET /apple-touch-icon.png` and `GET /media/{id}` —

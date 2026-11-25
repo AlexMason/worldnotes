@@ -36,8 +36,8 @@ export interface PageHtmlDeps {
   cache: RenderCache
   render: ReaderRenderer
   layout: (opts: LayoutOptions) => string
-  /** Absolute prefix the client bundle is served under, e.g. '/assets'. */
-  assetPrefix: string
+  /** URL of the client entry script, content-versioned (`clientEntrySrc`). */
+  clientScriptSrc: string
   autosaveMs: number
   getSettings: () => AppSettings
   /** Settings revision — mixed into reader ETags so chrome-only changes
@@ -76,7 +76,7 @@ export async function registerPageHtmlRoutes(
   app: FastifyInstance,
   deps: PageHtmlDeps,
 ): Promise<void> {
-  const { config, pages, cache, render, layout, assetPrefix, autosaveMs, getSettings } = deps
+  const { config, pages, cache, render, layout, clientScriptSrc, autosaveMs, getSettings } = deps
   const getSettingsRevision = deps.getSettingsRevision
   const getNavLinks = deps.getNavLinks
   const themes = deps.themes
@@ -232,7 +232,7 @@ export async function registerPageHtmlRoutes(
         ? Object.fromEntries(await render.linkExistence(page.content, slug))
         : {}
       const html = editorShellHtml(slug, {
-        assetPrefix,
+        clientScriptSrc,
         autosaveMs,
         searchEnabled: settings.searchEnabled,
         homeSlug: settings.homeSlug,

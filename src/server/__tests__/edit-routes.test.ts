@@ -1,6 +1,9 @@
 // ─── /edit redirect + editor-at-/{slug} route tests ─────────────────────────
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { usersFixture } from './helpers/users-fixture'
 import { loadConfig, type ServerConfig } from '../config'
 import { buildApp } from '../app'

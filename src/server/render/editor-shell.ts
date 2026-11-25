@@ -14,8 +14,8 @@ import type { EditorShellConfig, NavLink } from '../../shared/dto'
 import { slugDisplayName } from '../../shared/slug'
 
 export interface EditorShellOptions {
-  /** Absolute prefix the client bundle is served under, e.g. '/assets'. */
-  assetPrefix: string
+  /** URL of the client entry script, content-versioned (`clientEntrySrc`). */
+  clientScriptSrc: string
   autosaveMs: number
   searchEnabled: boolean
   /** Configured home page slug (breadcrumb trail root); null = 'home'. */
@@ -113,7 +113,7 @@ ${pwaTagsHtml()}
 <script id="wn-config" type="application/json">${embedJson(config, true)}</script>
 <script id="wn-page" type="application/json">${embedJson(page)}</script>
 <script>${SW_REGISTER_SCRIPT}</script>
-<script src="${escapeHtml(opts.assetPrefix)}/client.js" type="module"></script>
+<script src="${escapeHtml(opts.clientScriptSrc)}" type="module"></script>
 </body>
 </html>`
 }
