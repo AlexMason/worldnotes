@@ -3,7 +3,7 @@ issue: 12
 title: Resolve relative wiki links against the current page
 type: feature
 branch: feature/12-relative-wiki-links
-status: approved
+status: implementing
 created: 2026-11-24
 pr: ""
 ---
