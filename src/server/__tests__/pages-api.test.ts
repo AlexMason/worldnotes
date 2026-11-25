@@ -549,4 +549,19 @@ describe('GET /api/pages-exist', () => {
     const tooMany = await app.inject({ method: 'GET', url: `/api/pages-exist?slugs=${mk(101)}` })
     expect(tooMany.statusCode).toBe(400)
   })
+
+  it('/api/page-titles answers stored titles of existing pages only', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/page-titles?slugs=here,ghost,blog/post,Bad%20Slug',
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ titles: { here: 'Here', 'blog/post': 'Post' } })
+    expect(res.headers['cache-control']).toContain('max-age=30')
+    const tooMany = await app.inject({
+      method: 'GET',
+      url: `/api/page-titles?slugs=${Array.from({ length: 101 }, (_, i) => `p${i}`).join(',')}`,
+    })
+    expect(tooMany.statusCode).toBe(400)
+  })
 })

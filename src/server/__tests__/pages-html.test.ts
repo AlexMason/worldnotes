@@ -189,7 +189,7 @@ describe('SSR pages', () => {
   })
 
   it('serves the editor shell to authenticated users with branding title + config', async () => {
-    await repo.put('page2', { title: 'P', content: 'x' })
+    await repo.put('page2', { title: 'Second Page', content: '# Second Page' })
     await app.inject({
       method: 'PUT',
       url: '/api/settings',
@@ -197,7 +197,7 @@ describe('SSR pages', () => {
       payload: { siteName: 'Acme KB', headerHtml: '<b>hd</b>', footerHtml: '<i>ft</i>' },
     })
     const res = await app.inject({ method: 'GET', url: '/page2', headers: { cookie: auth } })
-    expect(res.body).toContain('<title>Page2 — Acme KB</title>')
+    expect(res.body).toContain('<title>Second Page — Acme KB</title>')
     // Bands are NOT server-rendered in the shell — they ride the embedded
     // config and the client inserts them around the content column
     // (reader-<main> parity inside the editor's scroll area).
@@ -215,6 +215,21 @@ describe('SSR pages', () => {
     expect(cfg.siteName).toBe('Acme KB')
     expect(cfg.headerHtml).toBe('<b>hd</b>')
     expect(cfg.footerHtml).toBe('<i>ft</i>')
+  })
+
+  it('editor shell embeds the stored titles of the page and its existing ancestors', async () => {
+    await repo.put('lore', { title: 'Lore of Ashfall', content: '# Lore of Ashfall' })
+    await repo.put('lore/gods/old', { title: 'Old Ones', content: '# Old Ones' })
+    const res = await app.inject({ method: 'GET', url: '/lore/gods/old', headers: { cookie: auth } })
+    expect(res.body).toContain('<title>Old Ones — WorldNotes</title>')
+    const embed = JSON.parse(
+      /<script id="wn-page" type="application\/json">(.+?)<\/script>/.exec(res.body)![1]!,
+    )
+    expect(embed.titles).toEqual({ lore: 'Lore of Ashfall', 'lore/gods/old': 'Old Ones' })
+
+    // A page that does not exist yet is named by its slug.
+    const fresh = await app.inject({ method: 'GET', url: '/lore/new-thing', headers: { cookie: auth } })
+    expect(fresh.body).toContain('<title>New Thing — WorldNotes</title>')
   })
 
   it('API writes invalidate the SSR cache for that slug and the index', async () => {

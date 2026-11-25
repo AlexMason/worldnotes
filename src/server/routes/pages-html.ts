@@ -267,6 +267,7 @@ export async function registerPageHtmlRoutes(
       const linkExists = page
         ? Object.fromEntries(await render.linkExistence(page.content, slug))
         : {}
+      const titles = await pages.titles(slugChain(slug))
       const html = editorShellHtml(slug, {
         clientScriptSrc,
         autosaveMs,
@@ -284,6 +285,8 @@ export async function registerPageHtmlRoutes(
         userRole: req.user.role,
         page: page ? { content: page.content, version: page.version } : null,
         linkExists,
+        title: page?.title ?? slugDisplayName(slug),
+        titles: Object.fromEntries(titles),
       })
       return reply
         .header('content-type', 'text/html; charset=utf-8')

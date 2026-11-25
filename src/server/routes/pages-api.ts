@@ -20,7 +20,8 @@ import { rewriteLinks } from '../../core/link-rewrite'
 import { defaultPlugins } from '../../core/plugins/defaults'
 
 const MAX_CONTENT_BYTES = 1_000_000 // 1 MB
-const MAX_EXIST_SLUGS = 100
+/** Slugs per /api/pages-exist or /api/page-titles request. */
+const MAX_BATCH_SLUGS = 100
 
 /** Settings that name a page by slug — they follow the page when it moves. */
 const PAGE_SLUG_SETTINGS = ['homeSlug', 'navSlug', 'notFoundSlug', 'forbiddenSlug'] as const
@@ -93,34 +94,62 @@ export async function registerPageApiRoutes(
     return { pages: items }
   })
 
+  /** The valid slugs of a `?slugs=a,b/c` batch (invalid ones are omitted —
+   *  unknown, not an error), or null when the batch exceeds the cap. */
+  function batchSlugs(raw: unknown): Set<string> | null {
+    const requested = typeof raw === 'string' && raw !== '' ? raw.split(',') : []
+    if (requested.length > MAX_BATCH_SLUGS) return null
+    const slugs = new Set<string>()
+    for (const candidate of requested) {
+      const validated = validateSlug(candidate)
+      if (validated.ok) slugs.add(validated.slug)
+    }
+    return slugs
+  }
+
+  function batchCacheHeaders(reply: FastifyReply): void {
+    const gated = deps.getSettings().requireLogin
+    if (gated) reply.header('vary', 'Cookie')
+    reply.header(
+      'cache-control',
+      cacheControlFor(gated, 'public, max-age=30, stale-while-revalidate=60'),
+    )
+  }
+
   // Link-state lookup: which of a batch of slugs exist. Backs the editor's
   // missing-page link styling (the reader resolves existence server-side).
   // Lives OUTSIDE /api/pages/* — that wildcard would read "pages-exist" as a
-  // slug. Invalid slugs are omitted from the answer (unknown, not an error).
+  // slug.
   app.get<{ Querystring: { slugs?: unknown } }>(
     '/api/pages-exist',
     { preHandler: [readGate] },
     async (req, reply) => {
-      const raw = req.query.slugs
-      const requested = typeof raw === 'string' && raw !== '' ? raw.split(',') : []
-      if (requested.length > MAX_EXIST_SLUGS) {
-        return reply.code(400).send({ error: `at most ${MAX_EXIST_SLUGS} slugs per request` })
-      }
-      const slugs = new Set<string>()
-      for (const candidate of requested) {
-        const validated = validateSlug(candidate)
-        if (validated.ok) slugs.add(validated.slug)
+      const slugs = batchSlugs(req.query.slugs)
+      if (slugs === null) {
+        return reply.code(400).send({ error: `at most ${MAX_BATCH_SLUGS} slugs per request` })
       }
       const found = await deps.pages.existing([...slugs])
-      const gated = deps.getSettings().requireLogin
-      if (gated) reply.header('vary', 'Cookie')
-      reply.header(
-        'cache-control',
-        cacheControlFor(gated, 'public, max-age=30, stale-while-revalidate=60'),
-      )
+      batchCacheHeaders(reply)
       const exists: Record<string, boolean> = {}
       for (const slug of slugs) exists[slug] = found.has(slug)
       return { exists }
+    },
+  )
+
+  // Title lookup: stored titles of the existing pages in a batch. Backs the
+  // editor's breadcrumb labels for ancestors it has not loaded. Same gate,
+  // cap and placement rule as /api/pages-exist.
+  app.get<{ Querystring: { slugs?: unknown } }>(
+    '/api/page-titles',
+    { preHandler: [readGate] },
+    async (req, reply) => {
+      const slugs = batchSlugs(req.query.slugs)
+      if (slugs === null) {
+        return reply.code(400).send({ error: `at most ${MAX_BATCH_SLUGS} slugs per request` })
+      }
+      const found = await deps.pages.titles([...slugs])
+      batchCacheHeaders(reply)
+      return { titles: Object.fromEntries(found) }
     },
   )
 

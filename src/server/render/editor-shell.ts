@@ -11,7 +11,6 @@ import { pwaTagsHtml, SW_REGISTER_SCRIPT } from './pwa'
 import { composeDocTitle } from '../../shared/doc-title'
 import type { Role } from '../../shared/roles'
 import type { EditorShellConfig, NavLink } from '../../shared/dto'
-import { slugDisplayName } from '../../shared/slug'
 
 export interface EditorShellOptions {
   /** URL of the client entry script, content-versioned (`clientEntrySrc`). */
@@ -57,6 +56,13 @@ export interface EditorShellOptions {
    * so link-state styling is correct on first paint without a round trip.
    */
   linkExists: Record<string, boolean>
+  /** The page's title (tab title on first paint). */
+  title: string
+  /**
+   * Stored titles of the page's existing ancestors (and itself), slug →
+   * title, so breadcrumb labels are right on first paint.
+   */
+  titles: Record<string, string>
 }
 
 /**
@@ -93,14 +99,22 @@ export function editorShellHtml(slug: string, opts: EditorShellOptions): string 
         version: opts.page.version,
         exists: true,
         linkExists: opts.linkExists,
+        titles: opts.titles,
       }
-    : { slug, content: null, version: null, exists: false, linkExists: opts.linkExists }
+    : {
+        slug,
+        content: null,
+        version: null,
+        exists: false,
+        linkExists: opts.linkExists,
+        titles: opts.titles,
+      }
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>${escapeHtml(composeDocTitle(slugDisplayName(slug), opts.siteName))}</title>
+<title>${escapeHtml(composeDocTitle(opts.title, opts.siteName))}</title>
 ${iconTagsHtml(opts.faviconMediaId)}
 ${pwaTagsHtml()}
 <style>
