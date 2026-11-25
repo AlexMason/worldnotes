@@ -138,13 +138,12 @@ export async function registerPageApiRoutes(
       // (whose `slug` field then tells it where the page lives now).
       const gated = deps.getSettings().requireLogin
       if (gated) reply.header('vary', 'Cookie')
+      // At most a minute, no stale-while-revalidate: a reclaimed alias (the
+      // page moved back) must stop redirecting quickly.
       return reply
         .code(301)
         .header('location', apiPagePath(current))
-        .header(
-          'cache-control',
-          cacheControlFor(gated, 'public, max-age=60, stale-while-revalidate=300'),
-        )
+        .header('cache-control', cacheControlFor(gated, 'public, max-age=60'))
         .send()
     }
 

@@ -59,7 +59,9 @@ describe('page moves on the read path', () => {
     const anon = await app.inject({ method: 'GET', url: '/projects/acme/notes' })
     expect(anon.statusCode).toBe(301)
     expect(anon.headers.location).toBe('/clients/acme/notes')
-    expect(anon.headers['cache-control']).toContain('max-age=60')
+    // At most a minute and no stale-while-revalidate: moving the page back
+    // (reclaiming the alias) must stop the redirect quickly.
+    expect(anon.headers['cache-control']).toBe('public, max-age=60')
 
     // The editor must not get a seeded "new page" shell over an alias.
     const editor = await app.inject({
@@ -80,6 +82,14 @@ describe('page moves on the read path', () => {
     const anon = await app.inject({ method: 'GET', url: '/projects/acme' })
     expect(anon.statusCode).toBe(403)
     expect(anon.headers.location).toBeUndefined()
+
+    const editor = await app.inject({
+      method: 'GET',
+      url: '/projects/acme',
+      headers: { cookie: editorCookie() },
+    })
+    expect(editor.statusCode).toBe(301)
+    expect(editor.headers['cache-control']).toMatch(/^private/)
   })
 
   it('serves fresh reader HTML for linking pages after a move (cache cleared)', async () => {
@@ -99,5 +109,21 @@ describe('page moves on the read path', () => {
     const home = await app.inject({ method: 'GET', url: '/' })
     expect(home.statusCode).toBe(200)
     expect(home.body).toContain('>Acme<')
+  })
+
+  it('a home setting lagging behind a move still reaches the page at /', async () => {
+    const { move } = await make({ home_slug: 'projects/acme' })
+    await move('projects/acme', 'clients/acme')
+    // Simulate the settings write having failed: home still names the old slug.
+    const lagging = await buildApp({
+      config,
+      pages: repo,
+      settings: createMemorySettingsRepository({ home_slug: 'projects/acme' }),
+      users: usersFixture(),
+      relyingParty: null,
+    })
+    const home = await lagging.inject({ method: 'GET', url: '/' })
+    expect(home.statusCode).toBe(301)
+    expect(home.headers.location).toBe('/clients/acme')
   })
 })
