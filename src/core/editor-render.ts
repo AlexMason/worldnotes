@@ -16,7 +16,7 @@ import { buildDocument, regionAt } from './document'
 import { renderInlineContent } from './renderer'
 import { renderBreadcrumb as renderBreadcrumbChrome } from './breadcrumb'
 import { openPageMoveField } from './page-move-field'
-import { pageTitle, titleFromDoc } from './page-title'
+import { pageTitle, titleOfDoc } from './page-title'
 import { slugDisplayName } from '../shared/slug'
 
 export interface EditorRenderAPI {
@@ -92,6 +92,9 @@ export function createEditorRender(
   /** Last title reported through `onTitleChange`. */
   let reportedTitle: string | null = null
   let moveFieldOpen = false
+  /** The current page's title as of its last render (reused by repaints so
+   *  an H1 keystroke parses the buffer once, in render()). */
+  let renderedTitle: { page: string; text: string; title: string } | null = null
 
   // ── Full render pipeline ──────────────────────────────────────────────────
 
@@ -137,9 +140,8 @@ export function createEditorRender(
     // Live title: an edit to the H1 renames the active crumb and the tab.
     // Navigation repaints the breadcrumb itself, so only a same-page title
     // change repaints here.
-    if (page === paintedPage && (titleFromDoc(doc) ?? slugDisplayName(page)) !== paintedTitle) {
-      refreshTitles()
-    }
+    renderedTitle = { page, text: raw, title: titleOfDoc(doc, page) }
+    if (page === paintedPage && renderedTitle.title !== paintedTitle) refreshTitles()
 
     const context: EditorContext = state.toContext(
       options.navigateFn ??
@@ -215,7 +217,11 @@ export function createEditorRender(
    *  title answer, else its humanized slug. */
   function titleOf(slug: string, unknown?: string[]): string {
     const buffers = state.getPageBuffers()
-    if (buffers.hasPage(slug)) return pageTitle(buffers.getPageText(slug), slug, contentPlugins)
+    if (buffers.hasPage(slug)) {
+      const text = buffers.getPageText(slug)
+      if (renderedTitle?.page === slug && renderedTitle.text === text) return renderedTitle.title
+      return pageTitle(text, slug, contentPlugins)
+    }
     const stored = options.pageTitles?.title(slug)
     if (stored === undefined) unknown?.push(slug)
     return stored ?? slugDisplayName(slug)
