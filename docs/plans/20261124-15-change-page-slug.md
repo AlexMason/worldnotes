@@ -5,7 +5,7 @@ type: feature
 branch: feature/15-change-page-slug
 status: filed
 created: 2026-11-24
-pr: ""
+pr: "https://github.com/AlexMason/worldnotes/pull/16"
 ---
 
 # Let editors change a page's slug after creation
