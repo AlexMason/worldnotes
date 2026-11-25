@@ -374,3 +374,5 @@ Manual (`npm run dev`, Postgres, logged in as editor):
 - 2026-11-24 — Move-field CSS lives in `src/core/editor-dom.ts` next to the breadcrumb chrome rules it replaces (that is where every `.wn-crumb*` rule lives), not in `styles.ts` (content stylesheet shared with the reader). Tokens unchanged: `--wn-move-input-bg`, `--wn-move-input-border`, `--wn-move-error-color`.
 
 ## Review
+
+Mode: sub-agents (three fresh-context reviewers: A plan conformance & correctness, B code quality, C security & scalability).
