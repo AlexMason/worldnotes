@@ -188,3 +188,54 @@ describe('editor at /{slug}', () => {
     expect(page.content).toBe(evil)
   })
 })
+
+describe('client entry cache busting', () => {
+  let dir: string
+  const config = loadConfig(baseEnv)
+  const auth =
+    'wn_session=' +
+    seal({ exp: Math.floor(Date.now() / 1000) + 300, sub: 'u1', name: 'Ed' }, config.sessionSecrets)
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'wn-assets-'))
+  })
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  async function shellScriptSrc(): Promise<{
+    src: string
+    app: Awaited<ReturnType<typeof buildApp>>
+  }> {
+    const app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      users: usersFixture(),
+      relyingParty: null,
+      clientAssetsDir: dir,
+    })
+    const res = await app.inject({ method: 'GET', url: '/p', headers: { cookie: auth } })
+    return { src: /<script src="([^"]+)" type="module">/.exec(res.body)![1]!, app }
+  }
+
+  it('versions the entry URL by bundle content, so a new build busts the cache', async () => {
+    writeFileSync(join(dir, 'client.js'), 'import "./main-aaa.js";\n')
+    const first = await shellScriptSrc()
+    expect(first.src).toMatch(/^\/assets\/client\.js\?v=[0-9a-f]{12}$/)
+    // The versioned URL is the served (immutable) entry.
+    const asset = await first.app.inject({ method: 'GET', url: first.src })
+    expect(asset.statusCode).toBe(200)
+    expect(asset.body).toContain('main-aaa.js')
+    expect(asset.headers['cache-control']).toContain('immutable')
+    await first.app.close()
+
+    const same = await shellScriptSrc()
+    expect(same.src).toBe(first.src) // same build, same URL: cache stays warm
+    await same.app.close()
+
+    writeFileSync(join(dir, 'client.js'), 'import "./main-bbb.js";\n')
+    const next = await shellScriptSrc()
+    expect(next.src).not.toBe(first.src)
+    await next.app.close()
+  })
+})
