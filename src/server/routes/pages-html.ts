@@ -60,8 +60,9 @@ interface Crumb {
 interface PageCacheValue {
   title: string
   article: string
-  /** Ancestor crumbs (titles embedded): a retitle clears the cache. */
-  crumbs: Crumb[]
+  /** Ancestor crumbs (titles embedded; a retitle clears the cache), or null
+   *  when the page was the home page (no crumbs needed) at render time. */
+  crumbs: Crumb[] | null
 }
 
 interface CacheEntry {
@@ -149,11 +150,16 @@ export async function registerPageHtmlRoutes(
     return chain.map((s) => ({ href: pageUrl(s), label: titles.get(s) ?? slugDisplayName(s) }))
   }
 
-  /** The served trail: Home alone on the home page (decided per request — the
-   *  home slug is a setting), else Home + the chain crumbs. */
-  function trailOf(slug: string, home: boolean, crumbs: Crumb[]): Crumb[] {
+  /** Home alone on the home page (decided per request — the home slug is a
+   *  setting), else Home + the chain crumbs (`crumbs` when already known). */
+  async function trailFor(slug: string, home: boolean, crumbs?: Crumb[] | null): Promise<Crumb[]> {
     const root = { href: '/', label: 'Home' }
-    return home || slug === (getSettings().homeSlug ?? 'home') ? [root] : [root, ...crumbs]
+    if (isHome(slug, home)) return [root]
+    return [root, ...(crumbs ?? (await chainCrumbs(slug)))]
+  }
+
+  function isHome(slug: string, home: boolean): boolean {
+    return home || slug === (getSettings().homeSlug ?? 'home')
   }
 
   /** Parsed `?previewTheme=<id>` — decimal positive ids only. */
@@ -297,7 +303,7 @@ export async function registerPageHtmlRoutes(
     const cached = cache.get<PageCacheValue>(`p:${slug}`)
     let title: string
     let articleHtml: string
-    let crumbs: Crumb[]
+    let crumbs: Crumb[] | null
 
     if (cached) {
       title = cached.value.title
@@ -313,13 +319,13 @@ export async function registerPageHtmlRoutes(
         const html = await status404(
           req,
           notFoundBodyHtml(pageUrl(slug)),
-          trailOf(slug, home, await chainCrumbs(slug)),
+          await trailFor(slug, home),
         )
         return respond(reply, { html, etag: hashEtag(html) }, 404)
       }
       title = page.title
       const generation = cache.generation
-      crumbs = await chainCrumbs(slug)
+      crumbs = isHome(slug, home) ? null : await chainCrumbs(slug)
       articleHtml = `<article class="wn-root wn-article">${await render.render(page.content, slug)}</article>`
       // A create/delete/retitle (cache.clear) that landed while the trail or
       // existence lookups were in flight makes this render stale: serve it,
@@ -333,7 +339,7 @@ export async function registerPageHtmlRoutes(
       }
     }
 
-    const trail = trailOf(slug, home, crumbs)
+    const trail = await trailFor(slug, home, crumbs)
     const html = layout({
       title,
       body: articleHtml,
