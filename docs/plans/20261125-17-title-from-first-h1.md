@@ -214,3 +214,5 @@ Unit and integration tests run with Vitest (`npm test`); the pg integration suit
 ## Implementation notes
 
 ## Review
+
+Mode: sub-agents
