@@ -35,12 +35,12 @@ function toRecord(row: Row): PageRecord {
   }
 }
 
+const RESOLVE_ALIAS_SQL = `SELECT p.slug FROM page_aliases a JOIN pages p ON p.id = a.page_id WHERE a.slug = $1`
+
 export function createPgPagesRepository(pool: SqlPool): PagesRepository {
-  async function resolveAlias(slug: string): Promise<string | null> {
-    const res = await pool.query(
-      `SELECT p.slug FROM page_aliases a JOIN pages p ON p.id = a.page_id WHERE a.slug = $1`,
-      [slug],
-    )
+  /** On the pool, or on `client` when the caller already holds a connection. */
+  async function resolveAlias(slug: string, client: Pick<SqlPool, 'query'> = pool) {
+    const res = await client.query(RESOLVE_ALIAS_SQL, [slug])
     return (res.rows[0] as { slug: string } | undefined)?.slug ?? null
   }
 
@@ -63,13 +63,22 @@ export function createPgPagesRepository(pool: SqlPool): PagesRepository {
       return new Set<string>(res.rows.map((r: { slug: string }) => r.slug))
     },
 
-    resolveAlias,
+    resolveAlias: (slug) => resolveAlias(slug),
 
     async move({ from, to, by = null, validate, rewrite }): Promise<MoveResult> {
       const client = await pool.connect()
       try {
         await client.query('BEGIN')
-        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [MOVE_LOCK_KEY])
+        // One move at a time — but never queue: a waiting move would pin a
+        // pool connection for as long as the move ahead of it rewrites.
+        const locked = await client.query(
+          'SELECT pg_try_advisory_xact_lock(hashtext($1)) AS locked',
+          [MOVE_LOCK_KEY],
+        )
+        if (!(locked.rows[0] as { locked: boolean }).locked) {
+          await client.query('ROLLBACK')
+          return { ok: false, reason: 'busy' }
+        }
         // Slug charset has no LIKE metacharacters (`%`, `_`), so the prefix
         // pattern is exact.
         const subtreeRes = await client.query(
@@ -79,8 +88,10 @@ export function createPgPagesRepository(pool: SqlPool): PagesRepository {
         )
         const subtreeRows = subtreeRes.rows as { id: string; slug: string }[]
         if (!subtreeRows.some((r) => r.slug === from)) {
+          // On THIS connection: a second pool checkout while holding one can
+          // exhaust the pool under concurrent moves.
+          const current = await resolveAlias(from, client)
           await client.query('ROLLBACK')
-          const current = await resolveAlias(from)
           return current === null
             ? { ok: false, reason: 'missing' }
             : { ok: false, reason: 'moved', to: current }
@@ -141,6 +152,10 @@ export function createPgPagesRepository(pool: SqlPool): PagesRepository {
         return moveSuccess(plan.moved, updates)
       } catch (e) {
         await client.query('ROLLBACK').catch(() => undefined)
+        // A page created at a target slug after the "taken" check: report it
+        // like any taken target rather than a raw unique violation.
+        if ((e as { code?: string }).code === '23505')
+          return { ok: false, reason: 'taken', slug: to }
         throw e
       } finally {
         client.release()

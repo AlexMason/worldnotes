@@ -65,6 +65,8 @@ export type MoveResult =
   | { ok: false; reason: 'moved'; to: string }
   | { ok: false; reason: 'taken'; slug: string }
   | { ok: false; reason: 'invalid'; slug: string; error: string }
+  /** Another move is running (moves never queue; the caller retries). */
+  | { ok: false; reason: 'busy' }
 
 export interface PagesRepository {
   /** Exact-match fetch. */

@@ -185,3 +185,47 @@ describe.skipIf(!url)('PagesRepository.move on Postgres', () => {
     })
   })
 })
+
+describe.skipIf(!url)('PagesRepository.move concurrency on Postgres', () => {
+  let pool: ReturnType<typeof createPool>
+  let repo: ReturnType<typeof createPgPagesRepository>
+
+  beforeAll(async () => {
+    pool = createPool(url as string)
+    await migrateWithRetry(pool, migrationsDir)
+    repo = createPgPagesRepository(pool)
+  })
+
+  afterAll(async () => {
+    await pool?.end()
+  })
+
+  it('a move never queues behind another move: it answers busy and changes nothing', async () => {
+    await pool.query('DELETE FROM pages WHERE slug <> $1', ['home'])
+    await repo.put('busy/a', { title: 'A', content: 'x' })
+    const other = await pool.connect()
+    try {
+      await other.query('BEGIN')
+      await other.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['wnmv'])
+      expect(await repo.move(moveInput('busy/a', 'busy/b'))).toEqual({ ok: false, reason: 'busy' })
+      await other.query('COMMIT')
+    } finally {
+      other.release()
+    }
+    expect(await repo.get('busy/a')).not.toBeNull()
+  })
+
+  it('moves of missing slugs never hold a second pool connection (no pool exhaustion)', async () => {
+    // A pool of 1: a nested checkout inside move would wait forever.
+    const tiny = new (await import('pg')).default.Pool({ connectionString: url, max: 1 })
+    try {
+      const tinyRepo = createPgPagesRepository(tiny)
+      await expect(tinyRepo.move(moveInput('nope/nope', 'x'))).resolves.toEqual({
+        ok: false,
+        reason: 'missing',
+      })
+    } finally {
+      await tiny.end()
+    }
+  })
+})

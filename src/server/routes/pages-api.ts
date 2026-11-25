@@ -11,7 +11,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import { requireRole, requireSameOrigin } from '../auth/session'
 import { cacheControlFor, requireLoginJson } from '../auth/login-gate'
-import type { PagesRepository } from '../db/repository'
+import type { MoveInput, PagesRepository } from '../db/repository'
 import type { AppSettings, SettingsPatch } from '../settings'
 import { validateSlug, slugDisplayName, navTargetToSlug, wikiLinkBase } from '../../shared/slug'
 import { isBlankContent } from '../../shared/content'
@@ -300,8 +300,6 @@ export async function registerPageApiRoutes(
       return reply.code(400).send({ error: 'cannot move a page inside itself' })
     }
 
-    const settings = deps.getSettings()
-    const homeBefore = settings.homeSlug
     const by = req.user?.sub ?? null
     const result = await deps.pages.move({
       from: from.slug,
@@ -311,16 +309,7 @@ export async function registerPageApiRoutes(
         const v = validateSlug(slug)
         return v.ok ? null : v.error
       },
-      rewrite: (row, movedSlugs) => {
-        const homeAfter = homeBefore === null ? null : (movedSlugs.get(homeBefore) ?? homeBefore)
-        const content = rewriteLinks(row.content, defaultPlugins, {
-          oldBase: wikiLinkBase(row.slug, homeBefore),
-          newBase: wikiLinkBase(row.newSlug, homeAfter),
-          moved: (slug) => movedSlugs.get(slug),
-        })
-        if (content === row.content) return null
-        return { content, title: extractTitle(content, row.title) }
-      },
+      rewrite: moveRewriter(() => deps.getSettings().homeSlug),
     })
 
     if (result.ok === false) {
@@ -337,33 +326,86 @@ export async function registerPageApiRoutes(
           return reply
             .code(400)
             .send({ error: `/${result.slug}: ${result.error}`, slug: result.slug })
+        case 'busy':
+          return reply
+            .code(409)
+            .send({ error: 'Another page move is in progress — try again in a moment.' })
       }
     }
 
-    // Settings that named a moved page follow it (after the move committed —
-    // see the plan's accepted risk; an alias keeps a lagging setting working).
-    const relocated = new Map(result.moved.map(({ from: f, to: t }) => [f, t]))
-    const patch: SettingsPatch = {}
-    const changedSettings: string[] = []
-    for (const field of PAGE_SLUG_SETTINGS) {
-      const value = settings[field]
-      const next = value === null ? undefined : relocated.get(value)
-      if (next !== undefined) {
-        patch[field] = next
-        changedSettings.push(field)
-      }
-    }
-    if (changedSettings.length > 0) await deps.updateSettings(patch, by)
-
+    // The move committed: invalidate first, so nothing below can leave stale
+    // reader HTML behind.
     const touched = new Set([
       ...result.moved.flatMap(({ from: f, to: t }) => [f, t]),
       ...result.rewritten,
     ])
     for (const slug of touched) deps.onWrite?.(slug, 'moved')
+
+    // Settings that named a moved page follow it — judged against settings as
+    // they are NOW (a concurrent admin change wins). Not atomic with the move
+    // (plan: accepted risk); a lagging setting still resolves via the alias.
+    const relocated = new Map(result.moved.map(({ from: f, to: t }) => [f, t]))
+    const patch = settingsPatchFor(deps.getSettings(), relocated)
+    const changedSettings = Object.keys(patch)
+    if (changedSettings.length > 0) {
+      try {
+        await deps.updateSettings(patch, by)
+      } catch (err) {
+        req.log.error({ err, from: from.slug, to: to.slug }, 'settings did not follow page move')
+        changedSettings.length = 0
+      }
+    }
+
+    req.log.info(
+      {
+        from: from.slug,
+        to: to.slug,
+        by,
+        moved: result.moved.length,
+        rewritten: result.rewritten.length,
+        settings: changedSettings,
+      },
+      'page moved',
+    )
     return reply.send({
       moved: result.moved,
       rewritten: result.rewritten,
       settings: changedSettings,
     })
   })
+}
+
+/**
+ * The move's per-page link rewrite: relative links resolve under each page's
+ * link base before and after the move (the home page's base is the root, and
+ * the home page itself may be moving). The home slug is read once, inside the
+ * move transaction (first call), not when the request arrived.
+ */
+function moveRewriter(getHomeSlug: () => string | null): MoveInput['rewrite'] {
+  let homeBefore: string | null | undefined
+  return (row, movedSlugs) => {
+    if (homeBefore === undefined) homeBefore = getHomeSlug()
+    const homeAfter = homeBefore === null ? null : (movedSlugs.get(homeBefore) ?? homeBefore)
+    const content = rewriteLinks(row.content, defaultPlugins, {
+      oldBase: wikiLinkBase(row.slug, homeBefore),
+      newBase: wikiLinkBase(row.newSlug, homeAfter),
+      moved: (slug) => movedSlugs.get(slug),
+    })
+    if (content === row.content) return null
+    return { content, title: extractTitle(content, row.title) }
+  }
+}
+
+/** Settings fields naming a moved page, pointed at its new slug. */
+function settingsPatchFor(
+  settings: AppSettings,
+  relocated: ReadonlyMap<string, string>,
+): SettingsPatch {
+  const patch: SettingsPatch = {}
+  for (const field of PAGE_SLUG_SETTINGS) {
+    const value = settings[field]
+    const next = value === null ? undefined : relocated.get(value)
+    if (next !== undefined) patch[field] = next
+  }
+  return patch
 }

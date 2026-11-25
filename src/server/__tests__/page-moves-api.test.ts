@@ -38,7 +38,7 @@ describe('page moves API', () => {
     settingsRepo = createMemorySettingsRepository({
       home_slug: 'projects/acme',
       nav_slug: 'projects/acme/nav',
-      not_found_slug: 'elsewhere',
+      not_found_slug: 'projects/acme/notes',
       forbidden_slug: 'projects/acme/denied',
     })
     writes.length = 0
@@ -71,7 +71,7 @@ describe('page moves API', () => {
       { from: 'projects/acme/notes', to: 'clients/acme-corp/notes' },
     ])
     expect(body.rewritten.sort()).toEqual(['clients/acme-corp/nav', 'linker'])
-    expect(body.settings).toEqual(['homeSlug', 'navSlug', 'forbiddenSlug'])
+    expect(body.settings).toEqual(['homeSlug', 'navSlug', 'notFoundSlug', 'forbiddenSlug'])
 
     const linker = await repo.get('linker')
     expect(linker).toMatchObject({
@@ -87,10 +87,38 @@ describe('page moves API', () => {
     expect(await settingsRepo.getAll()).toMatchObject({
       home_slug: 'clients/acme-corp',
       nav_slug: 'clients/acme-corp/nav',
-      not_found_slug: 'elsewhere',
+      not_found_slug: 'clients/acme-corp/notes',
       forbidden_slug: 'clients/acme-corp/denied',
     })
     expect(writes).toEqual(expect.arrayContaining(['projects/acme', 'clients/acme-corp', 'linker']))
+  })
+
+  it('a settings failure after the move still answers 200 and still invalidates', async () => {
+    const failing = createMemorySettingsRepository()
+    const brokenApp = await buildApp({
+      config,
+      pages: repo,
+      settings: {
+        ...failing,
+        getAll: async () => ({ home_slug: 'projects/acme' }),
+        set: async () => {
+          throw new Error('settings store down')
+        },
+      },
+      users: usersFixture({ users: { writer: 'editor' } }),
+      relyingParty: null,
+      onPageWrite: (slug) => writes.push(slug),
+    })
+    const res = await brokenApp.inject({
+      method: 'POST',
+      url: '/api/page-moves',
+      headers: editor(),
+      payload: { from: 'projects/acme', to: 'clients/acme' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().settings).toEqual([])
+    expect(await repo.get('clients/acme')).not.toBeNull()
+    expect(writes).toEqual(expect.arrayContaining(['projects/acme', 'clients/acme', 'linker']))
   })
 
   it('maps refusals to 400/404/409', async () => {
