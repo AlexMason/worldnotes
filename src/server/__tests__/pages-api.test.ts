@@ -472,6 +472,16 @@ describe('pages API roles & login-only gate', () => {
     expect(authed.headers['cache-control']).toContain('private')
     expect(authed.headers['vary']).toBe('Cookie')
 
+    const authedExist = await fresh.inject({
+      method: 'GET',
+      url: '/api/pages-exist?slugs=one,ghost',
+      headers: { cookie: cookieFor('writer') },
+    })
+    expect(authedExist.statusCode).toBe(200)
+    expect(authedExist.json()).toEqual({ exists: { one: true, ghost: false } })
+    expect(authedExist.headers['cache-control']).toContain('private')
+    expect(authedExist.headers['vary']).toBe('Cookie')
+
     // Writes keep the 401-for-anonymous contract (expiry toast), not the gate.
     const anonWrite = await fresh.inject({
       method: 'PUT',

@@ -12,7 +12,7 @@
 // zero-JS page can navigate. The comparator treats a reader anchor == editor
 // span when all other attrs/children match (the "anchor exception").
 
-import type { PageExists } from '../plugins/link-class'
+import type { PageExists } from '../types'
 import { describe, it, expect } from 'vitest'
 import { renderInlineContent } from '../renderer'
 import { renderLines } from '../line-renderer'

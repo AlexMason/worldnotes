@@ -1,10 +1,8 @@
 import { wikiTargetToSlug } from '../../shared/slug'
+import type { PageExists } from '../types'
 
 /** Added to `wn-wiki-link` when the target page is known NOT to exist. */
 export const MISSING_LINK_CLASS = 'wn-link-missing'
-
-/** Existence lookup: `false` = missing, `true` = exists, `undefined` = unknown. */
-export type PageExists = (slug: string) => boolean | undefined
 
 /**
  * Class list for an internal page link, shared by both link plugins and both

@@ -153,6 +153,30 @@ All tests co-located, deterministic, no network.
 
 - 2026-11-24 (step 1): `collectLinkSlugs` keeps the planned signature but is implemented as a recording `pageExists` driven through `renderDocumentHtml`, not a separate token walk. Reason: link tokens nested in list items, headings, quotes and table cells are rendered by their parent plugin, so a document-model walk would need per-plugin recursion and could drift from the real output. A shared `wikiLinkClass` helper (`src/core/plugins/link-class.ts`) holds the class decision for both plugins and both surfaces. Contract unchanged; no decision affected.
 
+- 2026-11-24 (review): `EditorContext.pageExists` asks the resolver (`request`) on EVERY link render and returns the cached answer — the resolver dedupes and ignores fresh answers. This is how a known-but-stale answer gets its 60 s refresh; it supersedes the "request only when unknown" wording in Decisions 7 and 9. Added `RenderCache.generation` and a client-side local-set sequence (see Review); neither changes a plan decision.
+
 ## Review
 
 Mode: sub-agents (three fresh-context reviewers: A plan conformance & correctness, B code quality, C security & scalability). Review run unattended at the user's request; manual-review sign-off waived by the user (see Filed note below).
+
+### Findings (three fresh-context sub-agent reviewers; no blockers, no majors)
+
+Fixed in `fix: review findings (#10 review)`:
+
+- **Stale "missing" can win a race (client)** — raised by lens C. A fetch response requested before a local `set()` (own save created the page) could overwrite it; the HTTP cache (`max-age=30`) could also answer a refresh with a pre-creation `false`. Fix: per-slug local-set sequence — older responses are dropped; the client fetches with `cache: 'no-store'`. Tests added.
+- **Reader cache-fill race** — lenses A and C. A create/delete landing while a render awaited `existing()` could re-cache a stale article/status body until TTL. Fix: `RenderCache.generation` (bumped by `clear()`); `pages-html.ts` and `status-page.ts` skip `cache.set` when it moved. Tests added (cache unit + parked-render integration).
+- **Request URL could exceed server/proxy limits** — lens C. 100 long nested slugs overran an 8 KB request line. Fix: batches are also capped by an encoded-length budget (`BATCH_QUERY_BUDGET`); `/` is no longer percent-encoded in the list.
+- **Silent lookup failures** — lens B. Failures now `console.warn` (once per failed batch; the 60 s skip keeps it quiet).
+- **Missing tests** — lenses A and B: content-only PUT keeps cached articles / create clears them; authed `GET /api/pages-exist` `private` + `Vary: Cookie`; `createStoreEvents` `onDeleted` hook.
+- **Cleanups** — `PageExists` declared once in `types.ts`; `staticContext()` helper replaces three copies of the context literal; `reader.ts` ternary dropped; `linkExists` computed before the shell call and required on `EditorShellOptions`; `skipUntil` pruned past 500 entries; `docs/theming.md` re-formatted.
+- **Doubled render cost, partly mitigated** — lenses B and C. `collectLinkSlugs` is a full discarded render. Now skipped entirely for documents with no `[`; the remaining ~2x CPU on an uncached reader miss of a link-bearing page is documented in `link-slugs.ts` and **accepted** (single-instance, bounded cache, rare worst case: a ~1 MB link-dense page by a trusted editor).
+
+Dismissed / accepted deviations (documented above or in Implementation notes):
+
+- `cache.clear()` churn under an editor create/delete loop (lens C) — Decision 6, accepted.
+- CSS: `opacity: .8` on the missing marker was dropped and a `:hover` rule for missing links added (lens A, nit) — intentional; the muted colour already carries the weight, and hover must not stay muted.
+- `context.pageExists` requests on every link render rather than only when unknown (lens A, nit) — required for the 60 s refresh rule; the Decision 7/9 wording is superseded by the Implementation note.
+
+Not verifiable by the reviewers, verified by the implementer: the visual result and the live in-place update — checked in a real browser against a local server (existing link solid underline; missing link dotted + `/` + muted colour; external icon; typing a new `[[link]]` in the editor issued one `GET /api/pages-exist` and the link was marked missing in place).
+
+Filed without review sign-off at user's request.

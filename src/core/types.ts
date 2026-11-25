@@ -142,6 +142,9 @@ export interface PageExistenceResolver {
   onChange(listener: () => void): () => void
 }
 
+/** Existence lookup: `false` = missing, `true` = exists, `undefined` = unknown. */
+export type PageExists = (slug: string) => boolean | undefined
+
 // ─── Editor Context ───────────────────────────────────────────────────────────
 
 /**
@@ -174,7 +177,7 @@ export interface EditorContext {
    * `StaticRenderContext.pageExists`). Optional: absent = every link looks
    * like an existing page.
    */
-  pageExists?(slug: string): boolean | undefined
+  pageExists?: PageExists
 }
 
 /**
@@ -189,7 +192,7 @@ export interface StaticRenderContext {
    * known not to exist (link gets `wn-link-missing`), `true` = exists,
    * `undefined` = unknown (rendered like an existing page).
    */
-  pageExists?(slug: string): boolean | undefined
+  pageExists?: PageExists
 }
 
 // ─── Plugin Lifecycle ──────────────────────────────────────────────────────────

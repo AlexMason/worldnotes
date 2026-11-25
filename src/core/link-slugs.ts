@@ -11,12 +11,18 @@ import type { ContentPlugin } from './types'
 /** Ceiling per document: bounds the batched lookup (extra slugs render as unknown). */
 export const MAX_LINK_SLUGS = 500
 
-/** Distinct internal page slugs linked from `markdown`, in first-seen order. */
+/**
+ * Distinct internal page slugs linked from `markdown`, in first-seen order.
+ * Cost note: this is a full (discarded) render, so an uncached reader miss
+ * pays roughly 2x render CPU; documents without a `[` cannot contain a link
+ * and skip it entirely.
+ */
 export function collectLinkSlugs(
   markdown: string,
   plugins: ContentPlugin[],
   max: number = MAX_LINK_SLUGS,
 ): string[] {
+  if (!markdown.includes('[')) return []
   const seen = new Set<string>()
   renderDocumentHtml(markdown, plugins, (slug) => {
     if (seen.size < max) seen.add(slug)

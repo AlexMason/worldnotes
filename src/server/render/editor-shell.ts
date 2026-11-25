@@ -56,7 +56,7 @@ export interface EditorShellOptions {
    * Existence of the pages `page.content` links to (slug → exists), embedded
    * so link-state styling is correct on first paint without a round trip.
    */
-  linkExists?: Record<string, boolean>
+  linkExists: Record<string, boolean>
 }
 
 /**
@@ -92,9 +92,9 @@ export function editorShellHtml(slug: string, opts: EditorShellOptions): string 
         content: opts.page.content,
         version: opts.page.version,
         exists: true,
-        linkExists: opts.linkExists ?? {},
+        linkExists: opts.linkExists,
       }
-    : { slug, content: null, version: null, exists: false, linkExists: {} }
+    : { slug, content: null, version: null, exists: false, linkExists: opts.linkExists }
   return `<!doctype html>
 <html lang="en">
 <head>

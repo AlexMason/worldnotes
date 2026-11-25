@@ -14,9 +14,15 @@
 // `escapeAttr`. Plugins enforce the href scheme policy (`isSafeHref`, slug
 // folding) in their own `renderToHTML`.
 
-import type { BlockRegion, DocModel, Token, ContentPlugin, StaticRenderContext } from './types'
+import type {
+  BlockRegion,
+  DocModel,
+  Token,
+  ContentPlugin,
+  StaticRenderContext,
+  PageExists,
+} from './types'
 import { scanInline } from './tokenizer'
-import type { PageExists } from './plugins/link-class'
 import { buildPluginMap } from './plugin-map'
 import { buildDocument } from './document'
 import { escapeHTML } from './escape'
@@ -53,6 +59,17 @@ export function renderLineToHTML(
   return parts.join('')
 }
 
+/** The context every plugin `renderToHTML` receives (nested inline rendering + link state). */
+function staticContext(
+  contentPlugins: ContentPlugin[],
+  pageExists?: PageExists,
+): StaticRenderContext {
+  return {
+    renderInline: (text: string) => renderInlineHTML(text, contentPlugins, pageExists),
+    ...(pageExists ? { pageExists } : {}),
+  }
+}
+
 /**
  * Render inline markdown text as an HTML string using only inline-level
  * token definitions. Used as the `renderInline` implementation within
@@ -83,10 +100,7 @@ export function renderInlineHTML(
       continue
     }
 
-    const ctx: StaticRenderContext = {
-      renderInline: (t: string) => renderInlineHTML(t, contentPlugins, pageExists),
-      ...(pageExists ? { pageExists } : {}),
-    }
+    const ctx = staticContext(contentPlugins, pageExists)
     parts.push(plugin.renderToHTML(token, ctx))
   }
 
@@ -107,10 +121,7 @@ export function renderDocumentToHTML(
   pageExists?: PageExists,
 ): string {
   const pluginMap = buildPluginMap(contentPlugins)
-  const ctx: StaticRenderContext = {
-    renderInline: (text: string) => renderInlineHTML(text, contentPlugins, pageExists),
-    ...(pageExists ? { pageExists } : {}),
-  }
+  const ctx = staticContext(contentPlugins, pageExists)
   const parts: string[] = []
 
   for (let i = 0; i < lines.length; i++) {
@@ -141,10 +152,7 @@ export function renderDocModelToHTML(
   pageExists?: PageExists,
 ): string {
   const pluginMap = buildPluginMap(contentPlugins)
-  const ctx: StaticRenderContext = {
-    renderInline: (text: string) => renderInlineHTML(text, contentPlugins, pageExists),
-    ...(pageExists ? { pageExists } : {}),
-  }
+  const ctx = staticContext(contentPlugins, pageExists)
 
   const regionsByStart = new Map<number, BlockRegion>()
   const owner = new Map<number, BlockRegion>()

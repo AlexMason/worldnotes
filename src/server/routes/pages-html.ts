@@ -228,6 +228,9 @@ export async function registerPageHtmlRoutes(
     if (req.user && isEditorialRole(req.user.role)) {
       const settings = getSettings()
       const page = await pages.get(slug)
+      const linkExists = page
+        ? Object.fromEntries(await resolveLinkExistence(pages, page.content))
+        : {}
       const html = editorShellHtml(slug, {
         assetPrefix,
         autosaveMs,
@@ -244,9 +247,7 @@ export async function registerPageHtmlRoutes(
         authDisabled: config.authDisabled,
         userRole: req.user.role,
         page: page ? { content: page.content, version: page.version } : null,
-        ...(page
-          ? { linkExists: Object.fromEntries(await resolveLinkExistence(pages, page.content)) }
-          : {}),
+        linkExists,
       })
       return reply
         .header('content-type', 'text/html; charset=utf-8')
@@ -274,12 +275,17 @@ export async function registerPageHtmlRoutes(
         return respond(reply, { html, etag: hashEtag(html) }, 404)
       }
       title = page.title
+      const generation = cache.generation
       articleHtml = `<article class="wn-root wn-article">${await render.render(page.content)}</article>`
-      cache.set(`p:${slug}`, {
-        value: { title, article: articleHtml },
-        etag: hashEtag(articleHtml),
-        storedAt: Date.now(),
-      })
+      // A create/delete (cache.clear) that landed while the existence lookup
+      // was in flight makes this render stale: serve it, but do not cache it.
+      if (cache.generation === generation) {
+        cache.set(`p:${slug}`, {
+          value: { title, article: articleHtml },
+          etag: hashEtag(articleHtml),
+          storedAt: Date.now(),
+        })
+      }
     }
 
     const html = layout({

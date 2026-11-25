@@ -39,4 +39,14 @@ describe('createRenderCache', () => {
     cache.clear()
     expect(cache.size).toBe(0)
   })
+
+  it('generation advances on clear (not on invalidate), so racing fills can detect it', () => {
+    const cache = createRenderCache({ maxEntries: 5, ttlMs: 10_000 })
+    const before = cache.generation
+    cache.set('x', { value: 'x', etag: '', storedAt: Date.now() })
+    cache.invalidate('x')
+    expect(cache.generation).toBe(before)
+    cache.clear()
+    expect(cache.generation).toBe(before + 1)
+  })
 })

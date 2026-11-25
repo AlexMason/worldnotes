@@ -927,4 +927,60 @@ describe('SSR link state (existing vs missing pages)', () => {
     expect(res.body).toContain('<a class="wn-wiki-link" href="/here"')
     expect(res.body).toContain('<a class="wn-wiki-link wn-link-missing" href="/nowhere"')
   })
+
+  it('a content-only write keeps cached articles; only create/delete clears them', async () => {
+    expect(await read()).toContain('see') // warms the article cache
+    await repo.put('index', { title: 'Index', content: 'edited behind the cache [[here]]' })
+
+    const edit = await app.inject({
+      method: 'PUT',
+      url: '/api/pages/here',
+      headers: { cookie: auth, 'if-match': '"1"' },
+      payload: { content: 'present, edited' },
+    })
+    expect(edit.statusCode).toBe(200)
+    expect(await read()).not.toContain('edited behind the cache') // still the cached render
+
+    await app.inject({
+      method: 'POST',
+      url: '/api/pages',
+      headers: { cookie: auth },
+      payload: { slug: 'brand-new', content: 'x' },
+    })
+    expect(await read()).toContain('edited behind the cache') // create cleared everything
+  })
+
+  it('a page created while an article is mid-render never leaves a stale "missing" cached', async () => {
+    const existing = repo.existing.bind(repo)
+    // tsconfig.server targets < ES2024: no Promise.withResolvers.
+    let openGate: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => {
+      openGate = resolve
+    })
+    let markReached: () => void = () => undefined
+    const reached = new Promise<void>((resolve) => {
+      markReached = resolve
+    })
+    repo.existing = async (slugs) => {
+      const before = await existing(slugs) // answer computed BEFORE the create
+      markReached()
+      await gate
+      return before
+    }
+    const inFlight = app.inject({ method: 'GET', url: '/index' })
+    await reached // the render is now parked inside existing()
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/pages',
+      headers: { cookie: auth },
+      payload: { slug: 'later', content: 'now here' },
+    })
+    expect(created.statusCode).toBe(201)
+    openGate()
+    expect((await inFlight).body).toContain('class="wn-wiki-link wn-link-missing" href="/later"')
+
+    repo.existing = existing // later reads must reflect reality, not the stale render
+    expect(await read()).not.toContain('class="wn-wiki-link wn-link-missing" href="/later"')
+  })
 })

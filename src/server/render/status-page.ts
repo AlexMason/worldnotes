@@ -93,12 +93,15 @@ export async function statusDocument(deps: StatusDeps, doc: StatusDoc): Promise<
     } else {
       const page = await deps.pages.get(doc.customSlug)
       if (page) {
+        const generation = deps.cache.generation
         const rendered = wrap(await deps.render.render(page.content))
-        deps.cache.set(key, {
-          value: rendered,
-          etag: hashEtag(rendered),
-          storedAt: Date.now(),
-        })
+        if (deps.cache.generation === generation) {
+          deps.cache.set(key, {
+            value: rendered,
+            etag: hashEtag(rendered),
+            storedAt: Date.now(),
+          })
+        }
         bodyHtml =
           rendered +
           (doc.customAppendHtml ? `<div class="wn-status">${doc.customAppendHtml}</div>` : '')

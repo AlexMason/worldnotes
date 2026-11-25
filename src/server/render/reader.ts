@@ -13,7 +13,7 @@
 import { renderDocumentHtml } from '../../core/static-renderer'
 import { collectLinkSlugs } from '../../core/link-slugs'
 import { defaultPlugins } from '../../core/plugins/defaults'
-import type { PageExists } from '../../core/plugins/link-class'
+import type { PageExists } from '../../core/types'
 import type { PagesRepository } from '../db/repository'
 
 /** Matches the `PageHtmlDeps.render` seam consumed by the SSR routes. */
@@ -48,7 +48,7 @@ export function createReaderRenderer(pages: Pick<PagesRepository, 'existing'>): 
   return {
     async render(src: string): Promise<string> {
       const state = await resolveLinkExistence(pages, src)
-      return renderReaderHtml(src, state.size === 0 ? undefined : (slug) => state.get(slug))
+      return renderReaderHtml(src, (slug) => state.get(slug))
     },
   }
 }
