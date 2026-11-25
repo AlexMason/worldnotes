@@ -30,6 +30,7 @@ import {
   wordExtend,
 } from './editor-text-ops'
 import { toggleWrap, wrapLink } from './editor-format'
+import { commitModelEdit, type ModelCommitDeps, type TextEdit } from './editor-commit'
 
 // ─── Binding table — the SINGLE source for keymap, help overlay, and docs ──
 
@@ -51,20 +52,13 @@ export const SHORTCUT_BINDINGS: ShortcutBinding[] = [
   { group: 'Formatting', keys: 'Ctrl+K', action: 'Wrap selection as [link](url)' },
   { group: 'Document', keys: 'Ctrl+S', action: 'Save now' },
   { group: 'Document', keys: 'Ctrl+Click', action: 'Open an external link in a new tab' },
+  { group: 'Document', keys: 'Ctrl+A', action: 'Select the whole page' },
   { group: 'Document', keys: 'Ctrl+/', action: 'Show / hide this help' },
 ]
 
 // ─── Keymap ─────────────────────────────────────────────────────────────────
 
-export interface EditingKeymapDeps {
-  editorEl: HTMLElement
-  getCurrentPage(): string
-  pageExists(page: string): boolean
-  getPageText(page: string): string
-  setPageText(page: string, text: string): void
-  /** Forced re-render from the buffer; caret lands collapsed on cursorOffset. */
-  render(cursorOffset: number): void
-  scheduleSave(): void
+export interface EditingKeymapDeps extends ModelCommitDeps {
   saveNow(): void
 }
 
@@ -79,29 +73,28 @@ const anyMod = (e: KeyboardEvent): boolean => e.ctrlKey || e.metaKey || e.altKey
 export function createEditingKeymap(deps: EditingKeymapDeps): EditingKeymap {
   /**
    * Shared commit path for text-changing ops: map selection → pure compute →
-   * setPageText (one undo step) → render → restore selection → autosave.
+   * commitModelEdit (one undo step, render, restore selection, autosave).
    * null from compute = edge no-op (consume silently, change nothing).
    */
   function runTextOp(
-    compute: (
-      text: string,
-      start: number,
-      end: number,
-    ) => { text: string; start: number; end: number } | null,
+    compute: (text: string, start: number, end: number) => TextEdit | null,
   ): boolean {
     const page = deps.getCurrentPage()
     if (!deps.pageExists(page)) return false
     const sel = getSelectionOffsets(deps.editorEl)
     if (!sel) return true // unmappable selection → consume-and-noop
-    const raw = deps.getPageText(page)
-    const result = compute(raw, sel.start, sel.end)
-    if (!result) return true
-    if (result.text !== raw) {
-      deps.setPageText(page, result.text)
-      deps.render(result.start)
-      deps.scheduleSave()
-    }
-    setSelectionOffsets(deps.editorEl, result.start, result.end)
+    const result = compute(deps.getPageText(page), sel.start, sel.end)
+    if (result) commitModelEdit(deps, page, result)
+    return true
+  }
+
+  /** Ctrl/Cmd+A: the page body only — never the surrounding chrome (a
+   *  native select-all reaches outside the editor and makes every
+   *  selection-mapped op an unmappable no-op). */
+  function selectAll(): boolean {
+    const page = deps.getCurrentPage()
+    if (!deps.pageExists(page)) return false
+    setSelectionOffsets(deps.editorEl, 0, deps.getPageText(page).length)
     return true
   }
 
@@ -127,6 +120,7 @@ export function createEditingKeymap(deps: EditingKeymapDeps): EditingKeymap {
       if (k === 'b') consumed = formatOp((t, s, en) => toggleWrap(t, s, en, '**'))
       else if (k === 'i') consumed = formatOp((t, s, en) => toggleWrap(t, s, en, '*'))
       else if (k === 'k') consumed = formatOp((t, s, en) => wrapLink(t, s, en))
+      else if (k === 'a') consumed = selectAll()
       else if (k === 's') {
         deps.saveNow()
         consumed = true
@@ -139,27 +133,11 @@ export function createEditingKeymap(deps: EditingKeymapDeps): EditingKeymap {
 
   /** Backspace-with-modifier: delete the selection, else the word left. */
   function wordDeleteBackward(): boolean {
-    const page = deps.getCurrentPage()
-    if (!deps.pageExists(page)) return false
-    const sel = getSelectionOffsets(deps.editorEl)
-    if (!sel) return true
-    const raw = deps.getPageText(page)
-
-    const next =
-      sel.end > sel.start
-        ? { text: raw.slice(0, sel.start) + raw.slice(sel.end), start: sel.start, end: sel.start }
-        : (() => {
-            const r = deleteWordLeft(raw, sel.start)
-            return { text: r.text, start: r.offset, end: r.offset }
-          })()
-
-    if (next.text !== raw) {
-      deps.setPageText(page, next.text)
-      deps.render(next.start)
-      deps.scheduleSave()
-    }
-    setSelectionOffsets(deps.editorEl, next.start, next.end)
-    return true
+    return runTextOp((raw, start, end) => {
+      if (end > start) return { text: raw.slice(0, start) + raw.slice(end), start, end: start }
+      const r = deleteWordLeft(raw, start)
+      return { text: r.text, start: r.offset, end: r.offset }
+    })
   }
 
   /**
@@ -192,13 +170,7 @@ export function createEditingKeymap(deps: EditingKeymapDeps): EditingKeymap {
   }
 
   /** Formatting: consume-and-noop inside block regions (fences, tables). */
-  function formatOp(
-    compute: (
-      text: string,
-      start: number,
-      end: number,
-    ) => { text: string; start: number; end: number },
-  ): boolean {
+  function formatOp(compute: (text: string, start: number, end: number) => TextEdit): boolean {
     if (selectionInBlock(deps.editorEl)) return true
     return runTextOp(compute)
   }

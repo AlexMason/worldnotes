@@ -12,8 +12,9 @@ import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
 import type { EditorRenderAPI } from './editor-render'
 import type { EditorNavigationAPI } from './editor-navigation'
-import { getLineOffset, setLineOffset, getSelectionOffsets } from './caret-offset'
+import { getSelectionOffsets } from './caret-offset'
 import { createEditingKeymap } from './editor-keymap'
+import { commitModelEdit, replaceSelection, type ModelCommitDeps } from './editor-commit'
 import { extractContentText } from './content-text'
 import { renderInlineContent } from './renderer'
 import type { NotificationSystem } from './notifications'
@@ -36,24 +37,6 @@ export function createEditorLifecycle(
   options: EditorOptions,
   notifications: NotificationSystem,
 ): EditorLifecycleAPI {
-  function insertTextAtSelection(text: string): void {
-    const sel = window.getSelection()
-    if (!sel || !sel.rangeCount) return
-
-    const range = sel.getRangeAt(0)
-    range.deleteContents()
-
-    const node = document.createTextNode(text)
-    range.insertNode(node)
-    range.setStart(node, text.length)
-    range.collapse(true)
-
-    sel.removeAllRanges()
-    sel.addRange(range)
-
-    dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
-  }
-
   async function mount(): Promise<EditorInstance> {
     const saveDebounce = options.saveDebounceMs ?? 600
     const buffers = state.getPageBuffers()
@@ -88,18 +71,54 @@ export function createEditorLifecycle(
       state.setSaveTimer(timer)
     }
 
-    // ── Editing keymap (line ops, word ops, formatting, Ctrl+S) ────────
+    // ── Model commits (keymap ops, selection edits, plain-key fallbacks) ──
+    // Plugins' onUpdate follows every commit render, like the input path.
 
-    const keymap = createEditingKeymap({
+    const commitDeps: ModelCommitDeps = {
       editorEl: dom.editorDiv,
       getCurrentPage: () => state.getCurrentPage(),
-      pageExists: (page) => page in buffers.getWorld(),
+      pageExists: (page) => buffers.hasPage(page),
       getPageText: (page) => buffers.getPageText(page),
       setPageText: (page, text) => buffers.setPageText(page, text),
-      render: (offset) => render.render(true, offset),
+      render: (offset) => {
+        render.render(true, offset)
+        for (const plugin of contentPlugins) plugin.onUpdate?.()
+      },
       scheduleSave: saveDebounced,
-      saveNow: () => void saveNow(),
-    })
+    }
+
+    /** Replace the selection with `text` through the buffer (never DOM
+     *  surgery); an unmappable selection changes nothing. */
+    const insertTextAtSelection = (text: string): void => {
+      replaceSelection(commitDeps, text)
+    }
+
+    /** Delete the selection, else one code point before (-1) / after (+1)
+     *  the caret — a surrogate pair goes as a unit. */
+    const deleteAtCaret = (dir: -1 | 1): void => {
+      const sel = getSelectionOffsets(dom.editorDiv)
+      if (!sel) return
+      if (sel.end > sel.start) {
+        insertTextAtSelection('')
+        return
+      }
+      const page = state.getCurrentPage()
+      const raw = buffers.getPageText(page)
+      let from = dir < 0 ? sel.start - 1 : sel.start
+      if (from < 0 || from >= raw.length) return
+      let len = 1
+      if (dir < 0 && from > 0 && raw.codePointAt(from - 1)! > 0xffff) from -= 1
+      if (raw.codePointAt(from)! > 0xffff) len = 2
+      commitModelEdit(commitDeps, page, {
+        text: raw.slice(0, from) + raw.slice(from + len),
+        start: from,
+        end: from,
+      })
+    }
+
+    // ── Editing keymap (line ops, word ops, formatting, Ctrl+S) ────────
+
+    const keymap = createEditingKeymap({ ...commitDeps, saveNow: () => void saveNow() })
 
     // ── Input handler ──────────────────────────────────────────────────────
 
@@ -177,6 +196,8 @@ export function createEditorLifecycle(
     // ── Keydown handler ────────────────────────────────────────────────────
 
     dom.editorDiv.addEventListener('keydown', (e: KeyboardEvent) => {
+      trackVerticalMove(e)
+
       // Ctrl+Z / Cmd+Z — undo
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') {
         e.preventDefault()
@@ -255,43 +276,141 @@ export function createEditorLifecycle(
         insertTextAtSelection('\n')
       } else if (e.key === 'Backspace' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault()
-        const sel = window.getSelection()
-        if (!sel || !sel.rangeCount) return
-
-        const range = sel.getRangeAt(0)
-
-        if (!range.collapsed) {
-          range.deleteContents()
-          sel.removeAllRanges()
-          sel.addRange(range)
-          dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
-          return
-        }
-
-        const offset = getLineOffset(dom.editorDiv)
-        if (offset > 0) {
-          const page = state.getCurrentPage()
-          const raw = buffers.getPageText(page)
-          const updated = raw.slice(0, offset - 1) + raw.slice(offset)
-          buffers.setPageText(page, updated)
-          render.render()
-          setLineOffset(dom.editorDiv, offset - 1)
-          saveDebounced()
-        }
+        deleteAtCaret(-1)
       }
     })
 
-    // ── Selection change — re-render when cursor moves to a different line ──
+    // ── Range-selection edits through the model ─────────────────────────
+    // Typing over / deleting a NON-collapsed selection is computed on the
+    // buffer: the browser's own version removes the text but keeps the
+    // emptied div[data-line] shells (the deleted lines come back as blank
+    // lines), and a range cutting into a data-raw token span loses the edit
+    // outright. Collapsed carets keep the native fast path (spellcheck,
+    // autocorrect); composition and spellcheck replacements
+    // (insertReplacementText targets its own range) are never intercepted.
 
+    const RANGE_EDITS: Record<string, string> = {
+      insertParagraph: '\n',
+      insertLineBreak: '\n',
+      deleteContent: '',
+      deleteContentBackward: '',
+      deleteContentForward: '',
+      deleteWordBackward: '',
+      deleteWordForward: '',
+      deleteSoftLineBackward: '',
+      deleteSoftLineForward: '',
+      deleteHardLineBackward: '',
+      deleteHardLineForward: '',
+      deleteByCut: '',
+    }
+
+    dom.editorDiv.addEventListener('beforeinput', (e: InputEvent) => {
+      if (e.isComposing || state.isNavigating()) return
+      const insert = e.inputType === 'insertText' ? e.data : RANGE_EDITS[e.inputType]
+      if (insert === undefined || insert === null) return
+      const sel = window.getSelection()
+      if (!sel || !sel.rangeCount || sel.isCollapsed) return
+      // Unmappable (reaches outside the editor): refuse rather than let the
+      // browser mutate DOM the buffer cannot account for.
+      e.preventDefault()
+      insertTextAtSelection(insert)
+    })
+
+    // ── Selection change — re-render when cursor moves to a different line ──
+    // Mouse-freeze guard: while the primary button is down, line activation
+    // waits. Rebuilding the DOM at drag start (the collapsed mousedown caret
+    // moves lines) detaches the browser's drag anchor — the selection dies
+    // or snaps to one line. One check runs at mouseup instead.
+
+    let pointerSelecting = false
     let selectChangePending = false
-    document.addEventListener('selectionchange', () => {
-      if (handlingInput || selectChangePending || state.isNavigating()) return
+
+    const scheduleSelectCheck = (): void => {
+      if (selectChangePending) return
       selectChangePending = true
       requestAnimationFrame(() => {
         selectChangePending = false
-        render.checkSelectChange()
+        const moved = pendingVertical
+        pendingVertical = false
+        if (render.checkSelectChange() && moved) restoreGoalColumn()
       })
+    }
+
+    document.addEventListener('selectionchange', () => {
+      if (handlingInput || pointerSelecting || state.isNavigating()) return
+      scheduleSelectCheck()
     })
+
+    dom.editorDiv.addEventListener('mousedown', (e: MouseEvent) => {
+      goalX = null
+      if (e.button === 0 && !e.defaultPrevented) pointerSelecting = true
+    })
+
+    const endPointerSelect = (): void => {
+      if (!pointerSelecting) return
+      pointerSelecting = false
+      if (!state.isNavigating()) scheduleSelectCheck()
+    }
+    window.addEventListener('mouseup', endPointerSelect)
+    window.addEventListener('blur', endPointerSelect)
+
+    // ── Vertical goal column ─────────────────────────────────────────────
+    // The browser remembers the caret's x across ArrowUp/Down, but a line-
+    // activation rebuild re-places the caret programmatically and resets
+    // that memory — across ragged lines the caret would drift left for good.
+    // Keep the x of the first vertical move and re-apply it on each line the
+    // chain lands on; any other key or a click ends the chain.
+
+    let goalX: number | null = null
+    let pendingVertical = false
+
+    function trackVerticalMove(e: KeyboardEvent): void {
+      const vertical =
+        (e.key === 'ArrowUp' || e.key === 'ArrowDown') &&
+        !e.shiftKey &&
+        !e.altKey &&
+        !e.ctrlKey &&
+        !e.metaKey
+      if (!vertical) {
+        goalX = null
+        pendingVertical = false
+        return
+      }
+      goalX ??= caretRect()?.left ?? null
+      pendingVertical = goalX !== null
+    }
+
+    function caretRect(): DOMRect | null {
+      const sel = window.getSelection()
+      if (!sel || !sel.rangeCount || !sel.isCollapsed) return null
+      const range = sel.getRangeAt(0)
+      const rect = range.getClientRects()[0] ?? range.getBoundingClientRect()
+      return rect.height > 0 ? rect : null
+    }
+
+    function restoreGoalColumn(): void {
+      const rect = caretRect()
+      const sel = window.getSelection()
+      if (goalX === null || !rect || !sel?.focusNode) return
+      const line = (
+        sel.focusNode instanceof Element ? sel.focusNode : sel.focusNode.parentElement
+      )?.closest('[data-line]')
+      const pos = caretPositionAt(goalX, rect.top + rect.height / 2)
+      if (!line || !pos || !line.contains(pos.node)) return
+      sel.collapse(pos.node, pos.offset)
+    }
+
+    function caretPositionAt(x: number, y: number): { node: Node; offset: number } | null {
+      if (typeof document.caretPositionFromPoint === 'function') {
+        const p = document.caretPositionFromPoint(x, y)
+        return p ? { node: p.offsetNode, offset: p.offset } : null
+      }
+      if (typeof document.caretRangeFromPoint === 'function') {
+        const r = document.caretRangeFromPoint(x, y)
+        return r ? { node: r.startContainer, offset: r.startOffset } : null
+      }
+      return null
+    }
 
     // ── Load initial page ──────────────────────────────────────────────────
 
@@ -393,57 +512,11 @@ export function createEditorLifecycle(
       },
 
       deleteForward(): void {
-        const sel = window.getSelection()
-        if (!sel || !sel.rangeCount) return
-
-        if (sel.isCollapsed) {
-          try {
-            sel.modify('extend', 'forward', 'character')
-          } catch {
-            const page = state.getCurrentPage()
-            const raw = buffers.getPageText(page)
-            const offset = getLineOffset(dom.editorDiv)
-            if (offset >= raw.length) return
-            const next = raw.slice(0, offset) + raw.slice(offset + 1)
-            buffers.setPageText(page, next)
-            render.render(true)
-            setLineOffset(dom.editorDiv, offset)
-            return
-          }
-        }
-
-        const range = sel.getRangeAt(0)
-        range.deleteContents()
-        sel.removeAllRanges()
-        sel.addRange(range)
-        dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
+        deleteAtCaret(1)
       },
 
       deleteBackward(): void {
-        const sel = window.getSelection()
-        if (!sel || !sel.rangeCount) return
-
-        if (sel.isCollapsed) {
-          try {
-            sel.modify('extend', 'backward', 'character')
-          } catch {
-            const page = state.getCurrentPage()
-            const raw = buffers.getPageText(page)
-            const offset = getLineOffset(dom.editorDiv)
-            if (offset <= 0) return
-            const next = raw.slice(0, offset - 1) + raw.slice(offset)
-            buffers.setPageText(page, next)
-            render.render(true)
-            setLineOffset(dom.editorDiv, offset - 1)
-            return
-          }
-        }
-
-        const range = sel.getRangeAt(0)
-        range.deleteContents()
-        sel.removeAllRanges()
-        sel.addRange(range)
-        dom.editorDiv.dispatchEvent(new Event('input', { bubbles: true }))
+        deleteAtCaret(-1)
       },
 
       getSelection(): { text: string; start: number; end: number } | null {

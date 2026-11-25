@@ -303,11 +303,16 @@ export function setLineOffset(el: HTMLElement, targetOffset: number): void {
 
 /**
  * Restore a raw-text selection [start, end) on the DOM (clamps end to start
- * when end <= start, i.e. a collapsed caret). The restored selection is
- * forward-oriented (anchor at the earlier boundary); callers that care about
- * anchor/focus direction are keymap-internal and rebuild it themselves.
+ * when end <= start, i.e. a collapsed caret). `focusEnd` picks which end
+ * carries the focus — 'start' rebuilds a backward selection (anchor at
+ * `end`), so Shift+arrow keeps extending from the end the user was moving.
  */
-export function setSelectionOffsets(el: HTMLElement, start: number, end: number): void {
+export function setSelectionOffsets(
+  el: HTMLElement,
+  start: number,
+  end: number,
+  focusEnd: 'start' | 'end' = 'end',
+): void {
   const sel = window.getSelection()
   if (!sel) return
   const s = placePosition(el, start)
@@ -317,12 +322,36 @@ export function setSelectionOffsets(el: HTMLElement, start: number, end: number)
   if (end <= start) {
     range.setStart(s.node, s.offset)
     range.collapse(true)
-  } else {
-    const e = placePosition(el, end) ?? s
-    range.setStart(s.node, s.offset)
-    range.setEnd(e.node, e.offset)
+    sel.addRange(range)
+    return
   }
+  const e = placePosition(el, end) ?? s
+  if (focusEnd === 'start') {
+    sel.setBaseAndExtent(e.node, e.offset, s.node, s.offset)
+    return
+  }
+  range.setStart(s.node, s.offset)
+  range.setEnd(e.node, e.offset)
   sel.addRange(range)
+}
+
+/**
+ * Scroll the line holding the selection's focus into view (nearest edge, no
+ * jump when already visible). Programmatic placements never scroll on their
+ * own, so an op that moves the caret off-screen would leave the viewport
+ * behind.
+ */
+export function scrollCaretIntoView(el: HTMLElement): void {
+  const sel = window.getSelection()
+  let node: Node | null = sel?.focusNode ?? null
+  if (!node || (node !== el && !el.contains(node))) return
+  while (node && node !== el) {
+    if (node instanceof HTMLElement && node.dataset.line !== undefined) {
+      node.scrollIntoView?.({ block: 'nearest' })
+      return
+    }
+    node = node.parentNode
+  }
 }
 
 /**
