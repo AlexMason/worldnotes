@@ -3,7 +3,7 @@ issue: 15
 title: Let editors change a page's slug after creation
 type: feature
 branch: feature/15-change-page-slug
-status: in-review
+status: reviewed
 created: 2026-11-24
 pr: ""
 ---
@@ -414,3 +414,5 @@ Mode: sub-agents (three fresh-context reviewers: A plan conformance & correctnes
 **Unrelated but important (offered as issues):**
 - `pg.Pool` has no `connectionTimeoutMillis` (`src/server/db/pool.ts`): any connection leak or exhaustion hangs requests forever instead of failing (C1 context).
 - Edit-client fetches have no timeout/abort anywhere (C8 context).
+
+Manual review: done by the user on the seeded dev server (2026-11-24); signed off.
