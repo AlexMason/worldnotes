@@ -169,3 +169,5 @@ export function wikiLinkAddress(target: string, base: string | null | undefined)
 - 2026-11-24 (step 3): `admin.ts` needed no edit (it forwards the renderer into `statusDocument`, which now passes the status page slug). There is no `settings-api` test file; the home-change cache clear is exercised end to end in `pages-html.test.ts` ("changing the home page re-renders cached articles with the new base"). Existing server fixtures that relied on root-semantics `[[x]]` on non-home pages were changed to `[[/x]]` (same intent under the new rule). No decision affected.
 
 ## Review
+
+Mode: sub-agents (three fresh-context reviewers: A plan conformance & correctness, B code quality, C security & scalability). Review run unattended at the user's request.
