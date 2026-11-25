@@ -12,8 +12,8 @@ import type { ContentPlugin } from './types'
 export const MAX_LINK_SLUGS = 500
 
 export interface CollectLinkSlugsOptions {
-  /** Base for relative wiki links (the page `markdown` belongs to); absent = root. */
-  linkBase?: string
+  /** Base for relative wiki links (the page `markdown` belongs to); absent/null = root. */
+  linkBase?: string | null
   /** Collection cap (defaults to MAX_LINK_SLUGS). */
   max?: number
 }
@@ -34,7 +34,7 @@ export function collectLinkSlugs(
   if (!markdown.includes('[')) return []
   const seen = new Set<string>()
   renderDocumentHtml(markdown, plugins, {
-    ...(linkBase ? { linkBase } : {}),
+    linkBase,
     pageExists: (slug) => {
       if (seen.size < max) seen.add(slug)
       return undefined

@@ -61,11 +61,7 @@ export function renderLineToHTML(
 
 /** The context every plugin `renderToHTML` receives (nested inline rendering + link state). */
 function staticContext(contentPlugins: ContentPlugin[], links: LinkContext): StaticRenderContext {
-  return {
-    renderInline: (text: string) => renderInlineHTML(text, contentPlugins, links),
-    ...(links.pageExists ? { pageExists: links.pageExists } : {}),
-    ...(links.linkBase ? { linkBase: links.linkBase } : {}),
-  }
+  return { ...links, renderInline: (text: string) => renderInlineHTML(text, contentPlugins, links) }
 }
 
 /**

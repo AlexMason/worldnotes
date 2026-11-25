@@ -36,9 +36,10 @@ export const linkPlugin: ContentPlugin = {
 
     if (kind === 'internal') {
       // Internal wiki page link — reuses wiki-link styling.
-      // NOTE: data-page carries the RAW author target (e.g. '/Blog/Post');
-      // it is display metadata, not a page key — navigation folds it via
-      // navTargetToSlug in editor-navigation before anything is keyed.
+      // NOTE: data-page carries the RAW author target (e.g. '/Blog/Post'),
+      // which for markdown links already has root semantics (unlike wiki
+      // links, there is no page-relative resolution) — navigation folds it
+      // via navTargetToSlug in editor-navigation before anything is keyed.
       const el = document.createElement('span')
       el.className = wikiLinkClass(url, context.pageExists)
       el.dataset.page = url

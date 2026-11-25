@@ -153,11 +153,12 @@ export type PageExists = (slug: string) => boolean | undefined
  *   `true` = exists, `undefined` or absent = unknown (rendered like an
  *   existing page).
  * @property linkBase - Slug that relative wiki links (`[[beta]]`) resolve
- *   under — the page being rendered (see `wikiLinkBase`). Absent = site root.
+ *   under — the page being rendered (see `wikiLinkBase`). Absent or null =
+ *   site root.
  */
 export interface LinkContext {
   pageExists?: PageExists
-  linkBase?: string
+  linkBase?: string | null
 }
 
 // ─── Editor Context ───────────────────────────────────────────────────────────

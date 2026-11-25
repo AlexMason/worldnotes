@@ -22,7 +22,7 @@ import type { LinkContext } from '../../core/types'
 import { wikiLinkBase } from '../../shared/slug'
 import type { PagesRepository } from '../db/repository'
 
-/** Matches the `PageHtmlDeps.render` seam consumed by the SSR routes. */
+/** The reader seam: article/status renders and the editor shell's link seed. */
 export interface ReaderRenderer {
   /** Reader HTML for `src`, the content of page `pageSlug`. */
   render(src: string, pageSlug: string): Promise<string>
@@ -44,13 +44,8 @@ export function createReaderRenderer(
   pages: Pick<PagesRepository, 'existing'>,
   getHomeSlug: () => string | null,
 ): ReaderRenderer {
-  const baseFor = (pageSlug: string): LinkContext => {
-    const linkBase = wikiLinkBase(pageSlug, getHomeSlug())
-    return linkBase ? { linkBase } : {}
-  }
-
-  async function existence(src: string, base: LinkContext): Promise<Map<string, boolean>> {
-    const slugs = collectLinkSlugs(src, defaultPlugins, base)
+  async function existence(src: string, linkBase: string | null): Promise<Map<string, boolean>> {
+    const slugs = collectLinkSlugs(src, defaultPlugins, { linkBase })
     const state = new Map<string, boolean>()
     if (slugs.length === 0) return state
     const found = await pages.existing(slugs)
@@ -62,12 +57,12 @@ export function createReaderRenderer(
     async render(src, pageSlug) {
       // One base for both passes: a concurrent home change cannot make the
       // collected slugs and the rendered links disagree.
-      const base = baseFor(pageSlug)
-      const state = await existence(src, base)
-      return renderReaderHtml(src, { ...base, pageExists: (slug) => state.get(slug) })
+      const linkBase = wikiLinkBase(pageSlug, getHomeSlug())
+      const state = await existence(src, linkBase)
+      return renderReaderHtml(src, { linkBase, pageExists: (slug) => state.get(slug) })
     },
     linkExistence(src, pageSlug) {
-      return existence(src, baseFor(pageSlug))
+      return existence(src, wikiLinkBase(pageSlug, getHomeSlug()))
     },
   }
 }
