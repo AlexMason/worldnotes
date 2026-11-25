@@ -215,6 +215,19 @@ mouseup. Plain `ArrowUp`/`ArrowDown` chains keep a goal x across
 line-activation rebuilds (which reset the browser's own memory) and
 re-apply it on each landed line via `caretPositionFromPoint`.
 
+**Clipboard carries source.** The rendered DOM deliberately differs from
+the markdown (wiki links show labels, bullets a glyph, table pipes and image
+URLs are hidden), so `copy`/`cut` never let the browser serialize it: they
+write `text/plain` from the buffer slice at the selection's raw offsets,
+and cut deletes through `commitModelEdit` (one undo step). An empty
+selection copies/cuts the caret's whole line incl. its break; pasting that
+exact text back with a collapsed caret inserts it as a line above
+(VS Code/CodeMirror line-wise semantics). Paste reads `text/plain`, else
+`text/uri-list`, normalizes `\r\n?` → `\n`, and commits via
+`replaceSelection` — never DOM insertion (text placed inside a `data-raw`
+span would be swallowed by extraction). Selections reaching outside the
+editor are left to the browser. No `text/html` flavor is written yet.
+
 `Ctrl+/` + `Escape` are owned by the shortcuts-help overlay UIPlugin
 (document capture + stopPropagation), NOT the keymap — single owner, no
 double-toggle. See `docs/shortcuts.md` for the user-facing table and

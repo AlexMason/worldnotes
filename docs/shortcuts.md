@@ -47,6 +47,11 @@ into real code.
 
 ## Behavior notes
 
+- **Copy / cut / paste:** `Ctrl+C` / `Ctrl+X` put the exact markdown
+  source on the clipboard (wiki-link targets, `- ` bullets, table pipes,
+  image URLs — not the rendered text). With nothing selected they take the
+  whole caret line; pasting that line back inserts it above the caret's
+  line. Pasted Windows line endings are normalized to `\n`.
 - **Undo:** every shortcut that changes text records exactly ONE undo step
   (`Ctrl+Z` reverts the whole line move / wrap in one press). Pure motion
   shortcuts never touch the document or the undo stack.

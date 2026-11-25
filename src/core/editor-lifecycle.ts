@@ -26,6 +26,14 @@ export interface EditorLifecycleAPI {
   mount(): Promise<EditorInstance>
 }
 
+/** What a copy/cut puts on the clipboard, and the buffer range a cut removes. */
+interface ClipboardSource {
+  text: string
+  /** Empty-selection copy: the caret's whole line, line break included. */
+  linewise: boolean
+  cut: { start: number; end: number }
+}
+
 export function createEditorLifecycle(
   dom: EditorDOM,
   contentPlugins: ContentPlugin[],
@@ -185,11 +193,96 @@ export function createEditorLifecycle(
       window.open(href, '_blank', 'noopener,noreferrer')
     })
 
-    // ── Paste handler ──────────────────────────────────────────────────────
+    // ── Clipboard: source markdown out, source markdown in ──────────────
+    // The rendered DOM deliberately differs from the source (wiki links show
+    // their label, bullets a glyph, table pipes and image URLs are hidden),
+    // so the browser's own copy serializer produces wrong markdown. Copy and
+    // cut slice the BUFFER at the selection's raw offsets; paste commits
+    // through the model. An unmappable selection (outside the editor) is
+    // left to the browser. An empty selection copies/cuts the caret's whole
+    // line (VS Code / CodeMirror); pasting exactly that text back with a
+    // collapsed caret inserts it as a line above the caret's line.
+
+    let lastLinewiseCopy: string | null = null
+
+    /** What copy/cut take: the selected source, or the caret line (with its
+     *  line break) when the selection is empty. `cut` is the buffer range a
+     *  cut removes — a trailing last line takes the break before it. */
+    const clipboardSource = (): ClipboardSource | null => {
+      const page = state.getCurrentPage()
+      if (!buffers.hasPage(page)) return null
+      const sel = getSelectionOffsets(dom.editorDiv)
+      if (!sel) return null
+      const raw = buffers.getPageText(page)
+      if (sel.end > sel.start) {
+        return { text: raw.slice(sel.start, sel.end), linewise: false, cut: sel }
+      }
+      const lineStart = raw.lastIndexOf('\n', sel.start - 1) + 1
+      const lineBreak = raw.indexOf('\n', sel.start)
+      if (lineBreak !== -1) {
+        const end = lineBreak + 1
+        return { text: raw.slice(lineStart, end), linewise: true, cut: { start: lineStart, end } }
+      }
+      return {
+        text: raw.slice(lineStart) + '\n',
+        linewise: true,
+        cut: { start: Math.max(0, lineStart - 1), end: raw.length },
+      }
+    }
+
+    const writeClipboard = (e: ClipboardEvent): ClipboardSource | null => {
+      const src = clipboardSource()
+      if (!src || !e.clipboardData) return null
+      e.preventDefault()
+      e.clipboardData.setData('text/plain', src.text)
+      lastLinewiseCopy = src.linewise ? src.text : null
+      return src
+    }
+
+    dom.editorDiv.addEventListener('copy', (e: ClipboardEvent) => {
+      writeClipboard(e)
+    })
+
+    dom.editorDiv.addEventListener('cut', (e: ClipboardEvent) => {
+      const src = writeClipboard(e)
+      if (!src) return
+      const page = state.getCurrentPage()
+      const raw = buffers.getPageText(page)
+      commitModelEdit(commitDeps, page, {
+        text: raw.slice(0, src.cut.start) + raw.slice(src.cut.end),
+        start: src.cut.start,
+        end: src.cut.start,
+      })
+    })
 
     dom.editorDiv.addEventListener('paste', (e: ClipboardEvent) => {
       e.preventDefault()
-      const text = e.clipboardData?.getData('text/plain') ?? ''
+      const data = e.clipboardData
+      // text/plain, else a uri-list (file managers): one URI per line, `#`
+      // lines are comments (RFC 2483). CRLF/CR never reach the buffer.
+      let text = data?.getData('text/plain') ?? ''
+      if (!text) {
+        text = (data?.getData('text/uri-list') ?? '')
+          .split(/\r?\n/)
+          .filter((line) => line && !line.startsWith('#'))
+          .join('\n')
+      }
+      if (!text) return
+      text = text.replace(/\r\n?/g, '\n')
+
+      const sel = getSelectionOffsets(dom.editorDiv)
+      const page = state.getCurrentPage()
+      if (sel && sel.start === sel.end && text === lastLinewiseCopy && buffers.hasPage(page)) {
+        const raw = buffers.getPageText(page)
+        const lineStart = raw.lastIndexOf('\n', sel.start - 1) + 1
+        const caret = sel.start + text.length
+        commitModelEdit(commitDeps, page, {
+          text: raw.slice(0, lineStart) + text + raw.slice(lineStart),
+          start: caret,
+          end: caret,
+        })
+        return
+      }
       insertTextAtSelection(text)
     })
 
