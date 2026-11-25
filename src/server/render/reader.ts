@@ -26,16 +26,29 @@ export function renderReaderHtml(src: string, pageExists?: PageExists): string {
   return renderDocumentHtml(src, defaultPlugins, pageExists)
 }
 
+/**
+ * Existence of every page `src` links to: one batched lookup, keyed by slug.
+ * Slugs beyond the collection cap are absent from the map = unknown (rendered
+ * like an existing page), never falsely "missing". Shared by the reader render
+ * and the editor shell's first-paint seed.
+ */
+export async function resolveLinkExistence(
+  pages: Pick<PagesRepository, 'existing'>,
+  src: string,
+): Promise<Map<string, boolean>> {
+  const slugs = collectLinkSlugs(src, defaultPlugins)
+  const state = new Map<string, boolean>()
+  if (slugs.length === 0) return state
+  const found = await pages.existing(slugs)
+  for (const slug of slugs) state.set(slug, found.has(slug))
+  return state
+}
+
 export function createReaderRenderer(pages: Pick<PagesRepository, 'existing'>): ReaderRenderer {
   return {
     async render(src: string): Promise<string> {
-      const slugs = collectLinkSlugs(src, defaultPlugins)
-      if (slugs.length === 0) return renderReaderHtml(src)
-      const found = await pages.existing(slugs)
-      const asked = new Set(slugs)
-      // Slugs beyond the collection cap were never asked about → unknown
-      // (rendered like an existing page), never falsely "missing".
-      return renderReaderHtml(src, (slug) => (asked.has(slug) ? found.has(slug) : undefined))
+      const state = await resolveLinkExistence(pages, src)
+      return renderReaderHtml(src, state.size === 0 ? undefined : (slug) => state.get(slug))
     },
   }
 }

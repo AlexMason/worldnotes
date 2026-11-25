@@ -126,6 +126,22 @@ export interface PageStore {
   save(page: string, content: string): Promise<void>
 }
 
+// ─── Page Existence ──────────────────────────────────────────────────────────
+
+/**
+ * Async-backed answer source for "does this page exist?" (link styling).
+ * Core stays transport-agnostic: the client supplies a fetch-backed one.
+ *
+ * @method exists   - Cached answer: true/false, or undefined while unknown
+ * @method request  - Ask for (re)resolution of slugs; idempotent, cheap to call on every render
+ * @method onChange - Subscribe to answers that changed; returns an unsubscribe function
+ */
+export interface PageExistenceResolver {
+  exists(slug: string): boolean | undefined
+  request(slugs: readonly string[]): void
+  onChange(listener: () => void): () => void
+}
+
 // ─── Editor Context ───────────────────────────────────────────────────────────
 
 /**
@@ -294,6 +310,12 @@ export interface EditorOptions {
    * load falls back to the PageStore (and to the seeded defaults for new pages).
    */
   initialContent?: string
+  /**
+   * Source of page-existence answers for internal-link styling. Optional:
+   * without it every link looks like an existing page. See
+   * {@link PageExistenceResolver}.
+   */
+  pageExists?: PageExistenceResolver
   /**
    * The wiki's home page slug (server-configured), used as the breadcrumb
    * trail root. Defaults to 'home'. Navigation to any other page builds the

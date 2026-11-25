@@ -10,7 +10,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import type { ServerConfig } from '../config'
 import type { PagesRepository } from '../db/repository'
-import type { ReaderRenderer } from '../render/reader'
+import { resolveLinkExistence, type ReaderRenderer } from '../render/reader'
 import type { AuthUser } from '../auth/session'
 import { requireLoginHtml } from '../auth/login-gate'
 import {
@@ -244,6 +244,9 @@ export async function registerPageHtmlRoutes(
         authDisabled: config.authDisabled,
         userRole: req.user.role,
         page: page ? { content: page.content, version: page.version } : null,
+        ...(page
+          ? { linkExists: Object.fromEntries(await resolveLinkExistence(pages, page.content)) }
+          : {}),
       })
       return reply
         .header('content-type', 'text/html; charset=utf-8')

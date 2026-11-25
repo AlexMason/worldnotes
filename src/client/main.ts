@@ -6,9 +6,10 @@ import { createEditor } from '../core/editor'
 import type { EditorInstance } from '../core/types'
 import { insertSiteBands } from '../core/editor-dom'
 import { createApiPageStore } from './api-page-store'
+import { createLinkExistence } from './link-existence'
 import { mountHeaderActions, bindPopstate, createStoreEvents } from './chrome'
 import { slugFromPath, pageUrlPath } from '../shared/url-helpers'
-import { slugDisplayName } from '../shared/slug'
+import { slugDisplayName, navTargetToSlug } from '../shared/slug'
 import { composeDocTitle } from '../shared/doc-title'
 import type { EditorShellConfig } from '../shared/dto'
 
@@ -19,6 +20,8 @@ interface PageEmbed {
   content: string | null
   version: number | null
   exists: boolean
+  /** Existence of the pages this page links to (SSR-computed). */
+  linkExists?: Record<string, boolean>
 }
 
 function readShellConfig(): ShellConfig {
@@ -77,10 +80,21 @@ async function main(): Promise<void> {
   let instance: EditorInstance | null = null
   let currentSlug = cfg.slug
 
+  // Link-state answers: seeded from the SSR embed (no first-paint flash),
+  // then fetched on demand and updated by this editor's own saves/deletes.
+  const linkExistence = createLinkExistence(embed?.linkExists)
+
   const store = createApiPageStore(
     createStoreEvents(() => instance, {
       onSaved: (page) => {
         document.title = composeDocTitle(slugDisplayName(page), cfg.siteName)
+        // A landed save means the page exists (it may have just been created).
+        const slug = navTargetToSlug(page)
+        if (slug !== null) linkExistence.set(slug, true)
+      },
+      onDeleted: (page) => {
+        const slug = navTargetToSlug(page)
+        if (slug !== null) linkExistence.set(slug, false)
       },
       loadServerContent: (content) => instance?.setContent(content),
     }),
@@ -91,6 +105,7 @@ async function main(): Promise<void> {
 
   const editor = createEditor(container, {
     pageStore: store,
+    pageExists: linkExistence,
     initialPage: cfg.slug,
     // Seed the buffer from the embed so first paint is synchronous.
     initialContent: seeded ? (embed.content ?? '') : undefined,

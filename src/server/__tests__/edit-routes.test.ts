@@ -143,6 +143,18 @@ describe('editor at /{slug}', () => {
     })
   })
 
+  it('embeds the existence of linked pages so first paint needs no round trip', async () => {
+    const pages = createMemoryPagesRepository()
+    await pages.put('hub', { title: 'Hub', content: 'see [[here]] and [[gone]]', by: 'u1' })
+    await pages.put('here', { title: 'Here', content: 'x', by: 'u1' })
+    const a = await buildApp({ config, pages, users: usersFixture(), relyingParty: null })
+    const res = await a.inject({ method: 'GET', url: '/hub', headers: { cookie: auth } })
+    const page = JSON.parse(
+      /<script id="wn-page" type="application\/json">(.+?)<\/script>/.exec(res.body)![1]!,
+    )
+    expect(page.linkExists).toEqual({ here: true, gone: false })
+  })
+
   it('marks a missing page as non-existent in the embed', async () => {
     const res = await app.inject({ method: 'GET', url: '/nope', headers: { cookie: auth } })
     const page = JSON.parse(

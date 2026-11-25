@@ -181,8 +181,7 @@ export const EDITOR_TOKENS_CSS = `
 `
 
 /* Off-site link icon (16x16 box-with-arrow), consumed as a CSS mask. */
-const EXTERNAL_ICON =
-  `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6.5 3H3.5v9.5H13v-3M9.5 2.5h4v4M13.5 2.5l-6 6'/%3E%3C/svg%3E")`
+const EXTERNAL_ICON = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6.5 3H3.5v9.5H13v-3M9.5 2.5h4v4M13.5 2.5l-6 6'/%3E%3C/svg%3E")`
 
 /** Content rules for the token markup both surfaces emit. Reader-safe. */
 export const EDITOR_CONTENT_CSS = `
