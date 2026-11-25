@@ -220,7 +220,11 @@ describe('SSR pages', () => {
   it('editor shell embeds the stored titles of the page and its existing ancestors', async () => {
     await repo.put('lore', { title: 'Lore of Ashfall', content: '# Lore of Ashfall' })
     await repo.put('lore/gods/old', { title: 'Old Ones', content: '# Old Ones' })
-    const res = await app.inject({ method: 'GET', url: '/lore/gods/old', headers: { cookie: auth } })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/lore/gods/old',
+      headers: { cookie: auth },
+    })
     expect(res.body).toContain('<title>Old Ones — WorldNotes</title>')
     const embed = JSON.parse(
       /<script id="wn-page" type="application\/json">(.+?)<\/script>/.exec(res.body)![1]!,
@@ -228,7 +232,11 @@ describe('SSR pages', () => {
     expect(embed.titles).toEqual({ lore: 'Lore of Ashfall', 'lore/gods/old': 'Old Ones' })
 
     // A page that does not exist yet is named by its slug.
-    const fresh = await app.inject({ method: 'GET', url: '/lore/new-thing', headers: { cookie: auth } })
+    const fresh = await app.inject({
+      method: 'GET',
+      url: '/lore/new-thing',
+      headers: { cookie: auth },
+    })
     expect(fresh.body).toContain('<title>New Thing — WorldNotes</title>')
   })
 
