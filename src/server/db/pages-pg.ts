@@ -40,6 +40,14 @@ export function createPgPagesRepository(pool: SqlPool): PagesRepository {
       return res.rows[0] ? toRecord(res.rows[0]) : null
     },
 
+    async existing(slugs) {
+      if (slugs.length === 0) return new Set<string>()
+      const res = await pool.query('SELECT slug FROM pages WHERE slug = ANY($1::text[])', [
+        [...new Set(slugs)],
+      ])
+      return new Set<string>(res.rows.map((r: { slug: string }) => r.slug))
+    },
+
     async list(opts = {}) {
       const limit = opts.limit ?? 500
       if (opts.query) {

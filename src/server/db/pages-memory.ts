@@ -37,6 +37,10 @@ export function createMemoryPagesRepository(
       return page ? { ...page } : null
     },
 
+    async existing(slugs) {
+      return new Set(slugs.filter((slug) => pages.has(slug)))
+    },
+
     async list(opts = {}) {
       const { query, limit } = opts
       let items = [...pages.values()].sort((a, b) => b.updatedAt - a.updatedAt)

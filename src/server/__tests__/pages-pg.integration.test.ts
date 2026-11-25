@@ -121,4 +121,12 @@ describe.skipIf(!url)('PagesRepository on Postgres', () => {
     // Row already removed — classifies as missing, never conflict.
     expect(await repo.deleteIfMatch('guarded', 2)).toMatchObject({ ok: false, reason: 'missing' })
   })
+
+  it('existing reports exactly the stored slugs, deduped, without fetching content', async () => {
+    await repo.put('ex/one', { title: 'One', content: 'x' })
+    await repo.put('ex/two', { title: 'Two', content: 'x' })
+    const found = await repo.existing(['ex/one', 'ex/one', 'ex/ghost', 'ex/two'])
+    expect([...found].sort()).toEqual(['ex/one', 'ex/two'])
+    expect(await repo.existing([])).toEqual(new Set())
+  })
 })
