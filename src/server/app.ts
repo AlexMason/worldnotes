@@ -180,10 +180,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     settings: settingsService,
     media: mediaRepo,
     themes: themeService,
+    cache,
   })
   await registerThemesApiRoutes(app, { themes: themeService, settings: settingsService })
   await registerUsersApiRoutes(app, { users: usersRepo })
-  const readerRender = createReaderRenderer(deps.pages)
+  const readerRender = createReaderRenderer(deps.pages, () => settingsService.get().homeSlug)
   await registerAdminRoutes(app, {
     config: deps.config,
     settings: settingsService,

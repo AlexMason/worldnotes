@@ -7,6 +7,8 @@
 // INTERNAL, slug-resolvable links survive: the same `wikiTargetToSlug` /
 // `validateSlug` fold the wiki-link plugins use, which keeps emitted hrefs
 // inside the injection-safe `[a-z0-9-]` charset (AGENTS.md slug policy).
+// Relative wiki links resolve under the nav page itself (`wikiLinkBase`), so
+// `[[x]]` points where it points when the nav page is opened in the editor.
 // Anything else (external URLs, anchors, plain text, nested items) is skipped.
 
 import { buildDocument } from '../../core/document'
@@ -14,7 +16,7 @@ import { scanInline } from '../../core/tokenizer'
 import { defaultPlugins } from '../../core/plugins/defaults'
 import { classifyLinkTarget } from '../../core/plugins/link'
 import { parseWikiLink } from '../../core/navigation'
-import { wikiTargetToSlug, slugDisplayName } from '../../shared/slug'
+import { wikiTargetToSlug, slugDisplayName, wikiLinkAddress, wikiLinkBase } from '../../shared/slug'
 import { pageUrlPath } from '../../shared/url-helpers'
 import type { NavLink } from '../../shared/dto'
 import type { PagesRepository } from '../db/repository'
@@ -45,10 +47,10 @@ function cleanLabel(raw: string): string {
 }
 
 /** Resolve one inline token to a nav link, or null when not nav-worthy. */
-function linkFromToken(type: string, groups: string[]): NavLink | null {
+function linkFromToken(type: string, groups: string[], linkBase: string | null): NavLink | null {
   if (type === 'wiki-link') {
     const { page, display } = parseWikiLink(groups[0] ?? '')
-    const slug = wikiTargetToSlug(page)
+    const slug = wikiTargetToSlug(wikiLinkAddress(page, linkBase))
     if (slug === null) return null
     return { slug, href: pageUrlPath(slug), label: cleanLabel(display) || slugDisplayName(slug) }
   }
@@ -65,8 +67,11 @@ function linkFromToken(type: string, groups: string[]): NavLink | null {
   return null
 }
 
-/** Parse a nav page's markdown into header links (order-preserving, capped). */
-export function extractNavLinks(content: string): NavLink[] {
+/**
+ * Parse a nav page's markdown into header links (order-preserving, capped).
+ * `linkBase`: base for relative wiki links (see `wikiLinkBase`); null = root.
+ */
+export function extractNavLinks(content: string, linkBase: string | null = null): NavLink[] {
   const links: NavLink[] = []
   const model = buildDocument(content, defaultPlugins)
   for (const line of model.lines) {
@@ -76,7 +81,7 @@ export function extractNavLinks(content: string): NavLink[] {
     // indent/marker/content); region lines (fences, tables) never do.
     if (!token || token.type !== 'list-item' || line.length !== 1) continue
     if ((token.groups[0] ?? '') !== '') continue // indented → nested, not top-level
-    const link = firstLinkIn(token.groups[2] ?? '')
+    const link = firstLinkIn(token.groups[2] ?? '', linkBase)
     if (link) links.push(link)
   }
   return links
@@ -84,17 +89,17 @@ export function extractNavLinks(content: string): NavLink[] {
 
 /** First nav-worthy link in a content string, descending through the
  *  inline wrappers (bold/italic/…) whose matched text may contain one. */
-function firstLinkIn(text: string): NavLink | null {
+function firstLinkIn(text: string, linkBase: string | null): NavLink | null {
   const tokens = scanInline(text, INLINE_DEFS)
   for (const t of tokens) {
-    const direct = linkFromToken(t.type, t.groups)
+    const direct = linkFromToken(t.type, t.groups, linkBase)
     if (direct) return direct
     // Wrapper tokens (bold `**…**`, italic, code…) carry the matched TEXT in
     // their last group — a link inside emphasis is still the item's link.
     if (t.type !== 'text' && t.groups.length) {
       for (const group of t.groups) {
         if (group === t.raw) continue // whole-match group = markup included
-        const nested = firstLinkIn(group)
+        const nested = firstLinkIn(group, linkBase)
         if (nested) return nested
       }
     }
@@ -126,7 +131,7 @@ export function createNavLinksService(deps: {
 
   return {
     async links() {
-      const navSlug = deps.settings.get().navSlug
+      const { navSlug, homeSlug } = deps.settings.get()
       if (!navSlug) {
         lastGood = null
         return []
@@ -139,7 +144,7 @@ export function createNavLinksService(deps: {
       }
       try {
         const page = await deps.pages.get(navSlug)
-        const links = page ? extractNavLinks(page.content) : []
+        const links = page ? extractNavLinks(page.content, wikiLinkBase(navSlug, homeSlug)) : []
         deps.cache.set(key, {
           value: links,
           etag: JSON.stringify(links),

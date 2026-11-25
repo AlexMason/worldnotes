@@ -154,7 +154,7 @@ export function wikiLinkAddress(target: string, base: string | null | undefined)
 
 - [x] 1. Shared resolver: `wikiLinkBase` + `wikiLinkAddress` in `src/shared/slug.ts` with unit tests.
 - [x] 2. Core: `LinkContext` type; static engine `links` options object (all callers + tests migrated); wiki-link plugin resolves via `context.linkBase` on both surfaces and in `onNavigate`; `editor-state` `toContext` sets `linkBase`; `collectLinkSlugs` takes `linkBase`. Tests: static render, link-slugs, surface parity, editor navigation.
-- [ ] 3. Server: `ReaderRenderer.render(src, pageSlug)` + `linkExistence`, `createReaderRenderer(pages, getHomeSlug)`; migrate `pages-html.ts`, `status-page.ts`, `admin.ts`, `app.ts`; nav extraction with the nav page's base; settings `homeSlug` change clears the render cache. Tests: reader-renderer, pages-html, nav, settings-api.
+- [x] 3. Server: `ReaderRenderer.render(src, pageSlug)` + `linkExistence`, `createReaderRenderer(pages, getHomeSlug)`; migrate `pages-html.ts`, `status-page.ts`, `admin.ts`, `app.ts`; nav extraction with the nav page's base; settings `homeSlug` change clears the render cache. Tests: reader-renderer, pages-html, nav, settings-api.
 - [ ] 4. Docs: `docs/api.md` (wiki-link resolution in the viewer-markdown section, nav-page links, settings home-change cache effect), `docs/architecture.md` (link resolution rule and where it lives), `README.md`/`docs/overview.md` wiki-link wording; full local validation.
 
 ## Risks & open questions
@@ -166,5 +166,6 @@ export function wikiLinkAddress(target: string, base: string | null | undefined)
 ## Implementation notes
 
 - 2026-11-24 (approval): approved by the implementer under the user's standing instruction ("plan, implement, review, and file — I don't want to be in the loop until the change is in main"). The user tests manually after the merge.
+- 2026-11-24 (step 3): `admin.ts` needed no edit (it forwards the renderer into `statusDocument`, which now passes the status page slug). There is no `settings-api` test file; the home-change cache clear is exercised end to end in `pages-html.test.ts` ("changing the home page re-renders cached articles with the new base"). Existing server fixtures that relied on root-semantics `[[x]]` on non-home pages were changed to `[[/x]]` (same intent under the new rule). No decision affected.
 
 ## Review

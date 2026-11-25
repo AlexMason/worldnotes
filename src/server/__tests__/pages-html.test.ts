@@ -544,7 +544,10 @@ describe('SSR chrome: nav page, hamburger, breadcrumb collapse', () => {
   })
 
   it('renders nav-page links inside the site nav before the built-in actions', async () => {
-    await repo.put('nav', { title: 'Nav', content: '- [[welcome|Welcome]]\n- [[deep/page|Deep]]' })
+    await repo.put('nav', {
+      title: 'Nav',
+      content: '- [[/welcome|Welcome]]\n- [[/deep/page|Deep]]\n- [[sub|Sub]]',
+    })
     await repo.put('welcome', { title: 'Welcome', content: '# Hi' })
     const res = await app.inject({ method: 'GET', url: '/welcome' })
     const body: string = res.body
@@ -554,6 +557,8 @@ describe('SSR chrome: nav page, hamburger, breadcrumb collapse', () => {
     // before built-ins:
     expect(body.indexOf('wn-nav-link')).toBeLessThan(body.indexOf('>Search<'))
     expect(body.indexOf('href="/deep/page"')).toBeLessThan(body.indexOf('>Search<'))
+    // relative nav links nest under the nav page, as in its editor
+    expect(body).toContain('class="wn-nav-link" href="/nav/sub"')
   })
 
   it('emits the zero-JS hamburger toggle markup', async () => {
@@ -597,7 +602,7 @@ describe('SSR chrome: nav page, hamburger, breadcrumb collapse', () => {
   })
 
   it('a nav-page edit busts another page\u2019s ETag', async () => {
-    await repo.put('nav', { title: 'Nav', content: '- [[one]]' })
+    await repo.put('nav', { title: 'Nav', content: '- [[/one]]' })
     await repo.put('target', { title: 'T', content: 'body bytes' })
     const before = await app.inject({ method: 'GET', url: '/target' })
 
@@ -605,7 +610,7 @@ describe('SSR chrome: nav page, hamburger, breadcrumb collapse', () => {
       method: 'PUT',
       url: '/api/pages/nav',
       headers: { cookie: auth, 'if-match': '"1"' },
-      payload: { content: '- [[two]]' },
+      payload: { content: '- [[/two]]' },
     })
     // Article cache for /target is untouched; only the nav parse was evicted.
     const after = await app.inject({ method: 'GET', url: '/target' })
@@ -615,7 +620,7 @@ describe('SSR chrome: nav page, hamburger, breadcrumb collapse', () => {
   })
 
   it('embeds nav links in the editor shell config', async () => {
-    await repo.put('nav', { title: 'Nav', content: '- [[welcome|Welcome]]' })
+    await repo.put('nav', { title: 'Nav', content: '- [[/welcome|Welcome]]' })
     await repo.put('welcome', { title: 'Welcome', content: '# Hi' })
     const res = await app.inject({
       method: 'GET',
@@ -778,7 +783,7 @@ describe('custom status pages (Phase B)', () => {
     const { repo, app } = await make({ not_found_slug: 'gone' })
     await repo.put('gone', {
       title: 'Gone',
-      content: '# All gone\n\nTry the [[home|front page]].\n\n<script>alert(1)</script>',
+      content: '# All gone\n\nTry the [[/home|front page]].\n\n<script>alert(1)</script>',
     })
     const res = await app.inject({ method: 'GET', url: '/nowhere' })
     expect(res.statusCode).toBe(404)
@@ -875,7 +880,7 @@ describe('SSR link state (existing vs missing pages)', () => {
     auth = editorCookie(config)
     await repo.put('index', {
       title: 'Index',
-      content: 'see [[here]] and [[later]] or [x](later)',
+      content: 'see [[/here]] and [[/later]] or [x](later)',
     })
     await repo.put('here', { title: 'Here', content: 'present' })
   })
@@ -915,7 +920,7 @@ describe('SSR link state (existing vs missing pages)', () => {
   })
 
   it('the custom 404 page body is resolved with the same link state', async () => {
-    await repo.put('missing-page', { title: 'NF', content: 'try [[here]] or [[nowhere]]' })
+    await repo.put('missing-page', { title: 'NF', content: 'try [[/here]] or [[/nowhere]]' })
     await app.inject({
       method: 'PUT',
       url: '/api/settings',
@@ -982,5 +987,74 @@ describe('SSR link state (existing vs missing pages)', () => {
 
     repo.existing = existing // later reads must reflect reality, not the stale render
     expect(await read()).not.toContain('class="wn-wiki-link wn-link-missing" href="/later"')
+  })
+})
+
+describe('SSR relative wiki links', () => {
+  let config: ServerConfig
+  let repo: ReturnType<typeof createMemoryPagesRepository>
+  let app: Awaited<ReturnType<typeof buildApp>>
+  let auth: string
+
+  async function make(settingsSeed: Record<string, string> = {}) {
+    config = loadConfig(baseEnv)
+    repo = createMemoryPagesRepository()
+    app = await buildApp({
+      config,
+      pages: repo,
+      settings: createMemorySettingsRepository(settingsSeed),
+      users: usersFixture({ users: { u1: 'admin' } }),
+      relyingParty: null,
+    })
+    auth = editorCookie(config)
+  }
+
+  const get = async (url: string): Promise<string> =>
+    (await app.inject({ method: 'GET', url })).body
+
+  it('[[beta]] on /alpha links to /alpha/beta; [[/beta]] to /beta', async () => {
+    await make()
+    await repo.put('alpha', { title: 'Alpha', content: '[[beta]] [[/beta]] [[Deep/Page|d]]' })
+    await repo.put('beta', { title: 'Beta', content: 'root beta' })
+    const body = await get('/alpha')
+    // /beta exists but the relative target /alpha/beta does not.
+    expect(body).toContain('<a class="wn-wiki-link wn-link-missing" href="/alpha/beta"')
+    expect(body).toContain('<a class="wn-wiki-link" href="/beta"')
+    expect(body).toContain('href="/alpha/deep/page"')
+  })
+
+  it('nests under the full page path', async () => {
+    await make()
+    await repo.put('alpha/gamma', { title: 'G', content: '[[beta]]' })
+    expect(await get('/alpha/gamma')).toContain('href="/alpha/gamma/beta"')
+  })
+
+  it('the home page resolves relative links from the root, at / and at its slug', async () => {
+    await make({ home_slug: 'start' })
+    await repo.put('start', { title: 'Start', content: '[[beta]]' })
+    expect(await get('/')).toContain('href="/beta"')
+    expect(await get('/start')).toContain('href="/beta"')
+  })
+
+  it('a custom 404 body resolves relative links under the status page', async () => {
+    await make({ not_found_slug: 'errors/missing' })
+    await repo.put('errors/missing', { title: 'NF', content: 'see [[help]]' })
+    const res = await app.inject({ method: 'GET', url: '/no-such-page' })
+    expect(res.statusCode).toBe(404)
+    expect(res.body).toContain('href="/errors/missing/help"')
+  })
+
+  it('changing the home page re-renders cached articles with the new base', async () => {
+    await make()
+    await repo.put('start', { title: 'Start', content: '[[beta]]' })
+    expect(await get('/start')).toContain('href="/start/beta"') // fills the cache
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: auth, 'content-type': 'application/json' },
+      payload: { homeSlug: 'start' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(await get('/start')).toContain('href="/beta"')
   })
 })
