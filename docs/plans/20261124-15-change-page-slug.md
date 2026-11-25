@@ -360,19 +360,57 @@ Manual (`npm run dev`, Postgres, logged in as editor):
 ## Risks & open questions
 
 - *Accepted:* settings follow after the move transaction commits, not inside it. A crash in between leaves a setting naming an alias. `/` and the status pages still resolve through the alias redirect, and the admin can re-save. (Also interacts with open issue #13, concurrent settings saves.)
-- *Accepted:* a move locks every page containing `[` for the duration of the rewrite, and rewriting is O(total content). That is fine at self-hosted wiki scale; concurrent saves wait milliseconds to seconds.
+- *Accepted:* a move locks every page containing `[` for the duration of the rewrite, and rewriting is O(total content) and synchronous — it stalls the whole Node process (not just saves) for that time. Fine at self-hosted wiki scale (review C3); revisit with batching/worker if wikis grow large.
 - *Accepted:* editors who have a rewritten page open elsewhere get the existing "Someone else saved a newer version" toast; "Load theirs" discards their unsaved edits (existing conflict behavior).
 - *Accepted:* page/alias disjointness is enforced by the repository, not by a DB constraint.
-- *Accepted:* a 301 for a reclaimed alias can be served from browser cache for up to 60 s.
+- *Accepted:* a 301 for a reclaimed alias (e.g. the page moved back) can be served from browser cache for up to 60 s, during which a browser can bounce between the two slugs (review C6). `max-age=60`, no stale-while-revalidate.
+- *Accepted:* aliases accumulate (one row per moved page) and block creating a page at that slug; only a move onto the slug or deleting the page clears one. Alias management is a non-goal (review C10).
+- *Accepted:* a `POST /api/pages` racing a move of the same slug can, in a narrow window, leave a page and an alias at one slug (the alias then never answers, since the page wins). A page created at a move target mid-move is reported as `taken` (review C9).
 - *Accepted:* links in admin header/footer bands are not rewritten; aliases keep them working.
-- *Accepted:* Decision 8 replaces the chosen "retry once" with row locks. The all-or-nothing contract is unchanged. Reviewer: confirm or ask to revert to optimistic guards.
+- *Accepted (reviewed):* Decision 8 replaces the chosen "retry once" with row locks. The all-or-nothing contract is unchanged. After review C2 the advisory lock is a TRY-lock: a second concurrent move answers 409 "another move in progress" instead of queueing on a pool connection.
 
 ## Implementation notes
 
 - 2026-11-24 — Step 6/7 boundary: `EditorInstance.beginMovePage` lands in step 7 together with the field it opens (step 6 would otherwise ship a method with nothing to open). No design change.
 - 2026-11-24 — Engine-faithful rewriting means links the engine does not render as links are not rewritten: emphasis content is plain text in this engine (`**[[x]]**` renders literally), so such text is left alone, like fences and code spans. Pinned by `link-rewrite.test.ts`.
 - 2026-11-24 — Move-field CSS lives in `src/core/editor-dom.ts` next to the breadcrumb chrome rules it replaces (that is where every `.wn-crumb*` rule lives), not in `styles.ts` (content stylesheet shared with the reader). Tokens unchanged: `--wn-move-input-bg`, `--wn-move-input-border`, `--wn-move-error-color`.
+- 2026-11-24 — Markdown-link rewrites never introduce whitespace into an href: when the humanized style would add spaces to a space-free href (`/Blog/First-Post`), the slug form is written (`link.ts`; test in `link-rewrite.test.ts`).
+- 2026-11-24 — Navigation toast for a followed alias reads `/{old} moved to /{new}` (plan said "Redirected from /{old}"); same information, names both addresses.
+- 2026-11-24 — Route tests for moves live in new files `page-moves-api.test.ts` / `page-moves-html.test.ts` (plan said `pages-api`/`pages-html` tests) to keep the existing suites focused; the repository contract is shared via `__tests__/helpers/move-contract.ts`.
 
 ## Review
 
 Mode: sub-agents (three fresh-context reviewers: A plan conformance & correctness, B code quality, C security & scalability).
+
+### Reconciled findings
+
+**Related — fixed** (each its own `fix: … (#15 review)` commit):
+
+| # | Severity | Lenses | Finding | Fix |
+|---|---|---|---|---|
+| 1 | major | A, C | A debounced save armed before/during a move kept the old slug; after the buffer was re-keyed it saved `''` → blank PUT → **page deleted**. Server reload of a rewritten current page could also clobber text typed during the move; a failed flush still counted as flushed. | `saveNow` skips pages the editor no longer holds; `retargetSave` re-arms a pending save for the new slug; `flushSaves` reports failure and the move is refused; reload only when nothing was typed. Regression test types while the move is in flight. |
+| 2 | major | C | `move` rolled back then called `resolveAlias` on the pool while still holding its connection → 10 concurrent moves of a missing slug exhaust the pool permanently. | Alias lookup on the held connection; test with a 1-connection pool. |
+| 3 | minor | C | Queued moves each pinned a pool connection on the blocking advisory lock. | `pg_try_advisory_xact_lock` → 409 "another move in progress"; test. |
+| 4 | major | A, B, C | Settings-follow failure after commit returned 500 for a committed move and skipped cache invalidation. | Invalidate first; settings write in try/catch with `req.log.error`; move still 200 (`settings: []`); test. |
+| 5 | minor | C | Settings snapshot read before the move was written back blindly (could undo a concurrent admin change; stale home base). | Home base read inside the transaction (first rewrite call); patch computed from settings re-read after commit. |
+| 6 | major | B | No server logging for moves. | `req.log.info` per move (from/to/by/counts/settings). |
+| 7 | minor | A, C | Redirect cache headers diverged from Decision 12 (stale-while-revalidate=300, `public` when gated). | `cacheControlFor(gated, 'public, max-age=60')` on HTML and API 301s; tests. |
+| 8 | minor | C | Anonymous `/` with a lagging home setting fell back to the index instead of following the alias. | `/` redirects via the alias; test. |
+| 9 | minor | C | A target created mid-move surfaced as a raw unique-violation 500. | `23505` inside `move` → `taken`. |
+| 10 | minor | B | A save hitting two consecutive moves dropped the edit silently. | Second hop throws (surface shows "Failed to save page"); test. |
+| 11 | minor | A, B | `notFoundSlug` follow untested; `move()` 401/403 untested; splice fail-safe untested. | Tests added. |
+| 12 | nit | B | No-op return in `rewriteLinks`; dead `null` branch of `setMoveHandler`; misplaced comment. | Cleaned up. |
+| 13 | nit | A, B | Unlogged deviations (href whitespace guard, toast wording, test file layout). | Recorded under Implementation notes. |
+
+**Accepted risks added** (see Risks): process-wide stall during rewrite (C3), move-back 301 cache window (C6), alias accumulation (C10), create-vs-move race window (C9).
+
+**Dismissed:**
+- B4 (split the "taken" check / extract `withTx`): structure is guarded by the shared memory/pg contract suite; a refactor adds churn without behavior change.
+- B6 (`canMove` has one caller; widen-API mock churn): the setter now takes a handler only; `canMove` keeps the "is the affordance offered" decision in the mover.
+- B8 (duplicated inline-def filter): established pattern in five modules; a shared helper is a separate refactor.
+- B12 (order-based assertions): unverified by the reviewer; the order assertions that remain pin plan requirements (flush before move, `onPageMoved` before repaint).
+- C8 (no fetch timeout on `POST /api/page-moves`): consistent with every other edit-client fetch (saves have none either); worth a cross-cutting issue rather than a one-off here.
+
+**Unrelated but important (offered as issues):**
+- `pg.Pool` has no `connectionTimeoutMillis` (`src/server/db/pool.ts`): any connection leak or exhaustion hangs requests forever instead of failing (C1 context).
+- Edit-client fetches have no timeout/abort anywhere (C8 context).
