@@ -294,6 +294,32 @@ describe('SSR pages', () => {
     expect(after.body).toContain('<a href="/lore">Lore</a>')
   })
 
+  it('a save that keeps the title leaves other cached pages alone', async () => {
+    await repo.put('lore', { title: 'Lore', content: '# Lore\n\nv1' })
+    await repo.put('lore/kid', { title: 'Kid', content: '# Kid' })
+    await app.inject({ method: 'GET', url: '/lore/kid' })
+    // Dropped behind the cache's back: only a cache hit can still serve it.
+    await repo.delete('lore/kid')
+
+    const sameTitle = await app.inject({
+      method: 'PUT',
+      url: '/api/pages/lore',
+      headers: { cookie: auth, 'if-match': '"1"' },
+      payload: { content: '# Lore\n\nv2 body edit' },
+    })
+    expect(sameTitle.statusCode).toBe(200)
+    expect((await app.inject({ method: 'GET', url: '/lore/kid' })).statusCode).toBe(200)
+
+    const newTitle = await app.inject({
+      method: 'PUT',
+      url: '/api/pages/lore',
+      headers: { cookie: auth, 'if-match': '"2"' },
+      payload: { content: '# Lore Renamed\n\nv3' },
+    })
+    expect(newTitle.statusCode).toBe(200)
+    expect((await app.inject({ method: 'GET', url: '/lore/kid' })).statusCode).toBe(404)
+  })
+
   it('404s unknown slugs without create affordances — and never caches the 404', async () => {
     const res = await app.inject({ method: 'GET', url: '/nope/missing' })
     expect(res.statusCode).toBe(404)
