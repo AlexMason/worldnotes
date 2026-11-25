@@ -351,7 +351,7 @@ Manual (`npm run dev`, Postgres, logged in as editor):
 - [x] 2. **Aliases + atomic move in the repository.** `migrations/007_page_aliases.sql`; `PagesRepository.resolveAlias`/`move`, alias-aware `existing()`; memory + pg implementations; `pages-memory` + `pages-pg.integration` tests.
 - [x] 3. **Move endpoint and alias-aware page API.** `POST /api/page-moves`, settings follow (`updateSettings` dep wired in `app.ts`), `PageWriteChange 'moved'`, GET 301 / mutation 409 `movedTo` on aliases; `pages-api` tests.
 - [x] 4. **Alias redirects on the HTML read path.** `renderArticle` 301 for readers and editors (and `/` via home); `pages-html` tests.
-- [ ] 5. **Client store support.** Core `PageStore.move?`/`canonicalOf?` + `PageMoveResult` types; `ApiPageStore.move`, redirected-load aliasing, 409 `movedTo` re-key + retry + `onMoved`; `api-page-store` tests.
+- [x] 5. **Client store support.** Core `PageStore.move?`/`canonicalOf?` + `PageMoveResult` types; `ApiPageStore.move`, redirected-load aliasing, 409 `movedTo` re-key + retry + `onMoved`; `api-page-store` tests.
 - [ ] 6. **Core move flow.** `PageBuffers.renamePage`/`dropPage`, lifecycle `flushSaves`, alias-following navigation, `editor-page-move.ts`, `EditorInstance.beginMovePage`/`pageMoved`, `EditorOptions.onPageMoved`; `page-buffers`, `editor-page-move`, `editor-navigation` tests.
 - [ ] 7. **Inline move field in the breadcrumb.** `breadcrumb.ts` `onEditActive`, `page-move-field.ts`, styles + tokens in `styles.ts`, wiring in `editor-render.ts`; breadcrumb/field tests.
 - [ ] 8. **Client wiring.** `main.ts` `onPageMoved` (replaceState/title/link existence/home reload) and store `onMoved` → `pageMoved`; `chrome.ts` "Move page…" item; `chrome` tests; manual test pass.

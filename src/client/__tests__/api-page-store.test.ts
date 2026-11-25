@@ -297,3 +297,98 @@ describe('createApiPageStore', () => {
     })
   })
 })
+
+describe('createApiPageStore — page moves', () => {
+  beforeEach(() => vi.unstubAllGlobals())
+
+  it('move POSTs to /api/page-moves and re-keys versions of moved pages', async () => {
+    const fn = stubFetch(
+      { status: 200, body: { slug: 'a', title: 'A', content: 'x', version: 4 } }, // load
+      {
+        status: 200,
+        body: { moved: [{ from: 'a', to: 'b' }], rewritten: ['other'], settings: [] },
+      },
+      { status: 200, body: { slug: 'b', title: 'A', content: 'y', version: 5 } }, // save
+    )
+    const store = createApiPageStore({ onConflict: vi.fn() })
+    await store.load('a')
+
+    await expect(store.move!('a', 'B')).resolves.toEqual({
+      ok: true,
+      moved: [{ from: 'a', to: 'b' }],
+      rewritten: ['other'],
+    })
+    const post = recordedCalls(fn)[1]!
+    expect(post.url).toBe('/api/page-moves')
+    expect(JSON.parse(post.init?.body as string)).toEqual({ from: 'a', to: 'B' })
+    expect(store.versionOf('b')).toBe(4)
+    expect(store.canonicalOf!('a')).toBe('b')
+
+    // A save still addressed to the old key goes to the new slug.
+    await store.save('a', 'y')
+    expect(recordedCalls(fn)[2]!.url).toBe('/api/pages/b')
+  })
+
+  it('move failures surface the server message and change nothing', async () => {
+    stubFetch(
+      { status: 200, body: { slug: 'a', title: 'A', content: 'x', version: 1 } },
+      { status: 409, body: { error: 'a page already exists at /b', slug: 'b' } },
+    )
+    const store = createApiPageStore({ onConflict: vi.fn() })
+    await store.load('a')
+    await expect(store.move!('a', 'b')).resolves.toEqual({
+      ok: false,
+      error: 'a page already exists at /b',
+    })
+    expect(store.versionOf('a')).toBe(1)
+    expect(store.canonicalOf!('a')).toBe('a')
+  })
+
+  it('a load redirected from a former slug records where the page lives', async () => {
+    stubFetch({ status: 200, body: { slug: 'new/home', title: 'N', content: 'c', version: 2 } })
+    const store = createApiPageStore({ onConflict: vi.fn() })
+    await expect(store.load('old/home')).resolves.toBe('c')
+    expect(store.canonicalOf!('old/home')).toBe('new/home')
+    expect(store.versionOf('new/home')).toBe(2)
+  })
+
+  it('a save answered 409 movedTo follows the move and never recreates the old slug', async () => {
+    const onMoved = vi.fn()
+    const onSaved = vi.fn()
+    const fn = stubFetch(
+      { status: 409, body: { error: 'page moved', movedTo: 'moved/here' } }, // PUT old slug
+      { status: 200, body: { slug: 'moved/here', title: 'T', content: 'typed', version: 3 } },
+    )
+    const store = createApiPageStore({ onConflict: vi.fn(), onMoved, onSaved }, [
+      { slug: 'stale', version: 3 },
+    ])
+
+    await store.save('stale', 'typed')
+
+    expect(onMoved).toHaveBeenCalledWith('stale', 'moved/here')
+    const calls = recordedCalls(fn)
+    expect(calls.map((c) => [c.init?.method, c.url])).toEqual([
+      ['PUT', '/api/pages/stale'],
+      ['PUT', '/api/pages/moved/here'],
+    ])
+    expect((calls[1]!.init?.headers as Record<string, string>)['if-match']).toBe('"3"')
+    expect(onSaved).toHaveBeenCalledWith('moved/here', 'typed')
+    expect(calls.some((c) => c.init?.method === 'POST')).toBe(false)
+  })
+
+  it('a create answered 409 movedTo follows the move instead of conflicting', async () => {
+    const onMoved = vi.fn()
+    const onConflict = vi.fn()
+    const fn = stubFetch(
+      { status: 409, body: { error: 'page moved', movedTo: 'b' } }, // POST create at old slug
+      { status: 201, body: { slug: 'b', title: 'B', content: 'x', version: 1 } }, // POST at b
+      { status: 200, body: { slug: 'b', title: 'B', content: 'x', version: 1 } }, // snapshot
+    )
+    const store = createApiPageStore({ onConflict, onMoved })
+    await store.save('a', 'x')
+    expect(onMoved).toHaveBeenCalledWith('a', 'b')
+    expect(onConflict).not.toHaveBeenCalled()
+    // Retried once at the new slug (no tracked version → create flow there).
+    expect(recordedCalls(fn)[1]!.init?.method).toBe('POST')
+  })
+})

@@ -118,13 +118,30 @@ export interface DocModel {
  *
  * Replaces the former StorageAdapter + Yjs-bridge persistence model.
  *
- * @method load - Fetch raw Markdown for a page; null when it does not exist
- * @method save - Persist raw Markdown for a page (whole-document write)
+ * @method load        - Fetch raw Markdown for a page; null when it does not exist
+ * @method save        - Persist raw Markdown for a page (whole-document write)
+ * @method move        - Optional: move a page (and its subtree) to a new slug,
+ *                       rewriting links everywhere. Without it the editor
+ *                       offers no move affordance.
+ * @method canonicalOf - Optional: the page a `load(page)` actually landed on
+ *                       (a moved page's former slug resolves to its current
+ *                       one); identity when unknown.
  */
 export interface PageStore {
   load(page: string): Promise<string | null>
   save(page: string, content: string): Promise<void>
+  move?(from: string, to: string): Promise<PageMoveResult>
+  canonicalOf?(page: string): string
 }
+
+/**
+ * Outcome of `PageStore.move`. `moved` lists every relocated page (the page
+ * itself first, then its subtree); `rewritten` the NEW slugs of pages whose
+ * content changed because their links were rewritten.
+ */
+export type PageMoveResult =
+  | { ok: true; moved: { from: string; to: string }[]; rewritten: string[] }
+  | { ok: false; error: string }
 
 // ─── Page Existence ──────────────────────────────────────────────────────────
 
