@@ -128,7 +128,13 @@ export async function registerSettingsApiRoutes(
         return reply.code(500).send({ error: 'failed to save settings' })
       }
 
-      if (next.homeSlug !== previous.homeSlug) deps.cache.clear()
+      if (next.homeSlug !== previous.homeSlug) {
+        deps.cache.clear()
+        req.log.info(
+          { from: previous.homeSlug, to: next.homeSlug },
+          'home page changed; render cache cleared',
+        )
+      }
 
       // Orphan cleanup: a replaced or cleared override's row can no longer be
       // referenced (nothing else consumes media yet). Re-read guard so an

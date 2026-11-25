@@ -1057,4 +1057,41 @@ describe('SSR relative wiki links', () => {
     expect(res.statusCode).toBe(200)
     expect(await get('/start')).toContain('href="/beta"')
   })
+
+  it('a home change also refreshes nav links and the custom 404 body', async () => {
+    await make({ nav_slug: 'menu', not_found_slug: 'nf' })
+    await repo.put('menu', { title: 'Menu', content: '- [[about]]' })
+    await repo.put('nf', { title: 'NF', content: 'see [[help]]' })
+    await repo.put('page', { title: 'P', content: 'x' })
+    expect(await get('/page')).toContain('class="wn-nav-link" href="/menu/about"')
+    expect(await get('/nowhere')).toContain('href="/nf/help"')
+
+    const setHome = (homeSlug: string) =>
+      app.inject({
+        method: 'PUT',
+        url: '/api/settings',
+        headers: { cookie: auth, 'content-type': 'application/json' },
+        payload: { homeSlug },
+      })
+    await setHome('menu') // the nav page is home: its links resolve from the root
+    expect(await get('/page')).toContain('class="wn-nav-link" href="/about"')
+    await setHome('nf') // the 404 page is home; the nav page is ordinary again
+    expect(await get('/nowhere')).toContain('href="/help"')
+    expect(await get('/page')).toContain('class="wn-nav-link" href="/menu/about"')
+  })
+
+  it('a settings change that keeps the home page keeps cached articles', async () => {
+    await make()
+    await repo.put('alpha', { title: 'A', content: 'first render [[beta]]' })
+    expect(await get('/alpha')).toContain('first render') // fills the cache
+    await repo.put('alpha', { title: 'A', content: 'behind the cache' })
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: auth, 'content-type': 'application/json' },
+      payload: { siteName: 'Renamed' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(await get('/alpha')).toContain('first render')
+  })
 })
