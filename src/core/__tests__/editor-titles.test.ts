@@ -92,4 +92,23 @@ describe('editor page titles', () => {
     // Title repaints are not trail changes.
     expect(trails.length).toBe(trailPaints)
   })
+
+  it('reports the new page title on navigation, and names the visited page live', async () => {
+    const fake = fakeTitles({})
+    const { instance, crumbs, titles } = await mount(fake, {
+      'lore/gods/old': '# Old Ones\n\nbody',
+      lore: '# Lore of Ashfall\n\nintro',
+    })
+
+    await instance.navigate('lore')
+    expect(crumbs()).toEqual(['Home', 'Lore of Ashfall'])
+    expect(titles.at(-1)).toBe('Lore of Ashfall')
+
+    // Back down: the now-loaded parent is named from its buffer, never asked.
+    const askedBefore = fake.requested.length
+    await instance.navigate('lore/gods/old')
+    expect(crumbs()).toEqual(['Home', 'Lore of Ashfall', 'Gods', 'Old Ones'])
+    expect(titles.at(-1)).toBe('Old Ones')
+    expect(fake.requested.slice(askedBefore)).not.toContain('lore')
+  })
 })
