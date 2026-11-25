@@ -5,7 +5,7 @@ type: feature
 branch: feature/10-link-styling-by-target
 status: filed
 created: 2026-11-24
-pr: ""
+pr: "https://github.com/AlexMason/worldnotes/pull/11"
 ---
 
 # Style links by target — existing vs missing internal pages, icon for external links
