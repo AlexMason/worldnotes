@@ -13,6 +13,7 @@ import { extractTitle } from '../render/title'
 
 const MAX_CONTENT_BYTES = 1_000_000 // 1 MB
 const MAX_TITLE_LENGTH = 200
+const MAX_EXIST_SLUGS = 100
 
 export type PageWriteChange = 'created' | 'updated' | 'deleted'
 
@@ -63,6 +64,37 @@ export async function registerPageApiRoutes(
     )
     return { pages: items }
   })
+
+  // Link-state lookup: which of a batch of slugs exist. Backs the editor's
+  // missing-page link styling (the reader resolves existence server-side).
+  // Lives OUTSIDE /api/pages/* — that wildcard would read "pages-exist" as a
+  // slug. Invalid slugs are omitted from the answer (unknown, not an error).
+  app.get<{ Querystring: { slugs?: unknown } }>(
+    '/api/pages-exist',
+    { preHandler: [readGate] },
+    async (req, reply) => {
+      const raw = req.query.slugs
+      const requested = typeof raw === 'string' && raw !== '' ? raw.split(',') : []
+      if (requested.length > MAX_EXIST_SLUGS) {
+        return reply.code(400).send({ error: `at most ${MAX_EXIST_SLUGS} slugs per request` })
+      }
+      const slugs = new Set<string>()
+      for (const candidate of requested) {
+        const validated = validateSlug(candidate)
+        if (validated.ok) slugs.add(validated.slug)
+      }
+      const found = await deps.pages.existing([...slugs])
+      const gated = deps.getSettings().requireLogin
+      if (gated) reply.header('vary', 'Cookie')
+      reply.header(
+        'cache-control',
+        cacheControlFor(gated, 'public, max-age=30, stale-while-revalidate=60'),
+      )
+      const exists: Record<string, boolean> = {}
+      for (const slug of slugs) exists[slug] = found.has(slug)
+      return { exists }
+    },
+  )
 
   app.get('/api/pages/*', { preHandler: [readGate] }, async (req, reply) => {
     const slug = (req.params as { '*': string })['*']

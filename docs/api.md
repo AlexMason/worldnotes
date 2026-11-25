@@ -24,7 +24,7 @@ authenticated OIDC account may edit.
 ## Pages
 
 Reads are public (cached) **unless login-only mode is on** (Settings —
-anonymous `GET /api/pages*` then answers `403 {error:'login required'}`,
+anonymous `GET /api/pages*` and `GET /api/pages-exist` then answer `403 {error:'login required'}`,
 `no-store`, and authed responses flip to `private` + `Vary: Cookie`); writes
 require the session cookie, an **editor or admin** role, **and** a
 same-origin `Origin` (CSRF guard), and are rate-unlimited but size-capped.
@@ -35,6 +35,7 @@ a viewer's write is a 403.
 | ---------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | `GET /api/pages[?q=&limit=]` | —      | no¹                                                                                                                                                                                      | list/search (ILIKE), newest first, default limit 100        |
 | `GET /api/pages/{slug}`      | —      | no¹                                                                                                                                                                                      | `{slug,title,content,version,updatedAt,updatedBy}` + `ETag` |
+| `GET /api/pages-exist?slugs=a,b/c` | — | no¹ | link-state lookup → `{exists:{"a":true,"b/c":false}}`. ≤100 comma-separated slugs (400 above); invalid/reserved slugs are omitted (unknown); `Cache-Control` like the list. Not under `/api/pages/*`, which would read it as a slug |
 | `POST /api/pages`            | editor | body `{slug, title?, content}` — **content required and non-blank** (400 otherwise); title defaults to the first `#` heading, else humanized slug; 409 on exists                         |
 | `PUT /api/pages/{slug}`      | editor | body `{content, title?}` **requires `If-Match: "<version>"`**; 409 `{current:{version}}` on stale, 428 without header, 404 unknown, 403 viewer. **Blank content DELETES the page** → 204 |
 | `DELETE /api/pages/{slug}`   | editor | 204 / 404 / 403 viewer                                                                                                                                                                   |
