@@ -444,6 +444,11 @@ updated_by)` key/value table for instance settings; `006_themes.sql` adds
 `themes(id, name UNIQUE, description, css ≤ 64 KiB, timestamps)`;
 `007_page_aliases.sql` adds `page_aliases(slug PK CHECK, page_id → pages.id
 ON DELETE CASCADE)` — former slugs of moved pages.
+After the SQL files, `db/title-backfill.ts` runs once (recorded as
+`schema_migrations` row `titles-from-first-h1`, under the same advisory lock
+key): it recomputes every stored `pages.title` with the core title rule
+(`core/page-title.ts`: first H1, else humanized slug) without touching
+`version`/`updated_at`.
 `PagesRepository`,
 `SettingsRepository` and `ThemesRepository` each have two implementations (`-pg` production, `-memory`
 tests); route tests run against memory, CI also runs the pg suite against a

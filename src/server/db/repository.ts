@@ -76,6 +76,12 @@ export interface PagesRepository {
    * (existing vs missing page) — never fetches page content.
    */
   existing(slugs: readonly string[]): Promise<Set<string>>
+  /**
+   * Stored titles of the pages among `slugs` (exact page slugs only — an
+   * alias has no title of its own). One round trip; empty input answers
+   * without touching the store. Backs breadcrumb labels.
+   */
+  titles(slugs: readonly string[]): Promise<Map<string, string>>
   /** Current slug of the page `slug` is a former slug (alias) of, or null. */
   resolveAlias(slug: string): Promise<string | null>
   /**

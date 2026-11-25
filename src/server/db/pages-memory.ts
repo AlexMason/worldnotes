@@ -71,6 +71,15 @@ export function createMemoryPagesRepository(
       return new Set(slugs.filter((slug) => pages.has(slug) || aliases.has(slug)))
     },
 
+    async titles(slugs) {
+      const found = new Map<string, string>()
+      for (const slug of slugs) {
+        const page = pages.get(slug)
+        if (page) found.set(slug, page.title)
+      }
+      return found
+    },
+
     async resolveAlias(slug) {
       return resolveAlias(slug)
     },

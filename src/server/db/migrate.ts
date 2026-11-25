@@ -6,7 +6,8 @@ import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { SqlPool } from './pool'
 
-const LOCK_KEY = 7266796 // 'wnos' — stable application-level migration lock
+/** Stable application-level migration lock ('wnos'); data migrations share it. */
+export const LOCK_KEY = 7266796
 
 export async function runMigrations(pool: SqlPool, dir: string): Promise<string[]> {
   const client = await pool.connect()

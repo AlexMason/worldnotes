@@ -63,6 +63,14 @@ export function createPgPagesRepository(pool: SqlPool): PagesRepository {
       return new Set<string>(res.rows.map((r: { slug: string }) => r.slug))
     },
 
+    async titles(slugs) {
+      if (slugs.length === 0) return new Map<string, string>()
+      const res = await pool.query('SELECT slug, title FROM pages WHERE slug = ANY($1::text[])', [
+        [...new Set(slugs)],
+      ])
+      return new Map(res.rows.map((r: { slug: string; title: string }) => [r.slug, r.title]))
+    },
+
     resolveAlias: (slug) => resolveAlias(slug),
 
     async move({ from, to, by = null, validate, rewrite, title }): Promise<MoveResult> {

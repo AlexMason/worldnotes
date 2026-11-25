@@ -10,6 +10,7 @@ import { dirname, resolve } from 'node:path'
 import { createPool } from '../db/pool'
 import { createPgPagesRepository } from '../db/pages-pg'
 import { createPgSettingsRepository } from '../db/settings-pg'
+import { backfillTitles, TITLE_BACKFILL_NAME } from '../db/title-backfill'
 import { migrateWithRetry } from './helpers/migrate'
 import { describeMoveContract, moveInput } from './helpers/move-contract'
 
@@ -129,6 +130,29 @@ describe.skipIf(!url)('PagesRepository on Postgres', () => {
     const found = await repo.existing(['ex/one', 'ex/one', 'ex/ghost', 'ex/two'])
     expect([...found].sort()).toEqual(['ex/one', 'ex/two'])
     expect(await repo.existing([])).toEqual(new Set())
+  })
+
+  it('titles maps stored page slugs to titles', async () => {
+    await repo.put('ti/one', { title: 'One Title', content: 'x' })
+    expect(await repo.titles(['ti/one', 'ti/one', 'ti/ghost'])).toEqual(
+      new Map([['ti/one', 'One Title']]),
+    )
+    expect(await repo.titles([])).toEqual(new Map())
+  })
+
+  it('backfillTitles recomputes stale titles once, without bumping versions', async () => {
+    await pool.query('DELETE FROM schema_migrations WHERE name = $1', [TITLE_BACKFILL_NAME])
+    await repo.put('bf/old-rule', { title: 'Sub Heading', content: '## Sub Heading\n\nbody' })
+    await repo.put('bf/kept', { title: 'Kept', content: '# Kept\n\nbody' })
+
+    expect(await backfillTitles(pool)).toBeGreaterThanOrEqual(1)
+    expect(await repo.get('bf/old-rule')).toMatchObject({ title: 'Old Rule', version: 1 })
+    expect(await repo.get('bf/kept')).toMatchObject({ title: 'Kept', version: 1 })
+
+    // Recorded: a later boot never reruns it.
+    await pool.query("UPDATE pages SET title = 'Stale' WHERE slug = 'bf/kept'")
+    expect(await backfillTitles(pool)).toBe(0)
+    expect((await repo.get('bf/kept'))?.title).toBe('Stale')
   })
 })
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createMemoryPagesRepository } from '../db/pages-memory'
-import { describeMoveContract } from './helpers/move-contract'
+import { describeMoveContract, moveInput } from './helpers/move-contract'
 
 function page(
   slug: string,
@@ -117,6 +117,20 @@ describe('memory PagesRepository.existing', () => {
     await repo.delete('a')
     await repo.put('nope', { title: 'N', content: 'x' })
     expect([...(await repo.existing(['a', 'nope']))]).toEqual(['nope'])
+  })
+})
+
+describe('memory PagesRepository.titles', () => {
+  it('maps stored page slugs to titles, never aliases', async () => {
+    const repo = createMemoryPagesRepository([page('a', { title: 'Alpha' }), page('b')])
+    expect(await repo.titles([])).toEqual(new Map())
+    expect(await repo.move(moveInput('b', 'c'))).toMatchObject({ ok: true })
+    expect(await repo.titles(['a', 'b', 'c', 'nope'])).toEqual(
+      new Map([
+        ['a', 'Alpha'],
+        ['c', 'C'],
+      ]),
+    )
   })
 })
 
