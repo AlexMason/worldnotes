@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import { rewriteLinks } from '../link-rewrite'
 import { defaultPlugins } from '../plugins/defaults'
-import type { LinkRewriteContext } from '../types'
+import type { ContentPlugin, LinkRewriteContext } from '../types'
 
 /** projects/acme (+ its notes child) moved to clients/acme-corp. */
 const MOVES = new Map([
@@ -134,4 +134,26 @@ describe('rewriteLinks — identity when nothing moved', () => {
       expect(rewrite(text, ctx('projects/acme', 'clients/acme-corp'))).toBe(text)
     })
   }
+})
+
+describe('rewriteLinks — fail-safe splice', () => {
+  it('keeps a container token byte-exact when its inline text cannot be located', () => {
+    // A container that hands the engine TRANSFORMED inner text (not a
+    // substring of its raw): the rewritten inner cannot be spliced back.
+    const shouty: ContentPlugin = {
+      name: 'shouty',
+      version: '1.0.0',
+      kind: 'content',
+      tokens: [{ type: 'shouty', pattern: /!!(.+?)!!/ }],
+      render: () => {
+        throw new Error('editor DOM render is not used by rewriting')
+      },
+      renderToHTML: (token, ctx) => ctx.renderInline(` ${token.groups[0] ?? ''}`),
+    }
+    const plugins = [...defaultPlugins, shouty]
+    const md = '!![[/projects/acme]]!! and [[/projects/acme]]'
+    expect(rewriteLinks(md, plugins, ctx())).toBe(
+      '!![[/projects/acme]]!! and [[/clients/acme-corp]]',
+    )
+  })
 })

@@ -118,10 +118,10 @@ export function createEditorNavigation(
     // rejecting store then leaves the editor exactly as it was — trail, DOM,
     // and current page stay consistent. Seeding here also means loadPage
     // never re-fetches: one GET per navigation, even for new pages.
+    const buffers = state.getPageBuffers()
     // Moved pages: a former slug is followed to where the page lives now —
     // known up front (the store saw the move), or learned from the load
     // (the server redirected it). One page, one buffer key.
-    const buffers = state.getPageBuffers()
     let target = pageStore.canonicalOf?.(canonical) ?? canonical
     if (!buffers.hasPage(target)) {
       const stored = await pageStore.load(target)

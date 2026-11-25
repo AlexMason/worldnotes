@@ -30,9 +30,9 @@ export interface EditorRenderAPI {
   checkSelectChange(): boolean
   /**
    * Enable the page-move affordance (editable active crumb) with the handler
-   * that performs a move; null disables it. Takes effect on the next repaint.
+   * that performs a move. Takes effect on the next repaint.
    */
-  setMoveHandler(handler: ((to: string) => Promise<string | null>) | null): void
+  setMoveHandler(handler: (to: string) => Promise<string | null>): void
   /** Open the inline move field in the breadcrumb; no-op without a handler. */
   openMoveField(): void
 }
@@ -168,7 +168,7 @@ export function createEditorRender(
 
   let moveHandler: ((to: string) => Promise<string | null>) | null = null
 
-  function setMoveHandler(handler: ((to: string) => Promise<string | null>) | null): void {
+  function setMoveHandler(handler: (to: string) => Promise<string | null>): void {
     moveHandler = handler
   }
 

@@ -26,7 +26,7 @@ import { buildPluginMap } from './plugin-map'
 
 /**
  * `markdown` with every internal link to a moved page rewritten (see the
- * plugins' `rewriteLink`). Returns the input itself when nothing changed.
+ * plugins' `rewriteLink`); byte-identical when no link pointed at a moved page.
  */
 export function rewriteLinks(
   markdown: string,
@@ -71,6 +71,5 @@ export function rewriteLinks(
   }
 
   const { lines } = buildDocument(markdown, plugins)
-  const rewritten = lines.map((tokens) => tokens.map(rewriteToken).join('')).join('\n')
-  return rewritten === markdown ? markdown : rewritten
+  return lines.map((tokens) => tokens.map(rewriteToken).join('')).join('\n')
 }
