@@ -3,7 +3,7 @@ issue: 10
 title: Style links by target — existing vs missing internal pages, icon for external links
 type: feature
 branch: feature/10-link-styling-by-target
-status: implemented
+status: in-review
 created: 2026-11-24
 pr: ""
 ---
@@ -154,3 +154,5 @@ All tests co-located, deterministic, no network.
 - 2026-11-24 (step 1): `collectLinkSlugs` keeps the planned signature but is implemented as a recording `pageExists` driven through `renderDocumentHtml`, not a separate token walk. Reason: link tokens nested in list items, headings, quotes and table cells are rendered by their parent plugin, so a document-model walk would need per-plugin recursion and could drift from the real output. A shared `wikiLinkClass` helper (`src/core/plugins/link-class.ts`) holds the class decision for both plugins and both surfaces. Contract unchanged; no decision affected.
 
 ## Review
+
+Mode: sub-agents (three fresh-context reviewers: A plan conformance & correctness, B code quality, C security & scalability). Review run unattended at the user's request; manual-review sign-off waived by the user (see Filed note below).
