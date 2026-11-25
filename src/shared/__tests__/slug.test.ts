@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { slugify, validateSlug, wikiTargetToSlug, navTargetToSlug, slugDisplayName } from '../slug'
+import {
+  slugify,
+  validateSlug,
+  wikiTargetToSlug,
+  navTargetToSlug,
+  slugDisplayName,
+  wikiLinkBase,
+  wikiLinkAddress,
+  SLUG_MAX_LENGTH,
+} from '../slug'
 
 describe('slugify', () => {
   it('folds titles into hyphenated segments', () => {
@@ -71,6 +80,53 @@ describe('navTargetToSlug', () => {
     expect(navTargetToSlug('中文')).toBeNull()
     expect(navTargetToSlug('/all')).toBeNull() // reserved route
     expect(navTargetToSlug('api/x')).toBeNull()
+  })
+})
+
+describe('wikiLinkBase', () => {
+  it('is the page itself, or the root for the configured home page', () => {
+    expect(wikiLinkBase('alpha/gamma', 'start')).toBe('alpha/gamma')
+    expect(wikiLinkBase('start', 'start')).toBeNull()
+    expect(wikiLinkBase('', 'start')).toBeNull()
+    // No configured home: a page slugged `home` is an ordinary page.
+    expect(wikiLinkBase('home', null)).toBe('home')
+    expect(wikiLinkBase('home', undefined)).toBe('home')
+  })
+})
+
+describe('wikiLinkAddress', () => {
+  const resolve = (target: string, base: string | null) =>
+    navTargetToSlug(wikiLinkAddress(target, base))
+
+  it('nests relative targets under the base, whatever their spelling', () => {
+    expect(wikiLinkAddress('beta', 'alpha')).toBe('/alpha/beta')
+    expect(resolve('beta', 'alpha')).toBe('alpha/beta')
+    expect(resolve('Beta Page', 'alpha/gamma')).toBe('alpha/gamma/beta-page')
+    expect(resolve('  x/Y ', 'alpha')).toBe('alpha/x/y')
+  })
+
+  it('keeps root semantics for /-rooted targets and base-less pages', () => {
+    expect(resolve('/beta', 'alpha')).toBe('beta')
+    expect(resolve('/Docs/Intro', 'alpha/gamma')).toBe('docs/intro')
+    expect(wikiLinkAddress('beta', null)).toBe('beta')
+    expect(wikiLinkAddress('beta', '')).toBe('beta')
+  })
+
+  it('never turns an unfoldable target into a link to the base page', () => {
+    expect(wikiLinkAddress('!!!', 'alpha')).toBe('!!!')
+    expect(resolve('!!!', 'alpha')).toBeNull()
+    expect(resolve('中文', 'alpha')).toBeNull()
+  })
+
+  it('is unresolvable when the nested slug exceeds the length limit', () => {
+    const base = 'a'.repeat(SLUG_MAX_LENGTH - 2)
+    expect(resolve('bc', base)).toBeNull()
+    expect(resolve('/bc', base)).toBe('bc')
+  })
+
+  it('lets a relative target reuse a reserved word below the base', () => {
+    expect(resolve('api', 'alpha')).toBe('alpha/api')
+    expect(resolve('/api', 'alpha')).toBeNull()
   })
 })
 

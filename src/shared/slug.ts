@@ -103,6 +103,31 @@ export function navTargetToSlug(target: string): string | null {
   return wikiTargetToSlug(target)
 }
 
+/**
+ * Base that relative wiki links on page `pageSlug` resolve under: the page
+ * itself, or null (= site root) for the configured home page — it is served
+ * at `/`, so `[[beta]]` there means `/beta`. With no home configured there is
+ * no special case (a page slugged `home` is an ordinary page).
+ */
+export function wikiLinkBase(pageSlug: string, homeSlug: string | null | undefined): string | null {
+  return !pageSlug || pageSlug === homeSlug ? null : pageSlug
+}
+
+/**
+ * Root-absolute navigation address of a wiki-link target written on a page
+ * whose link base is `base` (see wikiLinkBase). `[[/x]]` and base-less
+ * targets keep root semantics and are returned as-is; relative targets become
+ * `/{base}/{target}`, which every root-semantics consumer (navTargetToSlug,
+ * link classes, existence sync) folds unchanged. A target that folds to
+ * nothing is returned as-is so it stays unresolvable — prefixing the base
+ * must never turn `[[!!!]]` into a self-link.
+ */
+export function wikiLinkAddress(target: string, base: string | null | undefined): string {
+  const trimmed = target.trim()
+  if (!base || trimmed.startsWith('/') || slugify(trimmed) === '') return trimmed
+  return `/${base}/${trimmed}`
+}
+
 /** Derive the breadcrumb trail root label from a slug's last segment. */
 export function slugDisplayName(slug: string): string {
   const segments = slug.split('/')
