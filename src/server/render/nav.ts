@@ -143,13 +143,19 @@ export function createNavLinksService(deps: {
         return hit.value
       }
       try {
+        const generation = deps.cache.generation
         const page = await deps.pages.get(navSlug)
         const links = page ? extractNavLinks(page.content, wikiLinkBase(navSlug, homeSlug)) : []
-        deps.cache.set(key, {
-          value: links,
-          etag: JSON.stringify(links),
-          storedAt: Date.now(),
-        })
+        // A cache.clear() (home change, page create/delete) that landed while
+        // the page load was in flight makes this parse stale: serve it, but
+        // do not cache it — same guard as the article render.
+        if (deps.cache.generation === generation) {
+          deps.cache.set(key, {
+            value: links,
+            etag: JSON.stringify(links),
+            storedAt: Date.now(),
+          })
+        }
         lastGood = { navSlug, links }
         return links
       } catch {

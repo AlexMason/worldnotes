@@ -153,6 +153,32 @@ describe('createNavLinksService', () => {
     expect((await service.links()).map((l) => l.href)).toEqual(['/about', '/blog', '/docs'])
   })
 
+  it('never caches a parse that a cache clear overtook mid-load', async () => {
+    const { pages, settings, cache } = await setup('menu')
+    await pages.put('menu', { title: 'Menu', content: '- [[about]]' })
+    let openGate: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => {
+      openGate = resolve
+    })
+    const parked = createNavLinksService({
+      pages: {
+        get: async (slug) => {
+          const page = await pages.get(slug)
+          await gate
+          return page
+        },
+      },
+      settings,
+      cache,
+    })
+    const inFlight = parked.links() // read homeSlug (unset), now parked in get()
+    await settings.update({ homeSlug: 'menu' })
+    cache.clear() // what PUT /api/settings does on a home change
+    openGate()
+    expect((await inFlight).map((l) => l.href)).toEqual(['/menu/about']) // stale, served once
+    expect((await parked.links()).map((l) => l.href)).toEqual(['/about']) // not cached
+  })
+
   it('clears when the setting is unset', async () => {
     const { pages, settings, service } = await setup('nav')
     await pages.put('nav', { title: 'Nav', content: '- [[a]]' })
