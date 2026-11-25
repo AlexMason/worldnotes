@@ -365,7 +365,10 @@ existing lines are never renumbered, no `<ol>` — indent is visual, not
 semantic) —, `---`
 rules, `[text](url)` links, `[[Page]]` / `[[a/b|Display]]` wiki links →
 `<a class="wn-wiki-link" href="/a/b">Display</a>` (targets that can't fold
-to a valid slug stay literal), **fenced code blocks** (`…`;
+to a valid slug stay literal; a link whose target page does not exist also
+carries `wn-link-missing` — resolved server-side per render, so the zero-JS
+reader shows it too; existence changes clear the render cache),
+**fenced code blocks** (`…`;
 unclosed fences run to EOF; nothing inside is parsed), **pipe tables**
 (header + `|:---|` separator + rows; alignment honored; cells accept
 inline grammar; flex-div markup, never `<table>`), and **images**

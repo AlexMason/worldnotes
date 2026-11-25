@@ -139,7 +139,7 @@ All tests co-located, deterministic, no network.
 - [x] 4. Reader: async `createReaderRenderer(pages)`, update `pages-html.ts` and `status-page.ts` callers, `onWrite(slug, change)` + `cache.clear()` on create/delete in `pages-api.ts`/`app.ts`; reader tests (incl. cache-clear behaviour).
 - [x] 5. API: `GET /api/pages-exist` with tests; document in `docs/api.md`.
 - [x] 6. Editor: `PageExistenceResolver` option, context + in-place sync in core, `src/client/link-existence.ts`, `main.ts` wiring, shell embed `linkExists` (server `editor-shell.ts` + `pages-html.ts`); tests for resolver, editor links, embed.
-- [ ] 7. Docs and wrap-up: `docs/architecture.md` (reader existence pass, cache invalidation rule, editor resolver), update `docs/api.md` viewer-markdown section; run `npm run typecheck && npm run lint && WN_TEST_PG_URL=… npm run test:coverage && npm run build`.
+- [x] 7. Docs and wrap-up: `docs/architecture.md` (reader existence pass, cache invalidation rule, editor resolver), update `docs/api.md` viewer-markdown section; run `npm run typecheck && npm run lint && WN_TEST_PG_URL=… npm run test:coverage && npm run build`.
 
 ## Risks & open questions
 
