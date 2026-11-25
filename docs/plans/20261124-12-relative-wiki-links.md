@@ -5,7 +5,7 @@ type: feature
 branch: feature/12-relative-wiki-links
 status: filed
 created: 2026-11-24
-pr: ""
+pr: "https://github.com/AlexMason/worldnotes/pull/14"
 ---
 
 # Resolve relative wiki links against the current page
