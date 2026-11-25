@@ -20,6 +20,7 @@ import { renderInlineContent } from './renderer'
 import type { NotificationSystem } from './notifications'
 import type { ToastOptions } from './types'
 import { syncLinkExistence } from './link-existence-sync'
+import { createPageMover } from './editor-page-move'
 import { classifyLinkTarget, isSafeHref } from '../shared/url-policy'
 
 export interface EditorLifecycleAPI {
@@ -49,35 +50,86 @@ export function createEditorLifecycle(
     const saveDebounce = options.saveDebounceMs ?? 600
     const buffers = state.getPageBuffers()
 
+    // Save bookkeeping for flushSaves (page moves must not race a save):
+    // the page a pending debounce will save, and every save still in flight
+    // (each resolving to whether it succeeded).
+    let pendingSavePage: string | null = null
+    const inflightSaves = new Set<Promise<boolean>>()
+
     /**
      * Immediate save (Ctrl+S path) + the debounced timer's body. `page` is
      * passed by the debounce scheduler (captured at SCHEDULE time); omitting
-     * it saves the page under the cursor.
+     * it saves the page under the cursor. Resolves false when the save failed.
      */
-    async function saveNow(page?: string): Promise<void> {
+    async function saveNow(page?: string): Promise<boolean> {
       state.clearSaveTimer()
+      pendingSavePage = null
       const target = page ?? state.getCurrentPage()
+      // A page the editor no longer holds (re-keyed by a move) has nothing to
+      // save — and its '' would read as a blank save, which DELETES the page.
+      if (!buffers.hasPage(target)) return true
       const content = buffers.getPageText(target)
+      const run = (async () => {
+        try {
+          await pageStore.save(target, content)
+          options.onSave?.(target, content)
+          return true
+        } catch (e) {
+          console.error('worldnotes: page save failed', e)
+          notifications.notify({ message: 'Failed to save page', type: 'error' })
+          return false
+        }
+      })()
+      inflightSaves.add(run)
       try {
-        await pageStore.save(target, content)
-        options.onSave?.(target, content)
-      } catch (e) {
-        console.error('worldnotes: page save failed', e)
-        notifications.notify({ message: 'Failed to save page', type: 'error' })
+        return await run
+      } finally {
+        inflightSaves.delete(run)
       }
     }
 
-    const saveDebounced = (): void => {
+    function scheduleSave(page: string): void {
       state.clearSaveTimer()
-      // Capture the page at SCHEDULE time: the timer may fire after the user
-      // has navigated (a link click ~500ms after typing). Reading
-      // getCurrentPage() at FIRE time would persist the destination page's
-      // seeded buffer — creating a page the user never typed into — and the
-      // originating page's edits would never be saved.
-      const page = state.getCurrentPage()
+      pendingSavePage = page
       const timer = setTimeout(() => void saveNow(page), saveDebounce)
       state.setSaveTimer(timer)
     }
+
+    // Capture the page at SCHEDULE time: the timer may fire after the user
+    // has navigated (a link click ~500ms after typing). Reading
+    // getCurrentPage() at FIRE time would persist the destination page's
+    // seeded buffer — creating a page the user never typed into — and the
+    // originating page's edits would never be saved.
+    const saveDebounced = (): void => scheduleSave(state.getCurrentPage())
+
+    /**
+     * Run a pending debounced save now, then wait for every save in flight.
+     * Resolves false when any of them failed (unsaved edits remain).
+     */
+    async function flushSaves(): Promise<boolean> {
+      let ok = pendingSavePage === null || (await saveNow(pendingSavePage))
+      while (inflightSaves.size > 0) {
+        const results = await Promise.all([...inflightSaves])
+        ok = ok && results.every(Boolean)
+      }
+      return ok
+    }
+
+    /** A page was re-keyed by a move: a save still pending for it follows. */
+    function retargetSave(from: string, to: string): void {
+      if (pendingSavePage === from) scheduleSave(to)
+    }
+
+    const mover = createPageMover({
+      state,
+      pageStore,
+      render,
+      notifications,
+      options,
+      flushSaves,
+      retargetSave,
+    })
+    if (mover.canMove()) render.setMoveHandler((to) => mover.movePage(to))
 
     // ── Model commits (keymap ops, selection edits, plain-key fallbacks) ──
     // Plugins' onUpdate follows every commit render, like the input path.
@@ -635,6 +687,14 @@ export function createEditorLifecycle(
 
       dismiss(toastId: string): void {
         notifications.dismiss(toastId)
+      },
+
+      pageMoved(from: string, to: string): void {
+        mover.pageMoved(from, to)
+      },
+
+      beginMovePage(): void {
+        render.openMoveField()
       },
     }
   }

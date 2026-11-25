@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createMemoryPagesRepository } from '../db/pages-memory'
+import { describeMoveContract } from './helpers/move-contract'
 
 function page(
   slug: string,
@@ -118,3 +119,5 @@ describe('memory PagesRepository.existing', () => {
     expect([...(await repo.existing(['a', 'nope']))]).toEqual(['nope'])
   })
 })
+
+describeMoveContract('memory PagesRepository', () => createMemoryPagesRepository())

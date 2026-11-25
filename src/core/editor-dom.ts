@@ -102,6 +102,29 @@ const EDITOR_CHROME_CSS = `
 }
 .wn-crumb:hover { color: var(--wn-color-crumb-hover, var(--wn-color-accent, #1a5fb4)); }
 .wn-crumb--active { color: var(--wn-color-crumb-current, var(--wn-color-fg, #23211d)); cursor: default; }
+/* The current page's crumb opens the inline move field when moves are supported. */
+.wn-crumb--active.wn-crumb--editable { cursor: text; }
+.wn-crumb--active.wn-crumb--editable:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
+
+/* Inline page-move field (replaces the breadcrumb while editing the address) */
+.wn-move { display: flex; align-items: center; gap: .35rem; flex: 1 1 auto; min-width: 0; }
+.wn-move-prefix { color: var(--wn-color-crumb, var(--wn-color-fg-muted, #6f6a61)); flex: 0 0 auto; }
+.wn-move-input {
+  flex: 1 1 16ch; min-width: 8ch; max-width: 48ch;
+  font: inherit;
+  color: var(--wn-color-input-fg, var(--wn-color-fg, #23211d));
+  background: var(--wn-move-input-bg, var(--wn-color-input-bg, var(--wn-color-bg, #fff)));
+  border: 1px solid var(--wn-move-input-border, var(--wn-color-input-border, var(--wn-color-border, #e3ded4)));
+  border-radius: var(--wn-radius-control, 6px);
+  padding: var(--wn-padding-input, .35em .6em);
+}
+.wn-move-input[aria-invalid="true"] { border-color: var(--wn-move-error-color, #b3261e); }
+.wn-move-msg {
+  flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--wn-color-fg-muted, #6f6a61);
+  font-size: var(--wn-font-size-small, 14px);
+}
+.wn-move-msg--error { color: var(--wn-move-error-color, #b3261e); }
 
 .wn-crumb-sep {
   color: var(--wn-color-crumb, var(--wn-color-fg-muted, #6f6a61));

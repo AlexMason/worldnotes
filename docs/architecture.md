@@ -289,10 +289,11 @@ Public, no query strings anywhere:
 | `GET /search`, `GET /search/{terms}`                      | search form + ILIKE results                                                                                | anon ok                         |
 | `GET /admin`                                              | settings form (search, home page, branding, access, Users; bands omitted)                                  | admins (`403` HTML for others)  |
 | `GET /edit`, `GET /edit/{slug}`                           | legacy 302s → `/`, `/{slug}`                                                                               | —                               |
-| `GET /{slug}` (catch-all, last)                           | editor shell (editor\|admin) / SSR article (viewer/anon); miss → 404 document (customizable)               | mixed (anon reads gate)         |
-| `GET /api/pages`, `GET /api/pages/{slug}`                 | JSON reads + ETags                                                                                         | anon ok (403 when login-only)   |
+| `GET /{slug}` (catch-all, last)                           | editor shell (editor\|admin) / SSR article (viewer/anon); former slug → 301 to the current one; miss → 404 document (customizable) | mixed (anon reads gate)         |
+| `GET /api/pages`, `GET /api/pages/{slug}`                 | JSON reads + ETags (former slug → 301)                                                                     | anon ok (403 when login-only)   |
 | `GET /api/pages-exist?slugs=a,b`                          | batched existence lookup (≤100 slugs) for the editor's missing-link styling; outside `/api/pages/*` so the slug wildcard cannot claim it | anon ok (403 when login-only)   |
-| `POST/PUT/DELETE /api/pages[/{slug}]`                     | writes; `requireSameOrigin` + `requireRole(editor,admin)`                                                  | editors                         |
+| `POST/PUT/DELETE /api/pages[/{slug}]`                     | writes; `requireSameOrigin` + `requireRole(editor,admin)`; former slug → 409 `{movedTo}`                   | editors                         |
+| `POST /api/page-moves`                                    | move a page + subtree, rewrite links, leave aliases; outside `/api/pages/*` (see Page moves)               | editors                         |
 | `PUT /api/settings`                                       | instance settings write; `requireSameOrigin` + `requireRole(admin)`                                        | admins                          |
 | `GET/POST /api/themes`, `GET/PUT/DELETE /api/themes/{id}` | theme gallery CRUD (409 deleting the active theme); `requireRole(admin)` (+ `requireSameOrigin` on writes) | admins                          |
 | `PUT /api/users/role`                                     | guarded role change; **strict** Origin (no Origin-less pass)                                               | admins                          |
@@ -310,6 +311,64 @@ no parent must exist; breadcrumbs derive from segments. First segments
 `api, oidc, edit, search, assets, static, healthz, favicon.ico, icons, media,
 all, admin`
 are reserved.
+
+### Page moves
+
+A page keeps its identity (`pages.id`) when its slug changes. `POST
+/api/page-moves` (`routes/pages-api.ts`) relocates a page **and its
+subtree** in one `PagesRepository.move` call — on Postgres a single
+transaction under `pg_try_advisory_xact_lock('wnmv')` (a second concurrent
+move answers "busy" instead of queueing on a pool connection) with `FOR
+UPDATE` on the moved rows and every row whose content contains `[` (planning
+shared with the memory repo in `db/page-move.ts`). Inside it:
+
+- **Links are rewritten through the ONE engine.** `src/core/link-rewrite.ts`
+  (DOM-free) walks `buildDocument` output — fence lines stay verbatim — and
+  asks the link plugins' `rewriteLink` hook (`wikiLink.ts`, `link.ts`; the
+  grammar never leaves the plugins). Container plugins are not special-cased:
+  their `renderToHTML` runs with a recording `renderInline`, which reveals
+  exactly the inner text the engine treats as inline markdown, and rewritten
+  inner text is spliced back into the token raw (an unlocatable splice keeps
+  the token byte-exact). Rewritten targets keep their author's style
+  (`styleLinkPath`/`rewriteWikiTarget` in `shared/slug.ts`); a link is
+  rewritten only when it pointed at a moved page and no longer resolves to
+  its new slug, so relative links inside the moved subtree stay untouched.
+- **Aliases.** Every old slug gets a `page_aliases` row pointing at the page
+  id (no redirect chains; cascade on delete; a move onto an alias reclaims
+  it). Page and alias slugs are kept disjoint by the repository. The read path
+  301s aliases (`pages-html.ts` `redirectIfMoved`, before the editor shell
+  could seed a page over one); the JSON API 301s reads and answers writes
+  `409 {movedTo}` — never 404, because the edit client's 404 → recreate path
+  would resurrect the old page. `existing()` counts aliases, so links to
+  them never render as missing.
+- **Settings follow** the page (`homeSlug`, `navSlug`, `notFoundSlug`,
+  `forbiddenSlug`) right after the transaction commits, judged against the
+  settings as they are then; `onWrite(…, 'moved')` clears the render cache
+  first (existence changed for two slugs), so a failing settings write — logged,
+  move still 200 — cannot leave stale reader HTML. An anonymous `/` whose home
+  setting still names a former slug redirects like any alias.
+
+Editor side: the current page's breadcrumb crumb (or "Move page…" in the
+header menu, `chrome.ts`) opens `core/page-move-field.ts` in place of the
+breadcrumb — input folded like a wiki target, inline slug-policy errors, Enter
+moves, Escape/blur cancels. `core/editor-page-move.ts` then **flushes the
+pending and in-flight saves first** (`editor-lifecycle.ts` `flushSaves`; the
+debounced save captures its page at schedule time and would otherwise land
+on the old slug) and refuses to move when that flush failed. It calls the
+optional `PageStore.move`, re-keys moved buffers (undo history kept,
+`PageBuffers.renamePage`) **together with any save still pending for them**
+(`retargetSave` — text typed while the move was in flight is saved under the
+new slug; `saveNow` never saves a page the editor no longer holds, whose
+empty text would read as a deleting blank save), drops buffers of rewritten
+pages, reloads the current page if its own text was rewritten and nothing was
+typed during the move, moves the trail, and fires `onPageMoved` BEFORE
+repainting — so `main.ts` replaces the URL and `onTrailChange` never pushes a
+history entry. A move made elsewhere
+reaches a stale tab as a save answered `409 {movedTo}`: `ApiPageStore`
+re-keys its version, retries once at the new slug and reports `onMoved`
+(→ `EditorInstance.pageMoved`). Navigation follows known/learned aliases via
+`PageStore.canonicalOf`. Moving the configured home page reloads the editor
+(its `homeSlug` option is static).
 
 ## Auth
 
@@ -382,11 +441,14 @@ content, version, created_at, updated_at, updated_by)` + index on
 `updated_at DESC` and seeds the `home` page (fixed in `002` to store real
 newlines); `003_settings.sql` adds a `settings(key PK, value, updated_at,
 updated_by)` key/value table for instance settings; `006_themes.sql` adds
-`themes(id, name UNIQUE, description, css ≤ 64 KiB, timestamps)`.
+`themes(id, name UNIQUE, description, css ≤ 64 KiB, timestamps)`;
+`007_page_aliases.sql` adds `page_aliases(slug PK CHECK, page_id → pages.id
+ON DELETE CASCADE)` — former slugs of moved pages.
 `PagesRepository`,
 `SettingsRepository` and `ThemesRepository` each have two implementations (`-pg` production, `-memory`
 tests); route tests run against memory, CI also runs the pg suite against a
-service container (`WN_TEST_PG_URL`).
+service container (`WN_TEST_PG_URL`). The page-move contract runs against
+both (`__tests__/helpers/move-contract.ts`).
 
 ## Test projects
 

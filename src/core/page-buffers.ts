@@ -32,6 +32,10 @@ export interface PageBuffers {
   canRedo(page: string): boolean
   /** Discard undo/redo state for a page (e.g. after persisting a save). */
   clearHistory(page: string): void
+  /** Re-key a page (content AND undo history) after a page move; no-op when absent. */
+  renamePage(from: string, to: string): void
+  /** Forget a page entirely (content + history), e.g. after a server-side rewrite. */
+  dropPage(page: string): void
 }
 
 export function createPageBuffers(
@@ -105,6 +109,21 @@ export function createPageBuffers(
     },
 
     clearHistory(page) {
+      histories.delete(page)
+    },
+
+    renamePage(from, to) {
+      if (from === to || !contents.has(from)) return
+      contents.set(to, contents.get(from)!)
+      contents.delete(from)
+      const history = histories.get(from)
+      histories.delete(from)
+      if (history) histories.set(to, history)
+      else histories.delete(to)
+    },
+
+    dropPage(page) {
+      contents.delete(page)
       histories.delete(page)
     },
   }

@@ -1,6 +1,12 @@
-import type { ContentPlugin, Token, EditorContext, StaticRenderContext } from '../types'
+import type {
+  ContentPlugin,
+  Token,
+  EditorContext,
+  StaticRenderContext,
+  LinkRewriteContext,
+} from '../types'
 import { isSafeHref, classifyLinkTarget } from '../../shared/url-policy'
-import { wikiTargetToSlug } from '../../shared/slug'
+import { styleLinkPath, wikiTargetToSlug } from '../../shared/slug'
 import { wikiLinkClass } from './link-class'
 import { escapeHTML, escapeAttr } from '../escape'
 
@@ -98,5 +104,23 @@ export const linkPlugin: ContentPlugin = {
     if (classifyLinkTarget(url) !== 'internal') return false
     context.navigate(url)
     return true // suppress default — we handle navigation
+  },
+
+  // Page moves: internal targets keep root semantics (no link base), so only
+  // the target page's move matters. The link text and the author's choice of
+  // a leading `/` are kept; humanized style never introduces whitespace into
+  // an href that had none (`/Blog/First-Post` stays URL-shaped).
+  rewriteLink(token: Token, context: LinkRewriteContext): string | null {
+    const text = token.groups[0] ?? ''
+    const url = token.groups[1] ?? ''
+    if (classifyLinkTarget(url) !== 'internal') return null
+    const slug = wikiTargetToSlug(url)
+    if (slug === null) return null
+    const newSlug = context.moved(slug)
+    if (newSlug === undefined) return null
+    const lead = url.trim().startsWith('/') ? '/' : ''
+    const styled = styleLinkPath(url, newSlug)
+    const path = /\s/.test(styled) && !/\s/.test(url) ? newSlug : styled
+    return `[${text}](${lead}${path})`
   },
 }

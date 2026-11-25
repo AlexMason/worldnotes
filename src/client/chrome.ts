@@ -12,12 +12,15 @@ import type { ApiPageStoreEvents } from './api-page-store'
  * Populate `.wn-actions` — mirrors the viewer chrome. No login affordance:
  * sign-in is a known route. `navigate` receives a slug for internal nav links
  * (SPA navigation keeps the debounced autosave buffer — the sanctioned
- * divergence for in-wiki links on the edit surface).
+ * divergence for in-wiki links on the edit surface). `onMovePage`, when
+ * given, adds "Move page…" (opens the inline move field in the breadcrumb —
+ * the same field the current page's crumb opens).
  */
 export function mountHeaderActions(
   container: HTMLElement,
   cfg: EditorShellConfig,
   navigate: (slug: string) => void,
+  onMovePage?: () => void,
 ): void {
   const actions = container.querySelector('.wn-actions')
   if (!actions) return
@@ -44,6 +47,18 @@ export function mountHeaderActions(
     all.href = '/all'
     all.textContent = 'All pages'
     actions.appendChild(all)
+  }
+  if (onMovePage) {
+    const move = document.createElement('a')
+    move.href = '#'
+    move.setAttribute('role', 'button')
+    move.className = 'wn-action-move'
+    move.textContent = 'Move page…'
+    move.addEventListener('click', (e) => {
+      e.preventDefault()
+      onMovePage()
+    })
+    actions.appendChild(move)
   }
   // Role-gated chrome: the Admin link is for admins only (absent role in
   // a fallback/legacy config = least privilege — no link).
@@ -105,6 +120,8 @@ export function createStoreEvents(
     loadServerContent(content: string): void
     /** A blank save deleted the page (link-state bookkeeping etc.). */
     onDeleted?(page: string): void
+    /** The page was moved elsewhere; a save followed it (re-key the surface). */
+    onMoved?(from: string, to: string): void
   },
 ): ApiPageStoreEvents {
   return {
@@ -119,6 +136,9 @@ export function createStoreEvents(
       host()?.dismiss('wn-save')
       host()?.notify({ id: 'wn-save', message: 'Page deleted', type: 'warning', duration: 2500 })
       hooks.onDeleted?.(page)
+    },
+    onMoved(from, to) {
+      hooks.onMoved?.(from, to)
     },
     onAuthLost() {
       const target = encodeURIComponent(window.location.pathname)

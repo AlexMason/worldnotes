@@ -118,13 +118,30 @@ export interface DocModel {
  *
  * Replaces the former StorageAdapter + Yjs-bridge persistence model.
  *
- * @method load - Fetch raw Markdown for a page; null when it does not exist
- * @method save - Persist raw Markdown for a page (whole-document write)
+ * @method load        - Fetch raw Markdown for a page; null when it does not exist
+ * @method save        - Persist raw Markdown for a page (whole-document write)
+ * @method move        - Optional: move a page (and its subtree) to a new slug,
+ *                       rewriting links everywhere. Without it the editor
+ *                       offers no move affordance.
+ * @method canonicalOf - Optional: the page a `load(page)` actually landed on
+ *                       (a moved page's former slug resolves to its current
+ *                       one); identity when unknown.
  */
 export interface PageStore {
   load(page: string): Promise<string | null>
   save(page: string, content: string): Promise<void>
+  move?(from: string, to: string): Promise<PageMoveResult>
+  canonicalOf?(page: string): string
 }
+
+/**
+ * Outcome of `PageStore.move`. `moved` lists every relocated page (the page
+ * itself first, then its subtree); `rewritten` the NEW slugs of pages whose
+ * content changed because their links were rewritten.
+ */
+export type PageMoveResult =
+  | { ok: true; moved: { from: string; to: string }[]; rewritten: string[] }
+  | { ok: false; error: string }
 
 // ─── Page Existence ──────────────────────────────────────────────────────────
 
@@ -199,6 +216,21 @@ export interface StaticRenderContext extends LinkContext {
   renderInline(text: string): string
 }
 
+/**
+ * Context for rewriting link SOURCE when pages move (src/core/link-rewrite.ts).
+ * The linking page itself may be moving, so its link base is given both
+ * before and after the move.
+ *
+ * @property oldBase - Link base of the linking page before the move (wikiLinkBase)
+ * @property newBase - Link base of the linking page after the move
+ * @method   moved   - New slug of a moved page; undefined when `slug` did not move
+ */
+export interface LinkRewriteContext {
+  oldBase: string | null
+  newBase: string | null
+  moved(slug: string): string | undefined
+}
+
 // ─── Plugin Lifecycle ──────────────────────────────────────────────────────────
 
 /**
@@ -259,6 +291,12 @@ export interface ContentPlugin extends PluginLifecycle {
    * @returns       - HTML string representation of the token
    */
   renderToHTML?(token: Token, context: StaticRenderContext): string
+  /**
+   * Optional (link plugins only): source rewrite for page moves. Returns the
+   * token's replacement raw markdown, or null to keep it unchanged. Grammar
+   * stays here — the generic walker never parses link syntax itself.
+   */
+  rewriteLink?(token: Token, context: LinkRewriteContext): string | null
 }
 
 // ─── UI Plugin ─────────────────────────────────────────────────────────────────
@@ -371,6 +409,13 @@ export interface EditorOptions {
   onTrailChange?: (trail: string[]) => void
   onPageLoad?: (page: string, content: string) => void
   onSave?: (page: string, content: string) => void
+  /**
+   * The current page moved (this editor's own move, or a store-detected move
+   * from elsewhere when `result` is absent). Fires BEFORE the breadcrumb
+   * repaints, so `onTrailChange` already sees the page at its new slug —
+   * hosts update their URL (replaceState) and bookkeeping here.
+   */
+  onPageMoved?: (from: string, to: string, result?: PageMoveResult) => void
 }
 
 // ─── Toast Notifications ─────────────────────────────────────────────────────
@@ -466,4 +511,14 @@ export interface EditorInstance {
   notify(options: ToastOptions): string
   /** Dismiss a specific toast by ID. */
   dismiss(toastId: string): void
+  /**
+   * The store learned that `from` was moved to `to` elsewhere (another tab or
+   * editor): re-key it, and follow it when it is the current page.
+   */
+  pageMoved(from: string, to: string): void
+  /**
+   * Open the inline "move page" field in the breadcrumb (the same field the
+   * active crumb opens). No-op when the page store cannot move pages.
+   */
+  beginMovePage(): void
 }

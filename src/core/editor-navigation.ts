@@ -119,16 +119,31 @@ export function createEditorNavigation(
     // and current page stay consistent. Seeding here also means loadPage
     // never re-fetches: one GET per navigation, even for new pages.
     const buffers = state.getPageBuffers()
-    if (!buffers.hasPage(canonical)) {
-      const stored = await pageStore.load(canonical)
-      buffers.setPageText(canonical, stored !== null ? stored : seedFor(canonical))
-      // Loaded/seeded state is the undo baseline — undo never goes back to
-      // the empty pre-load buffer.
-      buffers.clearHistory(canonical)
+    // Moved pages: a former slug is followed to where the page lives now —
+    // known up front (the store saw the move), or learned from the load
+    // (the server redirected it). One page, one buffer key.
+    let target = pageStore.canonicalOf?.(canonical) ?? canonical
+    if (!buffers.hasPage(target)) {
+      const stored = await pageStore.load(target)
+      target = pageStore.canonicalOf?.(target) ?? target
+      if (!buffers.hasPage(target)) {
+        buffers.setPageText(target, stored !== null ? stored : seedFor(target))
+        // Loaded/seeded state is the undo baseline — undo never goes back to
+        // the empty pre-load buffer.
+        buffers.clearHistory(target)
+      }
+    }
+    if (target !== canonical) {
+      notifications?.notify({
+        id: 'wn-nav',
+        message: `/${canonical} moved to /${target}`,
+        type: 'info',
+        duration: 3000,
+      })
     }
 
-    applyTrailNavigation(state, canonical)
-    await loadPage(canonical)
+    applyTrailNavigation(state, target)
+    await loadPage(target)
   }
 
   async function loadPage(page: string): Promise<void> {

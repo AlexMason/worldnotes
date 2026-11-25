@@ -11,6 +11,7 @@ import { createPool } from '../db/pool'
 import { createPgPagesRepository } from '../db/pages-pg'
 import { createPgSettingsRepository } from '../db/settings-pg'
 import { migrateWithRetry } from './helpers/migrate'
+import { describeMoveContract, moveInput } from './helpers/move-contract'
 
 const url = process.env.WN_TEST_PG_URL
 const here = dirname(fileURLToPath(import.meta.url))
@@ -128,5 +129,103 @@ describe.skipIf(!url)('PagesRepository on Postgres', () => {
     const found = await repo.existing(['ex/one', 'ex/one', 'ex/ghost', 'ex/two'])
     expect([...found].sort()).toEqual(['ex/one', 'ex/two'])
     expect(await repo.existing([])).toEqual(new Set())
+  })
+})
+
+describe.skipIf(!url)('PagesRepository.move on Postgres', () => {
+  let pool: ReturnType<typeof createPool>
+  let repo: ReturnType<typeof createPgPagesRepository>
+
+  beforeAll(async () => {
+    pool = createPool(url as string)
+    await migrateWithRetry(pool, migrationsDir)
+    repo = createPgPagesRepository(pool)
+  })
+
+  afterAll(async () => {
+    await pool?.end()
+  })
+
+  describeMoveContract(
+    'pg PagesRepository',
+    () => repo,
+    async () => {
+      await pool.query('DELETE FROM pages WHERE slug <> $1', ['home'])
+    },
+  )
+
+  it('a save in flight on a linking page is never lost: the move waits and rewrites it', async () => {
+    await pool.query('DELETE FROM pages WHERE slug <> $1', ['home'])
+    await repo.put('cc/target', { title: 'T', content: 'x' })
+    await repo.put('cc/linker', { title: 'L', content: 'old [[/cc/target]]' })
+
+    // A concurrent writer holds the linker row (an UPDATE mid-transaction).
+    const writer = await pool.connect()
+    try {
+      await writer.query('BEGIN')
+      await writer.query(
+        `UPDATE pages SET content = 'saved [[/cc/target]]', version = version + 1
+          WHERE slug = 'cc/linker'`,
+      )
+      let settled = false
+      const moving = repo.move(moveInput('cc/target', 'cc/moved')).finally(() => {
+        settled = true
+      })
+      await new Promise((r) => setTimeout(r, 150))
+      expect(settled).toBe(false) // blocked on the row lock
+      await writer.query('COMMIT')
+      expect((await moving).ok).toBe(true)
+    } finally {
+      writer.release()
+    }
+    // The committed save was re-read under the lock and rewritten — not lost.
+    expect(await repo.get('cc/linker')).toMatchObject({
+      content: 'saved [[/cc/moved]]',
+      version: 3,
+    })
+  })
+})
+
+describe.skipIf(!url)('PagesRepository.move concurrency on Postgres', () => {
+  let pool: ReturnType<typeof createPool>
+  let repo: ReturnType<typeof createPgPagesRepository>
+
+  beforeAll(async () => {
+    pool = createPool(url as string)
+    await migrateWithRetry(pool, migrationsDir)
+    repo = createPgPagesRepository(pool)
+  })
+
+  afterAll(async () => {
+    await pool?.end()
+  })
+
+  it('a move never queues behind another move: it answers busy and changes nothing', async () => {
+    await pool.query('DELETE FROM pages WHERE slug <> $1', ['home'])
+    await repo.put('busy/a', { title: 'A', content: 'x' })
+    const other = await pool.connect()
+    try {
+      await other.query('BEGIN')
+      await other.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['wnmv'])
+      expect(await repo.move(moveInput('busy/a', 'busy/b'))).toEqual({ ok: false, reason: 'busy' })
+      await other.query('COMMIT')
+    } finally {
+      other.release()
+    }
+    expect(await repo.get('busy/a')).not.toBeNull()
+  })
+
+  it('moves of missing slugs never hold a second pool connection (no pool exhaustion)', async () => {
+    // A pool of 1: a nested checkout inside move would wait forever.
+    const tiny = new (await import('pg')).default.Pool({ connectionString: url, max: 1 })
+    try {
+      const tinyRepo = createPgPagesRepository(tiny)
+      await expect(tinyRepo.move(moveInput('nope/nope', 'x'))).resolves.toEqual({
+        ok: false,
+        reason: 'missing',
+      })
+    } finally {
+      await tiny.end()
+    }
   })
 })

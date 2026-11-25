@@ -1,21 +1,45 @@
 // ─── In-memory PagesRepository ───────────────────────────────────────────────
 // Mirrors the Postgres semantics (version bump per write, If-Match conflict,
-// case-sensitive unique slug) so tests exercise the real contract.
+// case-sensitive unique slug, aliases pointing at a stable page id) so tests
+// exercise the real contract.
 
 import type {
   CreateResult,
   DeleteResult,
+  MoveResult,
   PageListItem,
   PageRecord,
   PagesRepository,
   PutResult,
 } from './repository'
+import { computeRowUpdates, moveSuccess, planMove } from './page-move'
 
 export function createMemoryPagesRepository(
   seed: PageRecord[] = [],
 ): PagesRepository & { dump(): PageRecord[] } {
   const pages = new Map<string, PageRecord>()
-  for (const page of seed) pages.set(page.slug, { ...page })
+  // Stable page identity (pages.id): survives moves, owns aliases.
+  const ids = new Map<string, number>()
+  const aliases = new Map<string, number>()
+  let nextId = 1
+
+  function slugOfId(id: number): string | null {
+    for (const [slug, pageId] of ids) if (pageId === id) return slug
+    return null
+  }
+
+  function resolveAlias(slug: string): string | null {
+    const id = aliases.get(slug)
+    return id === undefined ? null : slugOfId(id)
+  }
+
+  function remove(slug: string): boolean {
+    const id = ids.get(slug)
+    if (!pages.delete(slug)) return false
+    ids.delete(slug)
+    for (const [alias, pageId] of aliases) if (pageId === id) aliases.delete(alias)
+    return true
+  }
 
   function snapshot(slug: string, title: string, content: string, by: string | null): PageRecord {
     const prev = pages.get(slug)
@@ -27,8 +51,14 @@ export function createMemoryPagesRepository(
       updatedAt: Date.now(),
       updatedBy: by,
     }
+    if (!ids.has(slug)) ids.set(slug, nextId++)
     pages.set(slug, record)
     return { ...record }
+  }
+
+  for (const page of seed) {
+    pages.set(page.slug, { ...page })
+    ids.set(page.slug, nextId++)
   }
 
   return {
@@ -38,7 +68,59 @@ export function createMemoryPagesRepository(
     },
 
     async existing(slugs) {
-      return new Set(slugs.filter((slug) => pages.has(slug)))
+      return new Set(slugs.filter((slug) => pages.has(slug) || aliases.has(slug)))
+    },
+
+    async resolveAlias(slug) {
+      return resolveAlias(slug)
+    },
+
+    async move({ from, to, by = null, validate, rewrite }): Promise<MoveResult> {
+      const subtree = [...pages.keys()]
+        .filter((slug) => slug === from || slug.startsWith(`${from}/`))
+        .sort()
+      if (!pages.has(from)) {
+        const current = resolveAlias(from)
+        return current === null
+          ? { ok: false, reason: 'missing' }
+          : { ok: false, reason: 'moved', to: current }
+      }
+      const plan = planMove(from, to, subtree, validate)
+      if (!plan.ok) return plan
+      const sources = new Set(subtree)
+      for (const target of plan.moved.values()) {
+        if (pages.has(target) && !sources.has(target))
+          return { ok: false, reason: 'taken', slug: target }
+      }
+
+      const rows = [...pages.values()].filter((p) => sources.has(p.slug) || p.content.includes('['))
+      const updates = computeRowUpdates(rows, plan.moved, rewrite)
+      // Apply: detach every moving row first, then re-insert under its new slug
+      // (targets never collide with sources — planMove refused overlaps).
+      const staged = updates.map((u) => ({
+        u,
+        prev: pages.get(u.oldSlug)!,
+        id: ids.get(u.oldSlug)!,
+      }))
+      for (const { u } of staged) {
+        pages.delete(u.oldSlug)
+        ids.delete(u.oldSlug)
+      }
+      const now = Date.now()
+      for (const { u, prev, id } of staged) {
+        pages.set(u.newSlug, {
+          slug: u.newSlug,
+          title: u.title,
+          content: u.content,
+          version: prev.version + (u.contentChanged ? 1 : 0),
+          updatedAt: now,
+          updatedBy: by,
+        })
+        ids.set(u.newSlug, id)
+      }
+      for (const target of plan.moved.values()) aliases.delete(target)
+      for (const [oldSlug, newSlug] of plan.moved) aliases.set(oldSlug, ids.get(newSlug)!)
+      return moveSuccess(plan.moved, updates)
     },
 
     async list(opts = {}) {
@@ -92,16 +174,18 @@ export function createMemoryPagesRepository(
           reason: 'conflict',
           current: { version: prev.version, updatedAt: prev.updatedAt },
         }
-      pages.delete(slug)
+      remove(slug)
       return { ok: true }
     },
 
     async delete(slug) {
-      return pages.delete(slug)
+      return remove(slug)
     },
 
     async destroy() {
       pages.clear()
+      ids.clear()
+      aliases.clear()
     },
 
     dump() {

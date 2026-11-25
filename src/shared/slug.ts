@@ -143,3 +143,54 @@ export function slugDisplayName(slug: string): string {
     .map((word) => (word ? word[0]!.toUpperCase() + word.slice(1) : word))
     .join(' ')
 }
+
+// ─── Page moves ──────────────────────────────────────────────────────────────
+// A move relocates a page AND its subtree (`alpha` → `gamma` also moves
+// `alpha/x` → `gamma/x`); links that pointed at moved pages are rewritten in
+// the style their author wrote them (see plugins' `rewriteLink`).
+
+/**
+ * `slug` relocated by moving `from` → `to`, or null when `slug` is outside
+ * `from`'s subtree. Prefix matching is segment-aware: moving `alpha` never
+ * touches `alpha-x`.
+ */
+export function relocateSlug(slug: string, from: string, to: string): string | null {
+  if (slug === from) return to
+  if (slug.startsWith(`${from}/`)) return `${to}${slug.slice(from.length)}`
+  return null
+}
+
+/**
+ * `slugPath` written in the style of the link text `original`: a slug-cased
+ * original (`projects/acme`) gets the slug itself; anything else
+ * (`Projects/Acme`) gets humanized segments (`Clients/Acme Corp`) — only when
+ * they fold back to exactly `slugPath`, so a rewritten link can never point
+ * somewhere else than intended.
+ */
+export function styleLinkPath(original: string, slugPath: string): string {
+  const segments = original.trim().split('/').filter(Boolean)
+  const last = segments[segments.length - 1] ?? ''
+  if (last === '' || last === slugify(last)) return slugPath
+  const humanized = slugPath.split('/').map(slugDisplayName).join('/')
+  return slugify(humanized) === slugPath ? humanized : slugPath
+}
+
+/**
+ * Wiki-link target text for a link (originally `original`) whose page now
+ * lives at `newSlug`, written on a page whose link base is `newBase` (see
+ * wikiLinkBase). A relative original stays relative while the target is still
+ * under the base; otherwise — and for absolute originals — it becomes
+ * root-absolute `/…`.
+ */
+export function rewriteWikiTarget(
+  original: string,
+  newSlug: string,
+  newBase: string | null,
+): string {
+  const relative = !original.trim().startsWith('/')
+  if (relative && newBase === null) return styleLinkPath(original, newSlug)
+  if (relative && newBase !== null && newSlug.startsWith(`${newBase}/`)) {
+    return styleLinkPath(original, newSlug.slice(newBase.length + 1))
+  }
+  return `/${styleLinkPath(original, newSlug)}`
+}

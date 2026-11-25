@@ -34,11 +34,12 @@ a viewer's write is a 403.
 | Verb                         | Path   | Auth                                                                                                                                                                                     | Notes                                                       |
 | ---------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | `GET /api/pages[?q=&limit=]` | —      | no¹                                                                                                                                                                                      | list/search (ILIKE), newest first, default limit 100        |
-| `GET /api/pages/{slug}`      | —      | no¹                                                                                                                                                                                      | `{slug,title,content,version,updatedAt,updatedBy}` + `ETag` |
-| `GET /api/pages-exist?slugs=a,b/c` | — | no¹ | link-state lookup → `{exists:{"a":true,"b/c":false}}`. ≤100 comma-separated slugs (400 above); invalid/reserved slugs are omitted (unknown); `Cache-Control` like the list. Not under `/api/pages/*`, which would read it as a slug |
-| `POST /api/pages`            | editor | body `{slug, title?, content}` — **content required and non-blank** (400 otherwise); title defaults to the first `#` heading, else humanized slug; 409 on exists                         |
-| `PUT /api/pages/{slug}`      | editor | body `{content, title?}` **requires `If-Match: "<version>"`**; 409 `{current:{version}}` on stale, 428 without header, 404 unknown, 403 viewer. **Blank content DELETES the page** → 204 |
-| `DELETE /api/pages/{slug}`   | editor | 204 / 404 / 403 viewer                                                                                                                                                                   |
+| `GET /api/pages/{slug}`      | —      | no¹                                                                                                                                                                                      | `{slug,title,content,version,updatedAt,updatedBy}` + `ETag`; a **former slug** (alias) answers `301` → `/api/pages/{current}` |
+| `GET /api/pages-exist?slugs=a,b/c` | — | no¹ | link-state lookup → `{exists:{"a":true,"b/c":false}}`. ≤100 comma-separated slugs (400 above); invalid/reserved slugs are omitted (unknown); former slugs (aliases) count as existing; `Cache-Control` like the list. Not under `/api/pages/*`, which would read it as a slug |
+| `POST /api/pages`            | editor | body `{slug, title?, content}` — **content required and non-blank** (400 otherwise); title defaults to the first `#` heading, else humanized slug; 409 on exists; 409 `{movedTo}` on a former slug |
+| `PUT /api/pages/{slug}`      | editor | body `{content, title?}` **requires `If-Match: "<version>"`**; 409 `{current:{version}}` on stale, 428 without header, 404 unknown, 409 `{movedTo}` on a former slug, 403 viewer. **Blank content DELETES the page** → 204 |
+| `DELETE /api/pages/{slug}`   | editor | 204 / 404 / 409 `{movedTo}` on a former slug / 403 viewer                                                                                                                                |
+| `POST /api/page-moves`       | editor | body `{from, to}` — move a page **and its subtree** (see Page moves below) → `200 {moved:[{from,to}], rewritten:[slug], settings:[field]}`                                               |
 
 ¹ Anonymous reads are refused (`403 {error:"login required"}`) while `requireLogin` is set.
 
@@ -85,6 +86,60 @@ navigation instead of being shadowed by a browser-cached "Page not found".
 from a session whose role was demoted to viewer mid-edit answers 403; the
 client surfaces it as "you no longer have edit access" — deliberately without
 a re-login action, since re-authenticating cannot restore a revoked role.
+
+### Page moves
+
+`POST /api/page-moves {from, to}` gives a page a new address. It lives
+outside `/api/pages/*`, whose wildcard would read a `/move` suffix as part of
+a slug. Same guards as other page writes (editor/admin role, same-origin);
+no `If-Match` (the move does not depend on content).
+
+- `to` folds like a wiki-link target (`Clients/Acme Corp` →
+  `clients/acme-corp`), then passes the normal slug policy.
+- The **whole subtree** moves: `projects/acme` → `clients/acme` also moves
+  `projects/acme/*` → `clients/acme/*`.
+- Every internal link in every page that pointed at a moved page is
+  **rewritten** in the same transaction (wiki links and markdown links; never
+  inside code fences, code spans, or text the engine does not render as a
+  link). Rewritten links keep their style: `[[Projects/Acme]]` →
+  `[[Clients/Acme]]`, `[[projects/acme]]` → `[[clients/acme]]`; explicit
+  `|labels` are kept; relative links stay relative while they still can.
+  Relative links inside the moved subtree already follow the move and are
+  not touched.
+- Pages whose content changed get `version + 1`; a slug-only move keeps the
+  version (so a client re-keyed to the new slug can keep saving). Open
+  editors of rewritten pages get the usual 409 conflict on their next save.
+- Instance settings naming a moved page (`homeSlug`, `navSlug`,
+  `notFoundSlug`, `forbiddenSlug`) follow it (`settings` lists the fields
+  changed). Admin header/footer HTML is not rewritten.
+- Every old slug becomes an **alias** of the page. Aliases point at the page
+  itself, so moving again never builds redirect chains; deleting the page
+  drops them; moving a page onto an alias slug reclaims it. Aliases answer
+  `GET /{old}` and `GET /api/pages/{old}` with `301` to the current address
+  (`public, max-age=60` with no stale-while-revalidate, `private` while
+  login-only, behind the login-only gate), and writes with
+  `409 {error:"page moved", movedTo}` — never 404, which an edit client would
+  read as "deleted underneath me" and recreate the old page. A browser may
+  keep following a cached 301 for up to a minute after the page is moved back
+  onto its old slug.
+
+All-or-nothing: on Postgres the move is one transaction, holding row locks
+on the moved pages and every page that could link to them. A concurrent save
+either commits first (and its content is then rewritten by the move) or waits
+and then gets the normal 409 — never lost, never half-applied. Moves never
+queue behind each other: while one runs, another answers 409 (try again).
+Settings follow after the commit (cache invalidation happens first); if that
+settings write fails it is logged, `settings` comes back empty, and the
+move still answers 200.
+
+| Status | Body | When |
+| --- | --- | --- |
+| 200 | `{moved, rewritten, settings}` | moved |
+| 400 | `{error}` / `{error, slug}` | invalid `from`/`to`, same address, moving a page inside itself, a relocated child slug invalid (e.g. over 255 chars) |
+| 404 | `{error}` | `from` is not a page |
+| 409 | `{error, slug}` | a target slug is taken by another page |
+| 409 | `{error:"page moved", movedTo}` | `from` is a former slug |
+| 409 | `{error}` | another move is in progress |
 
 ## Users
 
@@ -317,6 +372,8 @@ already cached publicly-cached stay readable at the cache until they expire
   link by design: authentication is a known route, `GET /oidc/login?returnTo=…`,
   typically bookmarked by operators); the editor seeds a starter and the row
   is created on the first non-blank save — the server never stores blank pages.
+  A **former slug** of a moved page answers `301` to its current address for
+  every role (`max-age=60`; the editor never seeds a page over an alias).
 - `GET /` — the configured home page, else the page index; `GET /all` — the
   page index (+ search box).
 - `GET /search/{terms}` — results (no query strings anywhere on public routes).

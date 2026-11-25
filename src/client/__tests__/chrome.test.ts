@@ -49,6 +49,27 @@ describe('mountHeaderActions', () => {
     expect(ev.defaultPrevented).toBe(true)
     expect(navigate).toHaveBeenCalledExactlyOnceWith('about')
   })
+
+  it('offers "Move page…" only with a move handler, which it calls without navigating', () => {
+    expect(Array.from(actionsFor({}).children).map((c) => c.textContent)).not.toContain(
+      'Move page…',
+    )
+    const container = document.createElement('div')
+    const actions = document.createElement('div')
+    actions.className = 'wn-actions'
+    container.appendChild(actions)
+    const onMovePage = vi.fn()
+    mountHeaderActions(container, { ...BASE, userRole: 'admin' }, vi.fn(), onMovePage)
+    expect(Array.from(actions.children).map((c) => c.textContent)).toEqual([
+      'Move page…',
+      'Admin settings',
+      'Sign out (ada)',
+    ])
+    const ev = new MouseEvent('click', { bubbles: true, cancelable: true })
+    actions.querySelector('.wn-action-move')!.dispatchEvent(ev)
+    expect(ev.defaultPrevented).toBe(true)
+    expect(onMovePage).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('bindPopstate', () => {
