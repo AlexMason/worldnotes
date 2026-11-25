@@ -116,15 +116,21 @@ no `If-Match` (the move does not depend on content).
   itself, so moving again never builds redirect chains; deleting the page
   drops them; moving a page onto an alias slug reclaims it. Aliases answer
   `GET /{old}` and `GET /api/pages/{old}` with `301` to the current address
-  (`max-age=60`, behind the login-only gate), and writes with
+  (`public, max-age=60` with no stale-while-revalidate, `private` while
+  login-only, behind the login-only gate), and writes with
   `409 {error:"page moved", movedTo}` — never 404, which an edit client would
-  read as "deleted underneath me" and recreate the old page.
+  read as "deleted underneath me" and recreate the old page. A browser may
+  keep following a cached 301 for up to a minute after the page is moved back
+  onto its old slug.
 
-All-or-nothing: on Postgres the move is one transaction serialized by an
-advisory lock, holding row locks on the moved pages and every page that
-could link to them. A concurrent save either commits first (and its content
-is then rewritten by the move) or waits and then gets the normal 409 — never
-lost, never half-applied.
+All-or-nothing: on Postgres the move is one transaction, holding row locks
+on the moved pages and every page that could link to them. A concurrent save
+either commits first (and its content is then rewritten by the move) or waits
+and then gets the normal 409 — never lost, never half-applied. Moves never
+queue behind each other: while one runs, another answers 409 (try again).
+Settings follow after the commit (cache invalidation happens first); if that
+settings write fails it is logged, `settings` comes back empty, and the
+move still answers 200.
 
 | Status | Body | When |
 | --- | --- | --- |
@@ -133,6 +139,7 @@ lost, never half-applied.
 | 404 | `{error}` | `from` is not a page |
 | 409 | `{error, slug}` | a target slug is taken by another page |
 | 409 | `{error:"page moved", movedTo}` | `from` is a former slug |
+| 409 | `{error}` | another move is in progress |
 
 ## Users
 

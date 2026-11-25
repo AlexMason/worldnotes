@@ -317,9 +317,10 @@ are reserved.
 A page keeps its identity (`pages.id`) when its slug changes. `POST
 /api/page-moves` (`routes/pages-api.ts`) relocates a page **and its
 subtree** in one `PagesRepository.move` call — on Postgres a single
-transaction under `pg_advisory_xact_lock('wnmv')` with `FOR UPDATE` on the
-moved rows and every row whose content contains `[` (planning shared with
-the memory repo in `db/page-move.ts`). Inside it:
+transaction under `pg_try_advisory_xact_lock('wnmv')` (a second concurrent
+move answers "busy" instead of queueing on a pool connection) with `FOR
+UPDATE` on the moved rows and every row whose content contains `[` (planning
+shared with the memory repo in `db/page-move.ts`). Inside it:
 
 - **Links are rewritten through the ONE engine.** `src/core/link-rewrite.ts`
   (DOM-free) walks `buildDocument` output — fence lines stay verbatim — and
@@ -341,8 +342,11 @@ the memory repo in `db/page-move.ts`). Inside it:
   would resurrect the old page. `existing()` counts aliases, so links to
   them never render as missing.
 - **Settings follow** the page (`homeSlug`, `navSlug`, `notFoundSlug`,
-  `forbiddenSlug`) right after the transaction commits; `onWrite(…, 'moved')`
-  clears the render cache (existence changed for two slugs).
+  `forbiddenSlug`) right after the transaction commits, judged against the
+  settings as they are then; `onWrite(…, 'moved')` clears the render cache
+  first (existence changed for two slugs), so a failing settings write — logged,
+  move still 200 — cannot leave stale reader HTML. An anonymous `/` whose home
+  setting still names a former slug redirects like any alias.
 
 Editor side: the current page's breadcrumb crumb (or "Move page…" in the
 header menu, `chrome.ts`) opens `core/page-move-field.ts` in place of the
@@ -350,11 +354,16 @@ breadcrumb — input folded like a wiki target, inline slug-policy errors, Enter
 moves, Escape/blur cancels. `core/editor-page-move.ts` then **flushes the
 pending and in-flight saves first** (`editor-lifecycle.ts` `flushSaves`; the
 debounced save captures its page at schedule time and would otherwise land
-on the old slug), calls the optional `PageStore.move`, re-keys moved buffers
-(undo history kept, `PageBuffers.renamePage`), drops buffers of rewritten
-pages, reloads the current page if its own text was rewritten, moves the
-trail, and fires `onPageMoved` BEFORE repainting — so `main.ts` replaces the
-URL and `onTrailChange` never pushes a history entry. A move made elsewhere
+on the old slug) and refuses to move when that flush failed. It calls the
+optional `PageStore.move`, re-keys moved buffers (undo history kept,
+`PageBuffers.renamePage`) **together with any save still pending for them**
+(`retargetSave` — text typed while the move was in flight is saved under the
+new slug; `saveNow` never saves a page the editor no longer holds, whose
+empty text would read as a deleting blank save), drops buffers of rewritten
+pages, reloads the current page if its own text was rewritten and nothing was
+typed during the move, moves the trail, and fires `onPageMoved` BEFORE
+repainting — so `main.ts` replaces the URL and `onTrailChange` never pushes a
+history entry. A move made elsewhere
 reaches a stale tab as a save answered `409 {movedTo}`: `ApiPageStore`
 re-keys its version, retries once at the new slug and reports `onMoved`
 (→ `EditorInstance.pageMoved`). Navigation follows known/learned aliases via
