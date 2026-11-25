@@ -110,6 +110,23 @@ export async function registerPageHtmlRoutes(
       .send(entry.html)
   }
 
+  /**
+   * A missing slug that is a former slug of a moved page: 301 to where the
+   * page lives now (readers and editors alike — the editor must never seed a
+   * new page over an alias). Same short cache window as a page, so a later
+   * reclaim of the alias is picked up within a minute.
+   */
+  async function redirectIfMoved(reply: FastifyReply, slug: string): Promise<FastifyReply | null> {
+    const current = await pages.resolveAlias(slug)
+    if (current === null) return null
+    return reply
+      .code(301)
+      .header('location', pageUrl(current))
+      .header('cache-control', MAX_AGE)
+      .header('vary', 'Cookie')
+      .send()
+  }
+
   function trailFor(slug: string) {
     const crumbs = [{ href: '/', label: 'Home' }]
     const homeSlug = getSettings().homeSlug ?? 'home'
@@ -228,6 +245,10 @@ export async function registerPageHtmlRoutes(
     if (req.user && isEditorialRole(req.user.role)) {
       const settings = getSettings()
       const page = await pages.get(slug)
+      if (!page) {
+        const redirected = await redirectIfMoved(reply, slug)
+        if (redirected) return redirected
+      }
       const linkExists = page
         ? Object.fromEntries(await render.linkExistence(page.content, slug))
         : {}
@@ -265,6 +286,8 @@ export async function registerPageHtmlRoutes(
     } else {
       const page = await pages.get(slug)
       if (!page) {
+        const redirected = await redirectIfMoved(reply, slug)
+        if (redirected) return redirected
         // No login affordance on the anonymous 404 (reader pages ship none
         // by design — docs/api.md; viewers get an "ask an editor" hint).
         const html = await status404(
