@@ -50,6 +50,7 @@ export const SHORTCUT_BINDINGS: ShortcutBinding[] = [
   { group: 'Formatting', keys: 'Ctrl+I', action: 'Italic selection (toggle)' },
   { group: 'Formatting', keys: 'Ctrl+K', action: 'Wrap selection as [link](url)' },
   { group: 'Document', keys: 'Ctrl+S', action: 'Save now' },
+  { group: 'Document', keys: 'Ctrl+Click', action: 'Open an external link in a new tab' },
   { group: 'Document', keys: 'Ctrl+/', action: 'Show / hide this help' },
 ]
 

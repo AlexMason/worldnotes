@@ -41,6 +41,7 @@ into real code.
 | Keys | Action |
 | --- | --- |
 | `Ctrl+S` | Save immediately (flushes the debounced autosave; no browser save dialog) |
+| `Ctrl+Click` (`Cmd+Click` on macOS) | Open an external link (`https:`, `mailto:` …) in a new tab. A plain click still places the caret and expands the line for editing; internal/wiki links navigate in-app on any click; unsafe schemes never open |
 | `Ctrl+/` | Show / hide the in-editor shortcuts overlay (`Escape` also closes) |
 
 ## Behavior notes

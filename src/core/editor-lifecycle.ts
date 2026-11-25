@@ -18,6 +18,8 @@ import { extractContentText } from './content-text'
 import { renderInlineContent } from './renderer'
 import type { NotificationSystem } from './notifications'
 import type { ToastOptions } from './types'
+import { classifyLinkTarget } from './plugins/link'
+import { isSafeHref } from '../shared/url-policy'
 
 export interface EditorLifecycleAPI {
   mount(): Promise<EditorInstance>
@@ -131,6 +133,37 @@ export function createEditorLifecycle(
       saveDebounced()
 
       handlingInput = false
+    })
+
+    // ── Ctrl/Cmd+Click opens external links ─────────────────────────────
+    // A contenteditable root swallows link activation (caret placement
+    // wins), so a plain click keeps entering edit mode and the modifier
+    // click is the explicit "open" gesture. mousedown is cancelled to keep
+    // the caret (and line activation) where it was; the open happens on
+    // click, which also cancels any native activation so a browser that
+    // does honour modifier clicks inside editable content cannot open the
+    // link twice. The href is re-gated here: the plugin already refuses to
+    // mint unsafe anchors, but this handler must not trust the DOM.
+    // Internal links render as spans and keep their onNavigate path.
+
+    const modifiedExternalLink = (e: MouseEvent): string | null => {
+      if (e.button !== 0 || !(e.ctrlKey || e.metaKey)) return null
+      const anchor = e.target instanceof Element ? e.target.closest('a[href]') : null
+      if (!anchor || !dom.editorDiv.contains(anchor)) return null
+      const href = anchor.getAttribute('href') ?? ''
+      if (classifyLinkTarget(href) !== 'external' || !isSafeHref(href)) return null
+      return href
+    }
+
+    dom.editorDiv.addEventListener('mousedown', (e: MouseEvent) => {
+      if (modifiedExternalLink(e) !== null) e.preventDefault()
+    })
+
+    dom.editorDiv.addEventListener('click', (e: MouseEvent) => {
+      const href = modifiedExternalLink(e)
+      if (href === null) return
+      e.preventDefault()
+      window.open(href, '_blank', 'noopener,noreferrer')
     })
 
     // ── Paste handler ──────────────────────────────────────────────────────
