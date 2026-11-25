@@ -4,11 +4,16 @@ import type { SqlPool } from './pool'
 import type {
   CreateResult,
   DeleteResult,
+  MoveResult,
   PageListItem,
   PageRecord,
   PagesRepository,
   PutResult,
 } from './repository'
+import { computeRowUpdates, moveSuccess, planMove } from './page-move'
+
+/** Serializes page moves (advisory xact lock key); saves only take row locks. */
+const MOVE_LOCK_KEY = 'wnmv'
 
 interface Row {
   slug: string
@@ -31,6 +36,14 @@ function toRecord(row: Row): PageRecord {
 }
 
 export function createPgPagesRepository(pool: SqlPool): PagesRepository {
+  async function resolveAlias(slug: string): Promise<string | null> {
+    const res = await pool.query(
+      `SELECT p.slug FROM page_aliases a JOIN pages p ON p.id = a.page_id WHERE a.slug = $1`,
+      [slug],
+    )
+    return (res.rows[0] as { slug: string } | undefined)?.slug ?? null
+  }
+
   return {
     async get(slug) {
       const res = await pool.query(
@@ -42,10 +55,96 @@ export function createPgPagesRepository(pool: SqlPool): PagesRepository {
 
     async existing(slugs) {
       if (slugs.length === 0) return new Set<string>()
-      const res = await pool.query('SELECT slug FROM pages WHERE slug = ANY($1::text[])', [
-        [...new Set(slugs)],
-      ])
+      const res = await pool.query(
+        `SELECT slug FROM pages WHERE slug = ANY($1::text[])
+         UNION SELECT slug FROM page_aliases WHERE slug = ANY($1::text[])`,
+        [[...new Set(slugs)]],
+      )
       return new Set<string>(res.rows.map((r: { slug: string }) => r.slug))
+    },
+
+    resolveAlias,
+
+    async move({ from, to, by = null, validate, rewrite }): Promise<MoveResult> {
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [MOVE_LOCK_KEY])
+        // Slug charset has no LIKE metacharacters (`%`, `_`), so the prefix
+        // pattern is exact.
+        const subtreeRes = await client.query(
+          `SELECT id, slug FROM pages WHERE slug = $1 OR slug LIKE $1 || '/%'
+            ORDER BY id FOR UPDATE`,
+          [from],
+        )
+        const subtreeRows = subtreeRes.rows as { id: string; slug: string }[]
+        if (!subtreeRows.some((r) => r.slug === from)) {
+          await client.query('ROLLBACK')
+          const current = await resolveAlias(from)
+          return current === null
+            ? { ok: false, reason: 'missing' }
+            : { ok: false, reason: 'moved', to: current }
+        }
+        const subtree = subtreeRows.map((r) => r.slug).sort()
+        const plan = planMove(from, to, subtree, validate)
+        if (!plan.ok) {
+          await client.query('ROLLBACK')
+          return plan
+        }
+        const movedIds = subtreeRows.map((r) => r.id)
+        const targets = [...plan.moved.values()]
+        const taken = await client.query(
+          `SELECT slug FROM pages WHERE slug = ANY($1::text[]) AND NOT (id = ANY($2::bigint[]))
+            LIMIT 1`,
+          [targets, movedIds],
+        )
+        if (taken.rows[0]) {
+          await client.query('ROLLBACK')
+          return { ok: false, reason: 'taken', slug: (taken.rows[0] as { slug: string }).slug }
+        }
+
+        // Every row that could link to a moved page (and the moved rows,
+        // whose link base changes) is locked until COMMIT: a concurrent save
+        // waits, then fails its If-Match — never a partial move.
+        const candidates = await client.query(
+          `SELECT id, slug, title, content FROM pages
+            WHERE content LIKE '%[%' OR id = ANY($1::bigint[])
+            ORDER BY id FOR UPDATE`,
+          [movedIds],
+        )
+        const rows = candidates.rows as {
+          id: string
+          slug: string
+          title: string
+          content: string
+        }[]
+        const updates = computeRowUpdates(rows, plan.moved, rewrite)
+        for (const u of updates) {
+          await client.query(
+            `UPDATE pages
+                SET slug = $2, title = $3, content = $4,
+                    version = version + $5, updated_at = now(), updated_by = $6
+              WHERE slug = $1`,
+            [u.oldSlug, u.newSlug, u.title, u.content, u.contentChanged ? 1 : 0, by],
+          )
+        }
+        await client.query('DELETE FROM page_aliases WHERE slug = ANY($1::text[])', [targets])
+        await client.query(
+          `INSERT INTO page_aliases (slug, page_id)
+           SELECT old_slug, p.id
+             FROM unnest($1::text[], $2::text[]) AS m(old_slug, new_slug)
+             JOIN pages p ON p.slug = m.new_slug
+           ON CONFLICT (slug) DO UPDATE SET page_id = EXCLUDED.page_id`,
+          [[...plan.moved.keys()], targets],
+        )
+        await client.query('COMMIT')
+        return moveSuccess(plan.moved, updates)
+      } catch (e) {
+        await client.query('ROLLBACK').catch(() => undefined)
+        throw e
+      } finally {
+        client.release()
+      }
     },
 
     async list(opts = {}) {

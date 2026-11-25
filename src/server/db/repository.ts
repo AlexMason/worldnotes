@@ -31,15 +31,59 @@ export type DeleteResult =
   | { ok: false; reason: 'conflict'; current: { version: number; updatedAt: number } }
   | { ok: false; reason: 'missing' }
 
+/** One page row handed to the move's rewrite callback. */
+export interface MovePageRow {
+  /** Slug before the move. */
+  slug: string
+  /** Slug after the move (=== slug for pages outside the moved subtree). */
+  newSlug: string
+  title: string
+  content: string
+}
+
+export interface MoveInput {
+  from: string
+  to: string
+  by?: string | null
+  /** Error message when a relocated slug is invalid (slug policy), else null. */
+  validate(slug: string): string | null
+  /**
+   * Rewrite one page's links for the move (`moved`: old → new slug of every
+   * moved page). Return null when the content is unchanged. Must be pure and
+   * synchronous — it runs inside the move transaction.
+   */
+  rewrite(
+    row: MovePageRow,
+    moved: ReadonlyMap<string, string>,
+  ): { title: string; content: string } | null
+}
+
+export type MoveResult =
+  /** `rewritten`: NEW slugs of pages whose content changed. */
+  | { ok: true; moved: { from: string; to: string }[]; rewritten: string[] }
+  | { ok: false; reason: 'missing' }
+  | { ok: false; reason: 'moved'; to: string }
+  | { ok: false; reason: 'taken'; slug: string }
+  | { ok: false; reason: 'invalid'; slug: string; error: string }
+
 export interface PagesRepository {
   /** Exact-match fetch. */
   get(slug: string): Promise<PageRecord | null>
   /**
-   * Which of `slugs` exist (exact match). One round trip for any size input;
+   * Which of `slugs` exist (exact match on a page slug OR an alias — an alias
+   * redirects, so a link to it works). One round trip for any size input;
    * empty input answers without touching the store. Backs link-state styling
    * (existing vs missing page) — never fetches page content.
    */
   existing(slugs: readonly string[]): Promise<Set<string>>
+  /** Current slug of the page `slug` is a former slug (alias) of, or null. */
+  resolveAlias(slug: string): Promise<string | null>
+  /**
+   * Move page `from` and its whole subtree to `to`, rewrite every page's links
+   * to moved pages, and leave an alias at every old slug — atomically, all or
+   * nothing. `version` increments only for rows whose content changed.
+   */
+  move(input: MoveInput): Promise<MoveResult>
   /** All pages, newest first; optional ILIKE-free substring filter over slug/title/content. */
   list(opts?: { query?: string; limit?: number }): Promise<PageListItem[]>
   /** Insert-or-update with optimistic concurrency. */
