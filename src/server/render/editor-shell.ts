@@ -52,6 +52,11 @@ export interface EditorShellOptions {
    * that do not exist yet (the create-on-save flow then handles them).
    */
   page: { content: string; version: number } | null
+  /**
+   * Existence of the pages `page.content` links to (slug → exists), embedded
+   * so link-state styling is correct on first paint without a round trip.
+   */
+  linkExists: Record<string, boolean>
 }
 
 /**
@@ -82,8 +87,14 @@ export function editorShellHtml(slug: string, opts: EditorShellOptions): string 
     userRole: opts.userRole,
   }
   const page = opts.page
-    ? { slug, content: opts.page.content, version: opts.page.version, exists: true }
-    : { slug, content: null, version: null, exists: false }
+    ? {
+        slug,
+        content: opts.page.content,
+        version: opts.page.version,
+        exists: true,
+        linkExists: opts.linkExists,
+      }
+    : { slug, content: null, version: null, exists: false, linkExists: opts.linkExists }
   return `<!doctype html>
 <html lang="en">
 <head>

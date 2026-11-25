@@ -20,6 +20,7 @@ import { renderInlineContent } from './renderer'
 import type { NotificationSystem } from './notifications'
 import type { ToastOptions } from './types'
 import { classifyLinkTarget } from './plugins/link'
+import { syncLinkExistence } from './link-existence-sync'
 import { isSafeHref } from '../shared/url-policy'
 
 export interface EditorLifecycleAPI {
@@ -530,10 +531,16 @@ export function createEditorLifecycle(
       }
     }
 
+    // ── Link state: re-class links in place when existence answers arrive ──
+
+    const existence = options.pageExists
+    const stopExistenceSync = existence?.onChange(() => syncLinkExistence(dom.editorDiv, existence))
+
     // ── Public instance ────────────────────────────────────────────────────
 
     return {
       destroy() {
+        stopExistenceSync?.()
         state.clearSaveTimer()
         notifications.destroy()
         for (const plugin of contentPlugins) {

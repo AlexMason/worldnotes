@@ -459,6 +459,10 @@ describe('pages API roles & login-only gate', () => {
     const anonPage = await fresh.inject({ method: 'GET', url: '/api/pages/one' })
     expect(anonPage.statusCode).toBe(403)
 
+    const anonExist = await fresh.inject({ method: 'GET', url: '/api/pages-exist?slugs=one' })
+    expect(anonExist.statusCode).toBe(403)
+    expect(anonExist.json()).toEqual({ error: 'login required' })
+
     const authed = await fresh.inject({
       method: 'GET',
       url: '/api/pages/one',
@@ -467,6 +471,16 @@ describe('pages API roles & login-only gate', () => {
     expect(authed.statusCode).toBe(200)
     expect(authed.headers['cache-control']).toContain('private')
     expect(authed.headers['vary']).toBe('Cookie')
+
+    const authedExist = await fresh.inject({
+      method: 'GET',
+      url: '/api/pages-exist?slugs=one,ghost',
+      headers: { cookie: cookieFor('writer') },
+    })
+    expect(authedExist.statusCode).toBe(200)
+    expect(authedExist.json()).toEqual({ exists: { one: true, ghost: false } })
+    expect(authedExist.headers['cache-control']).toContain('private')
+    expect(authedExist.headers['vary']).toBe('Cookie')
 
     // Writes keep the 401-for-anonymous contract (expiry toast), not the gate.
     const anonWrite = await fresh.inject({
@@ -490,5 +504,47 @@ describe('pages API roles & login-only gate', () => {
     expect(unknown.statusCode).toBe(404)
     expect(unknown.headers['content-type']).toContain('json')
     await fresh.close()
+  })
+})
+
+describe('GET /api/pages-exist', () => {
+  let app: Awaited<ReturnType<typeof buildApp>>
+
+  beforeEach(async () => {
+    const repo = createMemoryPagesRepository()
+    await repo.put('here', { title: 'Here', content: 'x' })
+    await repo.put('blog/post', { title: 'Post', content: 'x' })
+    app = await buildApp({
+      config: loadConfig(baseEnv),
+      pages: repo,
+      users: usersFixture(),
+      relyingParty: null,
+    })
+  })
+
+  it('answers per slug; dedupes, folds slashes, omits invalid and reserved slugs', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/pages-exist?slugs=here,ghost,blog/post,/here/,here,Bad%20Slug,api/x,..',
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ exists: { here: true, ghost: false, 'blog/post': true } })
+    expect(res.headers['cache-control']).toContain('max-age=30')
+  })
+
+  it('empty or missing slugs answer an empty map without error', async () => {
+    const none = await app.inject({ method: 'GET', url: '/api/pages-exist' })
+    expect(none.json()).toEqual({ exists: {} })
+    const blank = await app.inject({ method: 'GET', url: '/api/pages-exist?slugs=' })
+    expect(blank.json()).toEqual({ exists: {} })
+  })
+
+  it('rejects more than 100 slugs with 400 and accepts exactly 100', async () => {
+    const mk = (n: number): string => Array.from({ length: n }, (_, i) => `p${i}`).join(',')
+    const ok = await app.inject({ method: 'GET', url: `/api/pages-exist?slugs=${mk(100)}` })
+    expect(ok.statusCode).toBe(200)
+    expect(Object.keys(ok.json().exists)).toHaveLength(100)
+    const tooMany = await app.inject({ method: 'GET', url: `/api/pages-exist?slugs=${mk(101)}` })
+    expect(tooMany.statusCode).toBe(400)
   })
 })

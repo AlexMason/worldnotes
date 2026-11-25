@@ -103,6 +103,8 @@ export function createStoreEvents(
     onSaved(page: string): void
     /** "Load theirs": replace the surface's content with the server's. */
     loadServerContent(content: string): void
+    /** A blank save deleted the page (link-state bookkeeping etc.). */
+    onDeleted?(page: string): void
   },
 ): ApiPageStoreEvents {
   return {
@@ -110,12 +112,13 @@ export function createStoreEvents(
       host()?.notify({ id: 'wn-save', message: 'Saved', type: 'success', duration: 1500 })
       hooks.onSaved(page)
     },
-    onDeleted() {
+    onDeleted(page) {
       // A blank save deleted the page. Stay put: the empty buffer plus the
       // cleared store version mean the next non-blank save recreates it.
       // Dismiss first — notify() ignores an id that is still on screen.
       host()?.dismiss('wn-save')
       host()?.notify({ id: 'wn-save', message: 'Page deleted', type: 'warning', duration: 2500 })
+      hooks.onDeleted?.(page)
     },
     onAuthLost() {
       const target = encodeURIComponent(window.location.pathname)

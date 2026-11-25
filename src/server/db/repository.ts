@@ -34,6 +34,12 @@ export type DeleteResult =
 export interface PagesRepository {
   /** Exact-match fetch. */
   get(slug: string): Promise<PageRecord | null>
+  /**
+   * Which of `slugs` exist (exact match). One round trip for any size input;
+   * empty input answers without touching the store. Backs link-state styling
+   * (existing vs missing page) — never fetches page content.
+   */
+  existing(slugs: readonly string[]): Promise<Set<string>>
   /** All pages, newest first; optional ILIKE-free substring filter over slug/title/content. */
   list(opts?: { query?: string; limit?: number }): Promise<PageListItem[]>
   /** Insert-or-update with optimistic concurrency. */

@@ -84,6 +84,29 @@ Boundary rules (enforced by tooling):
   `nav:{slug}`; a nav-page write evicts it, a `navSlug` change is
   self-busting (different key + settings revision). Chrome, not renderer
   grammar.
+- **Link state (existing vs missing page) rides the ONE engine, with
+  existence resolved BEFORE render:** internal links (`[[wiki]]` and
+  `[text](internal)`) get `wn-link-missing` when the target is known not to
+  exist — chosen in one place (`plugins/link-class.ts`, `wikiLinkClass`) for
+  both plugins and both surfaces, driven by an optional `pageExists(slug)`
+  on `StaticRenderContext` / `EditorContext` (`true`/`false`/`undefined`;
+  **unknown renders like an existing page** — a false "missing" is worse than
+  a missed one). Reader: `render/reader.ts` collects the document's link
+  slugs (`core/link-slugs.ts` records what the plugins ask during a real
+  render, so nesting/fences cannot drift), answers them with ONE
+  `PagesRepository.existing()` query, and renders synchronously with the
+  result. Because cached article HTML now depends on OTHER pages' existence,
+  `app.ts` `invalidate(slug, change)` clears the whole render cache on page
+  create/delete (`PageWriteChange` from `routes/pages-api.ts`); content-only
+  writes keep per-slug eviction. Editor: `EditorOptions.pageExists` is a
+  `PageExistenceResolver` (core stays transport-agnostic); the client's
+  `link-existence.ts` seeds from the shell embed (`#wn-page.linkExists`,
+  computed server-side with the same `resolveLinkExistence`), batches
+  further lookups to `GET /api/pages-exist` (150 ms debounce, 60 s
+  staleness, failures stay unknown) and records its own saves/deletes. Answers
+  arriving after render re-class links IN PLACE (`link-existence-sync.ts`),
+  never by re-rendering (caret/selection safety). Styling is CSS-only
+  (`styles.ts`; tokens in `docs/theming.md`).
 - **Favicon & uploads are server chrome, not renderer grammar:** the icon
   `<link>` tags come from `render/icons.ts`, fed by the `faviconMediaId`
   setting, and are emitted synchronously in BOTH the reader head
@@ -246,6 +269,7 @@ Public, no query strings anywhere:
 | `GET /edit`, `GET /edit/{slug}`                           | legacy 302s → `/`, `/{slug}`                                                                               | —                               |
 | `GET /{slug}` (catch-all, last)                           | editor shell (editor\|admin) / SSR article (viewer/anon); miss → 404 document (customizable)               | mixed (anon reads gate)         |
 | `GET /api/pages`, `GET /api/pages/{slug}`                 | JSON reads + ETags                                                                                         | anon ok (403 when login-only)   |
+| `GET /api/pages-exist?slugs=a,b`                          | batched existence lookup (≤100 slugs) for the editor's missing-link styling; outside `/api/pages/*` so the slug wildcard cannot claim it | anon ok (403 when login-only)   |
 | `POST/PUT/DELETE /api/pages[/{slug}]`                     | writes; `requireSameOrigin` + `requireRole(editor,admin)`                                                  | editors                         |
 | `PUT /api/settings`                                       | instance settings write; `requireSameOrigin` + `requireRole(admin)`                                        | admins                          |
 | `GET/POST /api/themes`, `GET/PUT/DELETE /api/themes/{id}` | theme gallery CRUD (409 deleting the active theme); `requireRole(admin)` (+ `requireSameOrigin` on writes) | admins                          |

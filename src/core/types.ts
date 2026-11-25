@@ -126,6 +126,25 @@ export interface PageStore {
   save(page: string, content: string): Promise<void>
 }
 
+// ─── Page Existence ──────────────────────────────────────────────────────────
+
+/**
+ * Async-backed answer source for "does this page exist?" (link styling).
+ * Core stays transport-agnostic: the client supplies a fetch-backed one.
+ *
+ * @method exists   - Cached answer: true/false, or undefined while unknown
+ * @method request  - Ask for (re)resolution of slugs; idempotent, cheap to call on every render
+ * @method onChange - Subscribe to answers that changed; returns an unsubscribe function
+ */
+export interface PageExistenceResolver {
+  exists(slug: string): boolean | undefined
+  request(slugs: readonly string[]): void
+  onChange(listener: () => void): () => void
+}
+
+/** Existence lookup: `false` = missing, `true` = exists, `undefined` = unknown. */
+export type PageExists = (slug: string) => boolean | undefined
+
 // ─── Editor Context ───────────────────────────────────────────────────────────
 
 /**
@@ -153,6 +172,12 @@ export interface EditorContext {
    * Falls back to plain textContent when not provided.
    */
   renderInline?(text: string): DocumentFragment
+  /**
+   * Existence lookup for internal page links (same contract as
+   * `StaticRenderContext.pageExists`). Optional: absent = every link looks
+   * like an existing page.
+   */
+  pageExists?: PageExists
 }
 
 /**
@@ -162,6 +187,12 @@ export interface EditorContext {
  */
 export interface StaticRenderContext {
   renderInline(text: string): string
+  /**
+   * Existence lookup for internal page links: `false` = the target page is
+   * known not to exist (link gets `wn-link-missing`), `true` = exists,
+   * `undefined` = unknown (rendered like an existing page).
+   */
+  pageExists?: PageExists
 }
 
 // ─── Plugin Lifecycle ──────────────────────────────────────────────────────────
@@ -282,6 +313,12 @@ export interface EditorOptions {
    * load falls back to the PageStore (and to the seeded defaults for new pages).
    */
   initialContent?: string
+  /**
+   * Source of page-existence answers for internal-link styling. Optional:
+   * without it every link looks like an existing page. See
+   * {@link PageExistenceResolver}.
+   */
+  pageExists?: PageExistenceResolver
   /**
    * The wiki's home page slug (server-configured), used as the breadcrumb
    * trail root. Defaults to 'home'. Navigation to any other page builds the

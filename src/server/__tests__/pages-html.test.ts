@@ -861,3 +861,126 @@ describe('custom status pages (Phase B)', () => {
     await app.close()
   })
 })
+
+describe('SSR link state (existing vs missing pages)', () => {
+  let config: ServerConfig
+  let repo: ReturnType<typeof createMemoryPagesRepository>
+  let app: Awaited<ReturnType<typeof buildApp>>
+  let auth: string
+
+  beforeEach(async () => {
+    config = loadConfig(baseEnv)
+    repo = createMemoryPagesRepository()
+    app = await buildApp({ config, pages: repo, users: usersFixture(), relyingParty: null })
+    auth = editorCookie(config)
+    await repo.put('index', {
+      title: 'Index',
+      content: 'see [[here]] and [[later]] or [x](later)',
+    })
+    await repo.put('here', { title: 'Here', content: 'present' })
+  })
+
+  const read = async (): Promise<string> =>
+    (await app.inject({ method: 'GET', url: '/index' })).body
+
+  it('marks only the link to the missing page', async () => {
+    const body = await read()
+    expect(body).toContain('<a class="wn-wiki-link" href="/here"')
+    expect(body).toContain('<a class="wn-wiki-link wn-link-missing" href="/later"')
+  })
+
+  it('creating the missing page clears the marker on an already-cached article', async () => {
+    expect(await read()).toContain('class="wn-wiki-link wn-link-missing"') // fills the cache
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/pages',
+      headers: { cookie: auth },
+      payload: { slug: 'later', content: 'now here' },
+    })
+    expect(created.statusCode).toBe(201)
+    const body = await read()
+    expect(body).not.toContain('class="wn-wiki-link wn-link-missing"')
+    expect(body).toContain('<a class="wn-wiki-link" href="/later"')
+  })
+
+  it('deleting a linked page marks it on the next read', async () => {
+    expect(await read()).toContain('href="/here"') // fills the cache
+    const removed = await app.inject({
+      method: 'DELETE',
+      url: '/api/pages/here',
+      headers: { cookie: auth },
+    })
+    expect(removed.statusCode).toBe(204)
+    expect(await read()).toContain('<a class="wn-wiki-link wn-link-missing" href="/here"')
+  })
+
+  it('the custom 404 page body is resolved with the same link state', async () => {
+    await repo.put('missing-page', { title: 'NF', content: 'try [[here]] or [[nowhere]]' })
+    await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      headers: { cookie: auth, 'content-type': 'application/json' },
+      payload: { notFoundSlug: 'missing-page' },
+    })
+    const res = await app.inject({ method: 'GET', url: '/no-such-page' })
+    expect(res.statusCode).toBe(404)
+    expect(res.body).toContain('<a class="wn-wiki-link" href="/here"')
+    expect(res.body).toContain('<a class="wn-wiki-link wn-link-missing" href="/nowhere"')
+  })
+
+  it('a content-only write keeps cached articles; only create/delete clears them', async () => {
+    expect(await read()).toContain('see') // warms the article cache
+    await repo.put('index', { title: 'Index', content: 'edited behind the cache [[here]]' })
+
+    const edit = await app.inject({
+      method: 'PUT',
+      url: '/api/pages/here',
+      headers: { cookie: auth, 'if-match': '"1"' },
+      payload: { content: 'present, edited' },
+    })
+    expect(edit.statusCode).toBe(200)
+    expect(await read()).not.toContain('edited behind the cache') // still the cached render
+
+    await app.inject({
+      method: 'POST',
+      url: '/api/pages',
+      headers: { cookie: auth },
+      payload: { slug: 'brand-new', content: 'x' },
+    })
+    expect(await read()).toContain('edited behind the cache') // create cleared everything
+  })
+
+  it('a page created while an article is mid-render never leaves a stale "missing" cached', async () => {
+    const existing = repo.existing.bind(repo)
+    // tsconfig.server targets < ES2024: no Promise.withResolvers.
+    let openGate: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => {
+      openGate = resolve
+    })
+    let markReached: () => void = () => undefined
+    const reached = new Promise<void>((resolve) => {
+      markReached = resolve
+    })
+    repo.existing = async (slugs) => {
+      const before = await existing(slugs) // answer computed BEFORE the create
+      markReached()
+      await gate
+      return before
+    }
+    const inFlight = app.inject({ method: 'GET', url: '/index' })
+    await reached // the render is now parked inside existing()
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/pages',
+      headers: { cookie: auth },
+      payload: { slug: 'later', content: 'now here' },
+    })
+    expect(created.statusCode).toBe(201)
+    openGate()
+    expect((await inFlight).body).toContain('class="wn-wiki-link wn-link-missing" href="/later"')
+
+    repo.existing = existing // later reads must reflect reality, not the stale render
+    expect(await read()).not.toContain('class="wn-wiki-link wn-link-missing" href="/later"')
+  })
+})

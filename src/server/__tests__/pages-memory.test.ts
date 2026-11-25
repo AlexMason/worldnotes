@@ -106,3 +106,15 @@ describe('memory PagesRepository', () => {
     expect(await repo.list()).toEqual([])
   })
 })
+
+describe('memory PagesRepository.existing', () => {
+  it('returns only stored slugs and tracks create/delete', async () => {
+    const repo = createMemoryPagesRepository([page('a'), page('b/c')])
+    expect([...(await repo.existing(['a', 'b/c', 'nope', 'a']))].sort()).toEqual(['a', 'b/c'])
+    expect(await repo.existing([])).toEqual(new Set())
+
+    await repo.delete('a')
+    await repo.put('nope', { title: 'N', content: 'x' })
+    expect([...(await repo.existing(['a', 'nope']))]).toEqual(['nope'])
+  })
+})

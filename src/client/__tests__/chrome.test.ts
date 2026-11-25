@@ -96,4 +96,18 @@ describe('createStoreEvents', () => {
     events.onSaved?.('home', 'x')
     expect(onSaved).toHaveBeenCalledWith('home')
   })
+
+  it('a blank-save delete toasts, then tells the surface which page went away', () => {
+    const notify = vi.fn((_options: ToastOptions) => 'id')
+    const dismiss = vi.fn()
+    const onDeleted = vi.fn()
+    const events = createStoreEvents(() => ({ notify, dismiss }), {
+      onSaved: vi.fn(),
+      loadServerContent: vi.fn(),
+      onDeleted,
+    })
+    events.onDeleted?.('blog/post')
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ message: 'Page deleted' }))
+    expect(onDeleted).toHaveBeenCalledExactlyOnceWith('blog/post')
+  })
 })

@@ -122,10 +122,21 @@ export function createEditorState(
         getPageText: (page: string) => pageBuffers.getPageText(page),
         setPageText: (page: string, content: string) => pageBuffers.setPageText(page, content),
       }
+      const resolver = options.pageExists
       return {
         ...context,
         getTrail: () => [...trail],
         getCurrentPage: () => (trail.length <= 1 ? (trail[0] ?? '') : trail.slice(1).join('/')),
+        // Asking is how a link gets resolved: every render of a link requests
+        // its slug (the resolver dedupes and ignores fresh answers).
+        ...(resolver
+          ? {
+              pageExists: (slug: string): boolean | undefined => {
+                resolver.request([slug])
+                return resolver.exists(slug)
+              },
+            }
+          : {}),
       }
     },
   }

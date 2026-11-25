@@ -1,6 +1,7 @@
 import type { ContentPlugin, Token, EditorContext, StaticRenderContext } from '../types'
 import { isSafeHref } from '../../shared/url-policy'
 import { wikiTargetToSlug } from '../../shared/slug'
+import { wikiLinkClass } from './link-class'
 import { escapeHTML, escapeAttr } from '../escape'
 
 /**
@@ -48,7 +49,7 @@ export const linkPlugin: ContentPlugin = {
 
   tokens: [{ type: 'link', pattern: /\[([^\]]+)\]\(([^)]+)\)/ }],
 
-  render(token: Token, _context: EditorContext): HTMLElement | Text {
+  render(token: Token, context: EditorContext): HTMLElement | Text {
     const text = token.groups[0] ?? ''
     const url = token.groups[1] ?? ''
     const kind = classifyLinkTarget(url)
@@ -59,7 +60,7 @@ export const linkPlugin: ContentPlugin = {
       // it is display metadata, not a page key — navigation folds it via
       // navTargetToSlug in editor-navigation before anything is keyed.
       const el = document.createElement('span')
-      el.className = 'wn-wiki-link'
+      el.className = wikiLinkClass(url, context.pageExists)
       el.dataset.page = url
       el.dataset.raw = token.raw
       el.textContent = text
@@ -86,7 +87,7 @@ export const linkPlugin: ContentPlugin = {
     return el
   },
 
-  renderToHTML(token: Token, _context: StaticRenderContext): string {
+  renderToHTML(token: Token, context: StaticRenderContext): string {
     const text = token.groups[0] ?? ''
     const url = token.groups[1] ?? ''
     const label = escapeHTML(text)
@@ -106,7 +107,7 @@ export const linkPlugin: ContentPlugin = {
       case 'internal': {
         const slug = wikiTargetToSlug(url)
         if (slug === null) return escapeHTML(token.raw)
-        return `<a class="wn-wiki-link" href="/${slug}" data-page="${escapeAttr(url)}" data-raw="${escapeAttr(token.raw)}">${label}</a>`
+        return `<a class="${wikiLinkClass(url, context.pageExists)}" href="/${slug}" data-page="${escapeAttr(url)}" data-raw="${escapeAttr(token.raw)}">${label}</a>`
       }
     }
   },

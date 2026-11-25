@@ -19,6 +19,12 @@ export interface RenderCache {
   set<T>(key: string, entry: CacheEntry<T>): void
   invalidate(key: string): void
   clear(): void
+  /**
+   * Bumped by every `clear()`. A fill that awaited anything after reading
+   * its inputs (render + existence lookup) compares it before `set` so a
+   * clear that landed mid-render is never overwritten by stale output.
+   */
+  readonly generation: number
   get size(): number
 }
 
@@ -34,6 +40,7 @@ export function hashEtag(html: string): string {
 
 export function createRenderCache(opts: RenderCacheOptions): RenderCache {
   const store = new Map<string, CacheEntry>() // Map iteration order = insertion order = LRU
+  let generation = 0
 
   return {
     get<T>(key: string): CacheEntry<T> | undefined {
@@ -64,7 +71,12 @@ export function createRenderCache(opts: RenderCacheOptions): RenderCache {
     },
 
     clear() {
+      generation++
       store.clear()
+    },
+
+    get generation() {
+      return generation
     },
 
     get size() {
