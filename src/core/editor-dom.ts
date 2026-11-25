@@ -112,9 +112,9 @@ const EDITOR_CHROME_CSS = `
 .wn-move-input {
   flex: 1 1 16ch; min-width: 8ch; max-width: 48ch;
   font: inherit;
-  color: var(--wn-color-fg, #23211d);
-  background: var(--wn-move-input-bg, var(--wn-color-bg, #fff));
-  border: 1px solid var(--wn-move-input-border, var(--wn-color-border, #e3ded4));
+  color: var(--wn-color-input-fg, var(--wn-color-fg, #23211d));
+  background: var(--wn-move-input-bg, var(--wn-color-input-bg, var(--wn-color-bg, #fff)));
+  border: 1px solid var(--wn-move-input-border, var(--wn-color-input-border, var(--wn-color-border, #e3ded4)));
   border-radius: var(--wn-radius-control, 6px);
   padding: var(--wn-padding-input, .35em .6em);
 }

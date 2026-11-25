@@ -355,7 +355,7 @@ Manual (`npm run dev`, Postgres, logged in as editor):
 - [x] 6. **Core move flow.** `PageBuffers.renamePage`/`dropPage`, lifecycle `flushSaves`, alias-following navigation, `editor-page-move.ts`, `EditorInstance.beginMovePage`/`pageMoved`, `EditorOptions.onPageMoved`; `page-buffers`, `editor-page-move`, `editor-navigation` tests.
 - [x] 7. **Inline move field in the breadcrumb.** `breadcrumb.ts` `onEditActive`, `page-move-field.ts`, styles + tokens in `styles.ts`, wiring in `editor-render.ts`; breadcrumb/field tests.
 - [x] 8. **Client wiring.** `main.ts` `onPageMoved` (replaceState/title/link existence/home reload) and store `onMoved` → `pageMoved`; `chrome.ts` "Move page…" item; `chrome` tests; manual test pass.
-- [ ] 9. **Docs.** `docs/api.md` (page-moves, alias 301/409 semantics, `pages-exist` alias note); `docs/architecture.md` (routing table, aliases, move flow, link-rewrite module under the single-renderer rule, database section); `docs/theming.md` (move-field tokens).
+- [x] 9. **Docs.** `docs/api.md` (page-moves, alias 301/409 semantics, `pages-exist` alias note); `docs/architecture.md` (routing table, aliases, move flow, link-rewrite module under the single-renderer rule, database section); `docs/theming.md` (move-field tokens).
 
 ## Risks & open questions
 
