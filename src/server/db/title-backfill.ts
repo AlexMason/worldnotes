@@ -12,10 +12,7 @@ import { pageTitle } from '../../core/page-title'
 export const TITLE_BACKFILL_NAME = 'titles-from-first-h1'
 
 /** @returns the number of retitled pages (0 when it already ran). */
-export async function backfillTitles(
-  pool: SqlPool,
-  compute: (content: string, slug: string) => string = pageTitle,
-): Promise<number> {
+export async function backfillTitles(pool: SqlPool): Promise<number> {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
@@ -34,7 +31,7 @@ export async function backfillTitles(
         .rows as { slug: string; title: string; content: string }[]
       let changed = 0
       for (const row of rows) {
-        const title = compute(row.content, row.slug)
+        const title = pageTitle(row.content, row.slug)
         if (title === row.title) continue
         await client.query('UPDATE pages SET title = $2 WHERE slug = $1', [row.slug, title])
         changed++

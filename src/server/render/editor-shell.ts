@@ -92,23 +92,14 @@ export function editorShellHtml(slug: string, opts: EditorShellOptions): string 
     authDisabled: opts.authDisabled,
     userRole: opts.userRole,
   }
-  const page = opts.page
-    ? {
-        slug,
-        content: opts.page.content,
-        version: opts.page.version,
-        exists: true,
-        linkExists: opts.linkExists,
-        titles: opts.titles,
-      }
-    : {
-        slug,
-        content: null,
-        version: null,
-        exists: false,
-        linkExists: opts.linkExists,
-        titles: opts.titles,
-      }
+  const page = {
+    slug,
+    content: opts.page?.content ?? null,
+    version: opts.page?.version ?? null,
+    exists: opts.page !== null,
+    linkExists: opts.linkExists,
+    titles: opts.titles,
+  }
   return `<!doctype html>
 <html lang="en">
 <head>
