@@ -16,6 +16,7 @@
 
 import type { BlockRegion, DocModel, Token, ContentPlugin, StaticRenderContext } from './types'
 import { scanInline } from './tokenizer'
+import type { PageExists } from './plugins/link-class'
 import { buildPluginMap } from './plugin-map'
 import { buildDocument } from './document'
 import { escapeHTML } from './escape'
@@ -57,7 +58,11 @@ export function renderLineToHTML(
  * token definitions. Used as the `renderInline` implementation within
  * StaticRenderContext for plugins that need nested rendering.
  */
-export function renderInlineHTML(text: string, contentPlugins: ContentPlugin[]): string {
+export function renderInlineHTML(
+  text: string,
+  contentPlugins: ContentPlugin[],
+  pageExists?: PageExists,
+): string {
   const inlineDefs = contentPlugins
     .flatMap((p) => p.tokens)
     .filter((d) => !d.pattern.source.startsWith('^'))
@@ -79,7 +84,8 @@ export function renderInlineHTML(text: string, contentPlugins: ContentPlugin[]):
     }
 
     const ctx: StaticRenderContext = {
-      renderInline: (t: string) => renderInlineHTML(t, contentPlugins),
+      renderInline: (t: string) => renderInlineHTML(t, contentPlugins, pageExists),
+      ...(pageExists ? { pageExists } : {}),
     }
     parts.push(plugin.renderToHTML(token, ctx))
   }
@@ -95,10 +101,15 @@ export function renderInlineHTML(text: string, contentPlugins: ContentPlugin[]):
  * Line divs are joined with no separator: any inter-div whitespace text
  * node would materialize as a blank line under `pre-wrap`.
  */
-export function renderDocumentToHTML(lines: Token[][], contentPlugins: ContentPlugin[]): string {
+export function renderDocumentToHTML(
+  lines: Token[][],
+  contentPlugins: ContentPlugin[],
+  pageExists?: PageExists,
+): string {
   const pluginMap = buildPluginMap(contentPlugins)
   const ctx: StaticRenderContext = {
-    renderInline: (text: string) => renderInlineHTML(text, contentPlugins),
+    renderInline: (text: string) => renderInlineHTML(text, contentPlugins, pageExists),
+    ...(pageExists ? { pageExists } : {}),
   }
   const parts: string[] = []
 
@@ -124,10 +135,15 @@ export function renderDocumentToHTML(lines: Token[][], contentPlugins: ContentPl
  * reader's inherited `pre-wrap` any inter-div whitespace materializes as a
  * blank line AND desyncs extractContentText/rawNodeLength on the editor.
  */
-export function renderDocModelToHTML(doc: DocModel, contentPlugins: ContentPlugin[]): string {
+export function renderDocModelToHTML(
+  doc: DocModel,
+  contentPlugins: ContentPlugin[],
+  pageExists?: PageExists,
+): string {
   const pluginMap = buildPluginMap(contentPlugins)
   const ctx: StaticRenderContext = {
-    renderInline: (text: string) => renderInlineHTML(text, contentPlugins),
+    renderInline: (text: string) => renderInlineHTML(text, contentPlugins, pageExists),
+    ...(pageExists ? { pageExists } : {}),
   }
 
   const regionsByStart = new Map<number, BlockRegion>()
@@ -179,9 +195,13 @@ export function renderDocModelToHTML(doc: DocModel, contentPlugins: ContentPlugi
  * `plugins` is explicit (not defaulted to `defaultPlugins`) to keep this
  * module free of an import cycle through `plugins/defaults`.
  */
-export function renderDocumentHtml(markdown: string, plugins: ContentPlugin[]): string {
+export function renderDocumentHtml(
+  markdown: string,
+  plugins: ContentPlugin[],
+  pageExists?: PageExists,
+): string {
   // The block pass (buildDocument) is part of THE pipeline — both this
   // reader entry and the editor's renderLines must go through it, or the
   // surfaces drift.
-  return renderDocModelToHTML(buildDocument(markdown, plugins), plugins)
+  return renderDocModelToHTML(buildDocument(markdown, plugins), plugins, pageExists)
 }

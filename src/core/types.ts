@@ -153,6 +153,12 @@ export interface EditorContext {
    * Falls back to plain textContent when not provided.
    */
   renderInline?(text: string): DocumentFragment
+  /**
+   * Existence lookup for internal page links (same contract as
+   * `StaticRenderContext.pageExists`). Optional: absent = every link looks
+   * like an existing page.
+   */
+  pageExists?(slug: string): boolean | undefined
 }
 
 /**
@@ -162,6 +168,12 @@ export interface EditorContext {
  */
 export interface StaticRenderContext {
   renderInline(text: string): string
+  /**
+   * Existence lookup for internal page links: `false` = the target page is
+   * known not to exist (link gets `wn-link-missing`), `true` = exists,
+   * `undefined` = unknown (rendered like an existing page).
+   */
+  pageExists?(slug: string): boolean | undefined
 }
 
 // ─── Plugin Lifecycle ──────────────────────────────────────────────────────────

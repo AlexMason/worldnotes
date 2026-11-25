@@ -1,6 +1,7 @@
 import type { ContentPlugin, Token, EditorContext, StaticRenderContext } from '../types'
 import { parseWikiLink } from '../navigation'
 import { wikiTargetToSlug } from '../../shared/slug'
+import { wikiLinkClass } from './link-class'
 import { escapeHTML, escapeAttr } from '../escape'
 
 /**
@@ -27,13 +28,13 @@ export const wikiLinkPlugin: ContentPlugin = {
     },
   ],
 
-  render(token: Token, _context: EditorContext): HTMLElement {
+  render(token: Token, context: EditorContext): HTMLElement {
     const { page, display } = parseWikiLink(token.groups[0] ?? '')
 
     // data-page carries the RAW author target (display metadata, not a page
     // key) — editor-navigation folds it via navTargetToSlug on click.
     const el = document.createElement('span')
-    el.className = 'wn-wiki-link'
+    el.className = wikiLinkClass(page, context.pageExists)
     el.dataset.page = page
     el.dataset.raw = token.raw
     el.textContent = display
@@ -46,11 +47,11 @@ export const wikiLinkPlugin: ContentPlugin = {
   // charset (AGENTS.md slug policy). Non-foldable targets (e.g. `[[中文]]`)
   // stay escaped literal source text — same visible outcome as clicking
   // them in the editor would not resolve.
-  renderToHTML(token: Token, _context: StaticRenderContext): string {
+  renderToHTML(token: Token, context: StaticRenderContext): string {
     const { page, display } = parseWikiLink(token.groups[0] ?? '')
     const slug = wikiTargetToSlug(page)
     if (slug === null) return escapeHTML(token.raw)
-    return `<a class="wn-wiki-link" href="/${slug}" data-page="${escapeAttr(page)}" data-raw="${escapeAttr(token.raw)}">${escapeHTML(display)}</a>`
+    return `<a class="${wikiLinkClass(page, context.pageExists)}" href="/${slug}" data-page="${escapeAttr(page)}" data-raw="${escapeAttr(token.raw)}">${escapeHTML(display)}</a>`
   },
 
   onNavigate(token: Token, context: EditorContext): true {

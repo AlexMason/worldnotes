@@ -12,6 +12,7 @@
 // zero-JS page can navigate. The comparator treats a reader anchor == editor
 // span when all other attrs/children match (the "anchor exception").
 
+import type { PageExists } from '../plugins/link-class'
 import { describe, it, expect } from 'vitest'
 import { renderInlineContent } from '../renderer'
 import { renderLines } from '../line-renderer'
@@ -90,7 +91,7 @@ function snapshot(node: Node, root: boolean): NodeSpec {
   return { tag: el.tagName.toUpperCase(), attrs, children }
 }
 
-function editorRoot(): HTMLElement {
+function editorRoot(pageExists?: PageExists): HTMLElement {
   const ctx: EditorContext = {
     navigate: () => undefined,
     getTrail: () => [],
@@ -98,6 +99,7 @@ function editorRoot(): HTMLElement {
     getWorld: () => ({ page: FIXTURE }),
     getPageText: () => FIXTURE,
     setPageText: () => undefined,
+    ...(pageExists ? { pageExists } : {}),
   }
   ctx.renderInline = (t: string) => renderInlineContent(t, plugins, ctx)
 
@@ -109,10 +111,10 @@ function editorRoot(): HTMLElement {
   return root
 }
 
-function readerRoot(): Document {
+function readerRoot(pageExists?: PageExists): Document {
   // Drive the REAL reader pipeline (renderDocumentHtml → buildDocument →
   // model-aware static rendering), so block wrappers appear on both sides.
-  const html = renderDocumentHtml(FIXTURE, plugins)
+  const html = renderDocumentHtml(FIXTURE, plugins, pageExists)
   return new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html')
 }
 
@@ -160,6 +162,26 @@ describe('editor DOM and reader static HTML are the same tree', () => {
     const rSnap = snapshot(rBody as unknown as Node, true).children as NodeSpec[]
     expect(rSnap.length).toBe(eSnap.length)
 
+    const out: string[] = []
+    eSnap.forEach((e, i) => diff(e, rSnap[i], `line${i}`, out))
+    expect(out, out.join('\n')).toEqual([])
+  })
+})
+
+describe('missing-page link marker is identical on both surfaces', () => {
+  it('same nodes carry wn-link-missing in editor DOM and reader HTML', () => {
+    // `plain-page` is missing; everything else exists/unknown.
+    const exists: PageExists = (slug) => (slug === 'plain-page' ? false : true)
+    const eRoot = editorRoot(exists)
+    const rBody = readerRoot(exists).querySelector('div') as HTMLElement
+
+    const marked = (root: ParentNode): string[] =>
+      Array.from(root.querySelectorAll('.wn-link-missing')).map((n) => n.textContent ?? '')
+    expect(marked(eRoot)).toEqual(['plain-page'])
+    expect(marked(rBody)).toEqual(['plain-page'])
+
+    const eSnap = snapshot(eRoot, true).children as NodeSpec[]
+    const rSnap = snapshot(rBody as unknown as Node, true).children as NodeSpec[]
     const out: string[] = []
     eSnap.forEach((e, i) => diff(e, rSnap[i], `line${i}`, out))
     expect(out, out.join('\n')).toEqual([])
