@@ -38,18 +38,16 @@ describe('core modules import in plain node (no DOM)', () => {
   })
 
   it('the SSR render seam itself imports and renders under plain node', async () => {
-    const { createReaderRenderer } = await import('../render/reader')
+    const { renderReaderHtml } = await import('../render/reader')
     await import('../render/layout')
-    const renderer = createReaderRenderer()
-    const html = renderer.render('# T\n\nsee [[a/b]]')
+    const html = renderReaderHtml('# T\n\nsee [[a/b]]')
     expect(html).toContain('<div data-line="0">')
     expect(html).toContain('href="/a/b"')
   })
 
   it('the block pass (fences, images) runs DOM-free under plain node', async () => {
-    const { createReaderRenderer } = await import('../render/reader')
-    const renderer = createReaderRenderer()
-    const html = renderer.render('```\n<x>\n```\n![d](/i.png)')
+    const { renderReaderHtml } = await import('../render/reader')
+    const html = renderReaderHtml('```\n<x>\n```\n![d](/i.png)')
     expect(html).toContain('data-block="code-block"')
     expect(html).toContain('&lt;x&gt;') // escaped, no DOM needed
     expect(html).toContain('<img class="wn-image-img" src="/i.png"')

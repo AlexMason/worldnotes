@@ -18,13 +18,14 @@ import type { LayoutOptions } from './layout'
 import { escapeHtml } from './layout'
 import { hashEtag, type RenderCache } from '../cache'
 import type { PagesRepository } from '../db/repository'
+import type { ReaderRenderer } from './reader'
 
 /** LayoutOptions minus the per-document fields (title/body/trail). */
 export type StatusChrome = Omit<LayoutOptions, 'title' | 'body' | 'trail'>
 
 export interface StatusDeps {
   layout: (opts: LayoutOptions) => string
-  render: { render(src: string): string }
+  render: ReaderRenderer
   pages: PagesRepository
   cache: RenderCache
 }
@@ -92,7 +93,7 @@ export async function statusDocument(deps: StatusDeps, doc: StatusDoc): Promise<
     } else {
       const page = await deps.pages.get(doc.customSlug)
       if (page) {
-        const rendered = wrap(deps.render.render(page.content))
+        const rendered = wrap(await deps.render.render(page.content))
         deps.cache.set(key, {
           value: rendered,
           etag: hashEtag(rendered),

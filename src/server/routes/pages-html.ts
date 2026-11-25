@@ -10,6 +10,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import type { ServerConfig } from '../config'
 import type { PagesRepository } from '../db/repository'
+import type { ReaderRenderer } from '../render/reader'
 import type { AuthUser } from '../auth/session'
 import { requireLoginHtml } from '../auth/login-gate'
 import {
@@ -33,7 +34,7 @@ export interface PageHtmlDeps {
   config: ServerConfig
   pages: PagesRepository
   cache: RenderCache
-  render: { render(src: string): string }
+  render: ReaderRenderer
   layout: (opts: LayoutOptions) => string
   /** Absolute prefix the client bundle is served under, e.g. '/assets'. */
   assetPrefix: string
@@ -270,7 +271,7 @@ export async function registerPageHtmlRoutes(
         return respond(reply, { html, etag: hashEtag(html) }, 404)
       }
       title = page.title
-      articleHtml = `<article class="wn-root wn-article">${render.render(page.content)}</article>`
+      articleHtml = `<article class="wn-root wn-article">${await render.render(page.content)}</article>`
       cache.set(`p:${slug}`, {
         value: { title, article: articleHtml },
         etag: hashEtag(articleHtml),

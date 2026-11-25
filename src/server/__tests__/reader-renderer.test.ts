@@ -6,11 +6,13 @@
 // unsafe stays escaped/literal, and nothing imports markdown-it anymore.
 
 import { describe, it, expect } from 'vitest'
-import { createReaderRenderer } from '../render/reader'
+import { createReaderRenderer, renderReaderHtml } from '../render/reader'
+import { createMemoryPagesRepository } from '../db/pages-memory'
+import { MAX_LINK_SLUGS } from '../../core/link-slugs'
 import { renderDocumentHtml } from '../../core/static-renderer'
 import { defaultPlugins } from '../../core/plugins/defaults'
 
-const render = createReaderRenderer()
+const render = { render: renderReaderHtml }
 const core = (src: string) => renderDocumentHtml(src, defaultPlugins)
 
 describe('reader renderer', () => {
@@ -201,5 +203,50 @@ describe('lists render styled (restored grammar)', () => {
     expect(html).toContain('>iv. </span>')
     expect(html).not.toContain('<ol')
     expect(html).not.toContain('<li')
+  })
+})
+
+describe('createReaderRenderer (existence-aware)', () => {
+  const pagesWith = (...slugs: string[]) =>
+    createMemoryPagesRepository(
+      slugs.map((slug) => ({
+        slug,
+        title: slug,
+        content: 'x',
+        version: 1,
+        updatedAt: 0,
+        updatedBy: null,
+      })),
+    )
+
+  it('marks only links whose page does not exist, using one batched lookup', async () => {
+    const repo = pagesWith('here')
+    let calls = 0
+    const existing = repo.existing.bind(repo)
+    repo.existing = async (slugs) => {
+      calls++
+      return existing(slugs)
+    }
+    const html = await createReaderRenderer(repo).render('[[here]] [[gone]] [x](gone) [[here]]')
+    expect(html).toContain('<a class="wn-wiki-link" href="/here"')
+    expect(html).toContain('<a class="wn-wiki-link wn-link-missing" href="/gone"')
+    expect(calls).toBe(1)
+  })
+
+  it('skips the lookup entirely when the document has no internal links', async () => {
+    const repo = pagesWith()
+    repo.existing = async () => {
+      throw new Error('must not be called')
+    }
+    const src = '# Title [ext](https://x.test)'
+    await expect(createReaderRenderer(repo).render(src)).resolves.toBe(render.render(src))
+  })
+
+  it('renders slugs beyond the collection cap as unknown, never as missing', async () => {
+    const links = Array.from({ length: MAX_LINK_SLUGS + 1 }, (_, i) => `[[p${i}]]`).join(' ')
+    const html = await createReaderRenderer(pagesWith()).render(links)
+    // first MAX are asked about (all missing); the overflow one is unknown
+    expect(html.match(/wn-link-missing/g)).toHaveLength(MAX_LINK_SLUGS)
+    expect(html).toContain(`<a class="wn-wiki-link" href="/p${MAX_LINK_SLUGS}"`)
   })
 })

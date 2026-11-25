@@ -17,7 +17,7 @@ import { createThemeService } from './themes'
 import { registerSessions } from './auth/session'
 import { registerRoleResolver } from './auth/roles'
 import { registerAuthRoutes } from './auth/routes'
-import { registerPageApiRoutes } from './routes/pages-api'
+import { registerPageApiRoutes, type PageWriteChange } from './routes/pages-api'
 import { registerSettingsApiRoutes } from './routes/settings-api'
 import { registerThemesApiRoutes } from './routes/themes-api'
 import { registerUsersApiRoutes } from './routes/users-api'
@@ -118,7 +118,12 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     cache,
   })
 
-  const invalidate = (slug: string): void => {
+  const invalidate = (slug: string, change: PageWriteChange): void => {
+    // Reader HTML embeds link state (existing vs missing page), so a page
+    // coming into or going out of existence makes EVERY cached page that
+    // links to it stale — not just this slug. Creates/deletes are rare;
+    // clearing the bounded in-process cache is cheaper than a reverse index.
+    if (change !== 'updated') cache.clear()
     cache.invalidate(`p:${slug}`)
     cache.invalidate(INDEX_CACHE_KEY)
     // Status-page bodies are cached by their designated slug; evict on any
@@ -178,7 +183,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   })
   await registerThemesApiRoutes(app, { themes: themeService, settings: settingsService })
   await registerUsersApiRoutes(app, { users: usersRepo })
-  const readerRender = createReaderRenderer()
+  const readerRender = createReaderRenderer(deps.pages)
   await registerAdminRoutes(app, {
     config: deps.config,
     settings: settingsService,

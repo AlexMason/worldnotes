@@ -14,12 +14,16 @@ import { extractTitle } from '../render/title'
 const MAX_CONTENT_BYTES = 1_000_000 // 1 MB
 const MAX_TITLE_LENGTH = 200
 
+export type PageWriteChange = 'created' | 'updated' | 'deleted'
+
 export interface PageApiDeps {
   pages: PagesRepository
   /** Login-only gate reads the dynamic settings snapshot per request. */
   getSettings: () => AppSettings
-  /** Bump when any write succeeds — SSR cache keys off this (step 8). */
-  onWrite?: (slug: string) => void
+  /** Bump when any write succeeds — SSR cache keys off this (step 8).
+   *  `change` says whether the write altered page EXISTENCE (created /
+   *  deleted) — reader HTML of every page linking to it is then stale. */
+  onWrite?: (slug: string, change: PageWriteChange) => void
 }
 
 interface PageBody {
@@ -119,7 +123,7 @@ export async function registerPageApiRoutes(
     if (!result.ok) {
       return reply.code(409).send({ error: 'page exists', current: result.current })
     }
-    deps.onWrite?.(validated.slug)
+    deps.onWrite?.(validated.slug, 'created')
     return reply
       .code(201)
       .header('etag', etagOf(result.record.version))
@@ -162,7 +166,7 @@ export async function registerPageApiRoutes(
           .header('etag', etagOf(deleted.current.version))
           .send({ error: 'version conflict', current: deleted.current })
       }
-      deps.onWrite?.(validated.slug)
+      deps.onWrite?.(validated.slug, 'deleted')
       return reply.code(204).send()
     }
 
@@ -188,7 +192,7 @@ export async function registerPageApiRoutes(
         .header('etag', etagOf(result.current.version))
         .send({ error: 'version conflict', current: result.current })
     }
-    deps.onWrite?.(validated.slug)
+    deps.onWrite?.(validated.slug, 'updated')
     return reply.header('etag', etagOf(result.record.version)).send({ ...result.record })
   })
 
@@ -198,7 +202,7 @@ export async function registerPageApiRoutes(
     if (!validated.ok) return reply.code(400).send({ error: validated.error })
     const removed = await deps.pages.delete(validated.slug)
     if (!removed) return reply.code(404).send({ error: 'page not found' })
-    deps.onWrite?.(validated.slug)
+    deps.onWrite?.(validated.slug, 'deleted')
     return reply.code(204).send()
   })
 }

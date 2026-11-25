@@ -20,6 +20,7 @@ import type { ThemeRow } from '../db/themes-repository'
 import type { MediaRepository } from '../db/media-repository'
 import type { UserRecord, UsersRepository } from '../db/users-repository'
 import type { PagesRepository } from '../db/repository'
+import type { ReaderRenderer } from '../render/reader'
 import type { RenderCache } from '../cache'
 import type { ServerConfig } from '../config'
 
@@ -32,7 +33,7 @@ export interface AdminDeps {
   /** Status-document seam (custom forbidden page): reader deps for the 403. */
   pages: PagesRepository
   cache: RenderCache
-  render: { render(src: string): string }
+  render: ReaderRenderer
   /** Theme gallery store (listing only — writes go through /api/themes). */
   themes: ThemeService
 }
