@@ -131,6 +131,8 @@ function mockRender(state: EditorStateAPI, dom: EditorDOM): EditorRenderAPI {
     }),
     renderBreadcrumb: vi.fn(),
     checkSelectChange: vi.fn(),
+    setMoveHandler: vi.fn(),
+    openMoveField: vi.fn(),
   }
 }
 

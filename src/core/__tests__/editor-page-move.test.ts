@@ -31,6 +31,8 @@ function setup(opts: {
     render: vi.fn(() => events.push('render')),
     renderBreadcrumb: vi.fn(() => events.push('breadcrumb')),
     checkSelectChange: () => false,
+    setMoveHandler: vi.fn(),
+    openMoveField: vi.fn(),
   }
   const notify = vi.fn(() => 'id')
   const notifications = {

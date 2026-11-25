@@ -109,6 +109,7 @@ export function createEditorLifecycle(
       options,
       flushSaves,
     })
+    if (mover.canMove()) render.setMoveHandler((to) => mover.movePage(to))
 
     // ── Model commits (keymap ops, selection edits, plain-key fallbacks) ──
     // Plugins' onUpdate follows every commit render, like the input path.
@@ -670,6 +671,10 @@ export function createEditorLifecycle(
 
       pageMoved(from: string, to: string): void {
         mover.pageMoved(from, to)
+      },
+
+      beginMovePage(): void {
+        render.openMoveField()
       },
     }
   }

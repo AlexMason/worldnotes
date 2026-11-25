@@ -516,4 +516,9 @@ export interface EditorInstance {
    * editor): re-key it, and follow it when it is the current page.
    */
   pageMoved(from: string, to: string): void
+  /**
+   * Open the inline "move page" field in the breadcrumb (the same field the
+   * active crumb opens). No-op when the page store cannot move pages.
+   */
+  beginMovePage(): void
 }

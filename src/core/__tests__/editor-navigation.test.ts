@@ -106,6 +106,8 @@ function mockRender(): EditorRenderAPI {
     render: vi.fn(),
     renderBreadcrumb: vi.fn(),
     checkSelectChange: vi.fn(),
+    setMoveHandler: vi.fn(),
+    openMoveField: vi.fn(),
   }
 }
 
@@ -372,6 +374,8 @@ describe('createEditorNavigation', () => {
         render: vi.fn(),
         renderBreadcrumb: vi.fn(),
         checkSelectChange: vi.fn(),
+        setMoveHandler: vi.fn(),
+        openMoveField: vi.fn(),
       }
       const nav = createEditorNavigation(state, storage, dom, options)
       nav.setRenderAPI(trackingRender)

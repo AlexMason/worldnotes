@@ -15,6 +15,7 @@ import { renderDocLines } from './line-renderer'
 import { buildDocument, regionAt } from './document'
 import { renderInlineContent } from './renderer'
 import { renderBreadcrumb as renderBreadcrumbChrome } from './breadcrumb'
+import { openPageMoveField } from './page-move-field'
 
 export interface EditorRenderAPI {
   /**
@@ -27,6 +28,13 @@ export interface EditorRenderAPI {
   renderBreadcrumb(): void
   /** Re-render when a collapsed caret moved to another line; true if it did. */
   checkSelectChange(): boolean
+  /**
+   * Enable the page-move affordance (editable active crumb) with the handler
+   * that performs a move; null disables it. Takes effect on the next repaint.
+   */
+  setMoveHandler(handler: ((to: string) => Promise<string | null>) | null): void
+  /** Open the inline move field in the breadcrumb; no-op without a handler. */
+  openMoveField(): void
 }
 
 export interface EditorRenderOptions {
@@ -158,6 +166,25 @@ export function createEditorRender(
 
   // ── Breadcrumb rendering ──────────────────────────────────────────────────
 
+  let moveHandler: ((to: string) => Promise<string | null>) | null = null
+
+  function setMoveHandler(handler: ((to: string) => Promise<string | null>) | null): void {
+    moveHandler = handler
+  }
+
+  function openMoveField(): void {
+    const submit = moveHandler
+    if (!submit) return
+    dom.container.querySelectorAll('details[open]').forEach((open) => {
+      ;(open as HTMLDetailsElement).open = false
+    })
+    openPageMoveField(breadcrumb, {
+      current: state.getCurrentPage(),
+      submit,
+      close: renderBreadcrumb,
+    })
+  }
+
   function renderBreadcrumb(): void {
     renderBreadcrumbChrome(breadcrumb, dom.container, state.getTrail(), {
       homeLabel: options.homeLabel,
@@ -167,9 +194,10 @@ export function createEditorRender(
         const targetPage = newTrail.length <= 1 ? newTrail[0] : newTrail.slice(1).join('/')
         options.onBreadcrumbNavigate?.(targetPage)
       },
+      ...(moveHandler ? { onEditActive: openMoveField } : {}),
     })
     options.onTrailChange?.(state.getTrail())
   }
 
-  return { render, renderBreadcrumb, checkSelectChange }
+  return { render, renderBreadcrumb, checkSelectChange, setMoveHandler, openMoveField }
 }

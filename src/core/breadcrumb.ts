@@ -16,6 +16,11 @@ export interface BreadcrumbOptions {
   homeLabel?: string
   /** A non-active crumb was activated; `index` is its ORIGINAL trail index. */
   onCrumb(index: number): void
+  /**
+   * Optional: the ACTIVE crumb (the current page) was activated — the page
+   * move affordance. When absent the active crumb stays inert.
+   */
+  onEditActive?(): void
 }
 
 /**
@@ -52,6 +57,19 @@ export function renderBreadcrumb(
     crumb.textContent = i === 0 ? options.homeLabel || 'Home' : slugDisplayName(page)
     if (i < trail.length - 1) {
       crumb.addEventListener('click', () => activate(i))
+    } else if (options.onEditActive) {
+      const edit = options.onEditActive
+      crumb.classList.add('wn-crumb--editable')
+      crumb.setAttribute('role', 'button')
+      crumb.tabIndex = 0
+      crumb.title = 'Move page'
+      crumb.addEventListener('click', () => edit())
+      crumb.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'F2') {
+          e.preventDefault()
+          edit()
+        }
+      })
     }
     breadcrumb.appendChild(crumb)
   }
