@@ -2,6 +2,8 @@
 // Pages live at nested slugs: `blog/post-name`. Slugs are lowercase,
 // hyphen-separated segments; titles keep their own casing elsewhere.
 
+import { classifyLinkTarget } from './url-policy'
+
 export const SLUG_MAX_LENGTH = 255
 
 /** First path segments reserved for app routes; pages may not start with them. */
@@ -118,13 +120,17 @@ export function wikiLinkBase(pageSlug: string, homeSlug: string | null | undefin
  * whose link base is `base` (see wikiLinkBase). `[[/x]]` and base-less
  * targets keep root semantics and are returned as-is; relative targets become
  * `/{base}/{target}`, which every root-semantics consumer (navTargetToSlug,
- * link classes, existence sync) folds unchanged. A target that folds to
- * nothing is returned as-is so it stays unresolvable — prefixing the base
- * must never turn `[[!!!]]` into a self-link.
+ * link classes, existence sync) folds unchanged. Returned as-is so they stay
+ * unresolvable or refused exactly as at the root: a target that folds to
+ * nothing (prefixing the base must never turn `[[!!!]]` into a self-link)
+ * and a target that is not a page address at all (`https://…`, `//host`,
+ * `#frag` — navigation refuses those; a prefix would hide them as
+ * `/{base}/https://…` and fold them into a junk page).
  */
 export function wikiLinkAddress(target: string, base: string | null | undefined): string {
   const trimmed = target.trim()
   if (!base || trimmed.startsWith('/') || slugify(trimmed) === '') return trimmed
+  if (classifyLinkTarget(trimmed) !== 'internal') return trimmed
   return `/${base}/${trimmed}`
 }
 

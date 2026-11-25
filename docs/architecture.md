@@ -181,7 +181,10 @@ getHomeSlug)` derives it from the page slug every caller must pass
 (`render(src, pageSlug)`, `linkExistence(src, pageSlug)` for the editor
 shell seed; status pages pass their own slug). Nav extraction resolves
 under the nav page. `PUT /api/settings` clears the render cache when
-`homeSlug` changes. Markdown links keep root semantics.
+`homeSlug` changes. Markdown links keep root semantics. Targets that are not
+page addresses (`classifyLinkTarget` in `shared/url-policy.ts` ≠ `internal`:
+schemes, `#`, `?`) and targets that fold to nothing are never prefixed, so
+navigation refuses them on every page exactly as it does at the root.
 
 **Navigation folding:** every in-editor navigation source (link clicks,
 breadcrumb/header nav, popstate, `instance.navigate`) funnels through

@@ -19,9 +19,8 @@ import { extractContentText } from './content-text'
 import { renderInlineContent } from './renderer'
 import type { NotificationSystem } from './notifications'
 import type { ToastOptions } from './types'
-import { classifyLinkTarget } from './plugins/link'
 import { syncLinkExistence } from './link-existence-sync'
-import { isSafeHref } from '../shared/url-policy'
+import { classifyLinkTarget, isSafeHref } from '../shared/url-policy'
 
 export interface EditorLifecycleAPI {
   mount(): Promise<EditorInstance>

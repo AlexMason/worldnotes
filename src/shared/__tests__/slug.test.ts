@@ -128,6 +128,13 @@ describe('wikiLinkAddress', () => {
     expect(resolve('api', 'alpha')).toBe('alpha/api')
     expect(resolve('/api', 'alpha')).toBeNull()
   })
+
+  it('never prefixes targets that are not page addresses', () => {
+    // Navigation refuses these at the root; a base prefix must not hide them.
+    for (const target of ['https://x.com/y', 'mailto:a@b.c', '#frag', '?q=1', '//host/x']) {
+      expect(wikiLinkAddress(target, 'alpha')).toBe(target)
+    }
+  })
 })
 
 describe('slugDisplayName', () => {

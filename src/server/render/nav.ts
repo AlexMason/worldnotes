@@ -14,7 +14,7 @@
 import { buildDocument } from '../../core/document'
 import { scanInline } from '../../core/tokenizer'
 import { defaultPlugins } from '../../core/plugins/defaults'
-import { classifyLinkTarget } from '../../core/plugins/link'
+import { classifyLinkTarget } from '../../shared/url-policy'
 import { parseWikiLink } from '../../core/navigation'
 import { wikiTargetToSlug, slugDisplayName, wikiLinkAddress, wikiLinkBase } from '../../shared/slug'
 import { pageUrlPath } from '../../shared/url-helpers'

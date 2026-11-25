@@ -1,28 +1,8 @@
 import type { ContentPlugin, Token, EditorContext, StaticRenderContext } from '../types'
-import { isSafeHref } from '../../shared/url-policy'
+import { isSafeHref, classifyLinkTarget } from '../../shared/url-policy'
 import { wikiTargetToSlug } from '../../shared/slug'
 import { wikiLinkClass } from './link-class'
 import { escapeHTML, escapeAttr } from '../escape'
-
-/**
- * Classify a link target by URL shape. Scheme-based — NOT the old
- * `includes('://')` heuristic, which misrouted `mailto:`, `javascript:` and
- * `#fragments` into the internal branch.
- *
- * - `external`: carries a scheme (`https:`, `javascript:`, …) or is
- *   protocol-relative (`//host/…`) → gated by `isSafeHref` at emit time.
- * - `same-doc`: leading `#` or `?` → origin-safe relative anchor, emitted as-is.
- * - `internal`: everything else → folded to a page slug; safety of the
- *   resulting href rides on `validateSlug`'s `[a-z0-9-]`-segment charset
- *   (AGENTS.md slug policy — loosening SEGMENT_RE would delete this guard).
- */
-export type LinkTarget = 'external' | 'same-doc' | 'internal'
-
-export function classifyLinkTarget(url: string): LinkTarget {
-  if (/^[a-z][a-z0-9+.-]*:/i.test(url) || url.startsWith('//')) return 'external'
-  if (url.startsWith('#') || url.startsWith('?')) return 'same-doc'
-  return 'internal'
-}
 
 function isHttpish(url: string): boolean {
   return /^https?:/i.test(url)

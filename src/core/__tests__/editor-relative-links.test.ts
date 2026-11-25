@@ -13,7 +13,11 @@ import type { EditorInstance, PageExistenceResolver } from '../types'
 
 const DOC = 'first line\nsee [[beta]] and [[/gamma|Gamma]]'
 
-async function mount(initialPage: string, requested: string[] = []) {
+async function mount(
+  initialPage: string,
+  requested: string[] = [],
+  homeSlug: string | null = 'start',
+) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const pageExists: PageExistenceResolver = {
@@ -24,10 +28,15 @@ async function mount(initialPage: string, requested: string[] = []) {
     onChange: () => () => undefined,
   }
   const instance = await createEditor(container, {
-    pageStore: createMemoryPageStore({ alpha: DOC, start: DOC }),
+    pageStore: createMemoryPageStore({
+      alpha: DOC,
+      start: DOC,
+      home: DOC,
+      urls: 'first line\nsee [[https://x.com/y|ext]] and [[#frag|frag]]',
+    }),
     saveDebounceMs: 5000,
     initialPage,
-    homeSlug: 'start',
+    homeSlug,
     pageExists,
   }).mount()
   const editorDiv = container.querySelector('.wn-editor') as HTMLElement
@@ -68,6 +77,24 @@ describe('relative wiki links in the editor', () => {
     const { instance, editorDiv } = await mount('start')
     clickLink(editorDiv, 'beta')
     await landsOn(instance, 'beta')
+  })
+
+  it('without a configured home, a page slugged home is an ordinary page', async () => {
+    // Matches the reader: wikiLinkBase uses the RAW setting, not the
+    // editor's 'home' trail-root fallback.
+    const { instance, editorDiv } = await mount('home', [], null)
+    clickLink(editorDiv, 'beta')
+    await landsOn(instance, 'home/beta')
+  })
+
+  it('URL-shaped targets on a nested page are refused, not opened as junk pages', async () => {
+    const { instance, editorDiv } = await mount('urls')
+    for (const label of ['ext', 'frag']) {
+      clickLink(editorDiv, label)
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(instance.getCurrentPage()).toBe('urls')
+    }
+    expect(document.body.textContent).toContain('is not a valid page address')
   })
 
   it('asks existence for the resolved slugs', async () => {
