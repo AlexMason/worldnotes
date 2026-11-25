@@ -3,16 +3,30 @@
 import type { ContentPlugin, EditorContext } from './types'
 import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
-import { setLineOffset, tryGetLineOffset } from './caret-offset'
+import {
+  getSelectionFocusEnd,
+  getSelectionOffsets,
+  scrollCaretIntoView,
+  setLineOffset,
+  setSelectionOffsets,
+  tryGetLineOffset,
+} from './caret-offset'
 import { renderDocLines } from './line-renderer'
 import { buildDocument, regionAt } from './document'
 import { renderInlineContent } from './renderer'
 import { renderBreadcrumb as renderBreadcrumbChrome } from './breadcrumb'
 
 export interface EditorRenderAPI {
+  /**
+   * Rebuild the editor DOM from the buffer. With `cursorOffset` the caret
+   * lands collapsed there; without it a live RANGE selection survives the
+   * rebuild (restored by raw offsets, direction kept, clamped to the text),
+   * else the caret keeps its raw offset.
+   */
   render(force?: boolean, cursorOffset?: number): void
   renderBreadcrumb(): void
-  checkSelectChange(): void
+  /** Re-render when a collapsed caret moved to another line; true if it did. */
+  checkSelectChange(): boolean
 }
 
 export interface EditorRenderOptions {
@@ -59,12 +73,26 @@ export function createEditorRender(
     const page = state.getCurrentPage()
     const raw = buffers.getPageText(page)
 
+    // A live range selection (drag, Shift+arrow, select-all) is model state,
+    // not ephemeral DOM: capture it so the rebuild cannot collapse it. The
+    // focus end (where the user's caret is) decides the active line.
+    const range = cursorOffset === undefined ? getSelectionOffsets(editorDiv) : null
+    const kept =
+      range && range.end > range.start
+        ? {
+            start: Math.min(range.start, raw.length),
+            end: Math.min(range.end, raw.length),
+            focus: getSelectionFocusEnd(editorDiv) ?? 'end',
+          }
+        : null
+
     // An unrecognizable selection (tryGetLineOffset → null: ranges lost to a
     // DOM swap, selection anchored outside this editor) must NOT snap the
     // caret to line 0 — keep it at the current active line. Only forced
     // renders (page load/switch) or a never-placed caret start at the top.
     const offset =
       cursorOffset ??
+      (kept ? (kept.focus === 'start' ? kept.start : kept.end) : null) ??
       tryGetLineOffset(editorDiv) ??
       (_force || activeLine < 0 ? 0 : lineStartOffset(raw, activeLine))
 
@@ -96,29 +124,36 @@ export function createEditorRender(
     placeholder.style.display = raw.length ? 'none' : 'block'
 
     try {
-      setLineOffset(editorDiv, offset)
+      if (kept && kept.end > kept.start) {
+        setSelectionOffsets(editorDiv, kept.start, kept.end, kept.focus)
+      } else {
+        setLineOffset(editorDiv, offset)
+      }
     } catch {
       /* noop */
     }
+    // Programmatic placements (page load, ops, undo) never scroll on their
+    // own; a line-activation render follows a caret the user already sees.
+    if (_force || cursorOffset !== undefined) scrollCaretIntoView(editorDiv)
   }
 
-  function checkSelectChange(): void {
+  function checkSelectChange(): boolean {
     const sel = window.getSelection()
-    if (!sel || !sel.isCollapsed) return
+    if (!sel || !sel.isCollapsed) return false
 
     // Ignore selections we can't map (outside the editor, or transiently
     // empty during a rebuild) — acting on them would jump the caret to line 0.
     const offset = tryGetLineOffset(editorDiv)
-    if (offset === null) return
+    if (offset === null) return false
 
     const buffers = state.getPageBuffers()
     const page = state.getCurrentPage()
     const raw = buffers.getPageText(page)
     const newLine = determineActiveLine(raw, offset)
 
-    if (newLine !== activeLine) {
-      render()
-    }
+    if (newLine === activeLine) return false
+    render()
+    return true
   }
 
   // ── Breadcrumb rendering ──────────────────────────────────────────────────

@@ -176,20 +176,44 @@ overlay + `docs/shortcuts.md`) exported from `editor-keymap.ts`:
 
 1. **Undo/redo** chords (`Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`).
 2. **Editing keymap** (`editor-keymap.ts`): line move/duplicate/delete,
-   word delete/motion, bold/italic/link wrapping, `Ctrl+S` save flush.
+   word delete/motion, bold/italic/link wrapping, `Ctrl+A` (page body
+   only, never the chrome), `Ctrl+S` save flush.
    Selections map DOM ↔ raw offsets through the direction-biased
    two-ended mapping in `caret-offset.ts` (`getSelectionOffsets` /
    `setSelectionOffsets`; end-biased fallbacks so a range end on a line
    boundary maps to covered text, never the next line's start). Ops
    compute on pure document strings (`editor-text-ops.ts`,
-   `editor-format.ts`), commit via ONE `setPageText` (one undo step) and
-   restore caret-or-selection after the forced re-render. Un-mappable
-   selections and formatting inside block regions are consume-and-noop.
+   `editor-format.ts`) and commit through `commitModelEdit`
+   (`editor-commit.ts`). Un-mappable selections and formatting inside block
+   regions are consume-and-noop.
 3. **Plugin `onKeydown`** dispatch (syntax behavior: list-item Tab/Enter
    continuation; unmodified chords only).
-4. **Plain-key fallbacks** (Tab insert, Enter newline, single-character
+4. **Plain-key fallbacks** (Tab insert, Enter newline, single-code-point
    Backspace) — all modifier-guarded, so `Ctrl+Backspace` etc. can never
-   leak into the naive path.
+   leak into the naive path, and all model commits (an un-mappable
+   selection changes nothing).
+
+**Model commits.** `editor-commit.ts` is the ONE path for edits the editor
+defines itself: `commitModelEdit` = `setPageText` (one undo step) → forced
+render → restore caret-or-selection → scroll the caret line into view →
+debounced save (plugins' `onUpdate` follows the render); `replaceSelection`
+wraps it for "replace the selection with text". Besides the keymap and the
+fallbacks, a `beforeinput` handler routes typing over / deleting a
+**non-collapsed** selection here (`insertText`, `insertParagraph`,
+`delete*`, `deleteByCut`). The browser's own version removes the text but
+keeps the emptied `div[data-line]` shells (deleted lines return as blank
+lines), and a range cutting into a `data-raw` span loses the edit.
+Collapsed carets stay native (spellcheck/autocorrect); composition and
+`insertReplacementText` are never intercepted.
+
+**Selection is model state.** `render()` without an explicit caret target
+restores a live range selection by raw offsets (direction kept, clamped to
+the text; its focus end picks the active line) instead of collapsing it.
+Line activation is frozen while the primary mouse button is down (a rebuild
+at drag start detaches the browser's drag anchor); one check runs at
+mouseup. Plain `ArrowUp`/`ArrowDown` chains keep a goal x across
+line-activation rebuilds (which reset the browser's own memory) and
+re-apply it on each landed line via `caretPositionFromPoint`.
 
 `Ctrl+/` + `Escape` are owned by the shortcuts-help overlay UIPlugin
 (document capture + stopPropagation), NOT the keymap — single owner, no

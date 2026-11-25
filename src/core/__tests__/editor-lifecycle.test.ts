@@ -26,7 +26,8 @@ function mockStorage(): PageStore {
 }
 
 function mockState(initialTrail?: string[]): EditorStateAPI {
-  const pageBuffers = createPageBuffers()
+  // Hydrated like navigation.loadPage leaves it: the initial page exists.
+  const pageBuffers = createPageBuffers({}, { [initialTrail?.[0] ?? 'home']: '' })
   let trail: string[] = initialTrail ? [...initialTrail] : ['home']
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let isNavigating = false
@@ -110,10 +111,22 @@ function mockDOM(): EditorDOM {
 
 function mockRender(state: EditorStateAPI, dom: EditorDOM): EditorRenderAPI {
   return {
+    // Forced renders emit the real line structure (div[data-line] per
+    // source line, <br> for empty ones) so raw-offset selection mapping works.
     render: vi.fn((force?: boolean) => {
       if (force) {
         const page = state.getCurrentPage()
-        dom.editorDiv.textContent = state.getPageBuffers().getPageText(page)
+        dom.editorDiv.innerHTML = ''
+        state
+          .getPageBuffers()
+          .getPageText(page)
+          .split('\n')
+          .forEach((text, i) => {
+            const line = document.createElement('div')
+            line.dataset.line = String(i)
+            line.appendChild(text ? document.createTextNode(text) : document.createElement('br'))
+            dom.editorDiv.appendChild(line)
+          })
       }
     }),
     renderBreadcrumb: vi.fn(),
@@ -904,7 +917,6 @@ describe('EditorInstance cursor API', () => {
   let plugins: ContentPlugin[]
   let options: EditorOptions
   let editor: EditorInstance
-  let origModify: typeof Selection.prototype.modify | undefined
 
   async function mount(): Promise<void> {
     const lifecycle = createEditorLifecycle(
@@ -930,9 +942,13 @@ describe('EditorInstance cursor API', () => {
     sel!.addRange(range)
   }
 
+  function firstLineText(): Node {
+    return dom.editorDiv.querySelector('[data-line="0"]')!.firstChild!
+  }
+
   function setContentAndFocus(text: string): void {
     state.getPageBuffers().setPageText('home', text)
-    dom.editorDiv.textContent = text
+    render.render(true)
     dom.editorDiv.focus()
   }
 
@@ -945,37 +961,10 @@ describe('EditorInstance cursor API', () => {
     navigation = mockNavigation()
     plugins = mockPlugins()
     options = {}
-
-    // happy-dom doesn't implement Selection.modify(); polyfill it
-    origModify = Selection.prototype.modify
-    Selection.prototype.modify = function (
-      alter: string,
-      _direction: string,
-      granularity: string,
-    ): void {
-      if (alter === 'extend' && granularity === 'character') {
-        const sel = this as unknown as Selection
-        if (!sel.isCollapsed || !sel.rangeCount) return
-        const r = sel.getRangeAt(0)
-        try {
-          if (_direction === 'forward') {
-            r.setEnd(r.endContainer, r.endOffset + 1)
-          } else if (_direction === 'backward' && r.endOffset > 0) {
-            r.setStart(r.startContainer, r.startOffset - 1)
-          }
-        } catch {
-          // ignore boundary errors
-        }
-      }
-    }
-
     await mount()
   })
 
   afterEach(() => {
-    if (origModify) {
-      Selection.prototype.modify = origModify
-    }
     document.body.removeChild(dom.container)
   })
 
@@ -984,7 +973,7 @@ describe('EditorInstance cursor API', () => {
   describe('insertText', () => {
     it('inserts text at caret position when no selection', async () => {
       setContentAndFocus('hello world')
-      const textNode = dom.editorDiv.firstChild!
+      const textNode = firstLineText()
       setCaretAt(textNode, 6) // after 'hello '
 
       editor.insertText('beautiful ')
@@ -995,7 +984,7 @@ describe('EditorInstance cursor API', () => {
 
     it('replaces selected text when range is not collapsed', async () => {
       setContentAndFocus('hello world')
-      const textNode = dom.editorDiv.firstChild!
+      const textNode = firstLineText()
       const range = document.createRange()
       range.setStart(textNode, 0)
       range.setEnd(textNode, 5)
@@ -1025,7 +1014,7 @@ describe('EditorInstance cursor API', () => {
   describe('deleteForward', () => {
     it('deletes one character after caret when selection is collapsed', async () => {
       setContentAndFocus('hello')
-      const textNode = dom.editorDiv.firstChild!
+      const textNode = firstLineText()
       setCaretAt(textNode, 2) // after 'he'
 
       editor.deleteForward()
@@ -1036,7 +1025,7 @@ describe('EditorInstance cursor API', () => {
 
     it('deletes selected text when range is not collapsed', async () => {
       setContentAndFocus('hello world')
-      const textNode = dom.editorDiv.firstChild!
+      const textNode = firstLineText()
       const range = document.createRange()
       range.setStart(textNode, 0)
       range.setEnd(textNode, 6) // select 'hello '
@@ -1066,7 +1055,7 @@ describe('EditorInstance cursor API', () => {
   describe('deleteBackward', () => {
     it('deletes one character before caret when selection is collapsed', async () => {
       setContentAndFocus('hello')
-      const textNode = dom.editorDiv.firstChild!
+      const textNode = firstLineText()
       setCaretAt(textNode, 2) // after 'he'
 
       editor.deleteBackward()
@@ -1077,7 +1066,7 @@ describe('EditorInstance cursor API', () => {
 
     it('deletes selected text when range is not collapsed', async () => {
       setContentAndFocus('hello world')
-      const textNode = dom.editorDiv.firstChild!
+      const textNode = firstLineText()
       const range = document.createRange()
       range.setStart(textNode, 0)
       range.setEnd(textNode, 6)
@@ -1093,7 +1082,7 @@ describe('EditorInstance cursor API', () => {
 
     it('is a no-op at start of content', async () => {
       setContentAndFocus('hello')
-      const textNode = dom.editorDiv.firstChild!
+      const textNode = firstLineText()
       setCaretAt(textNode, 0) // at very start
 
       editor.deleteBackward()
