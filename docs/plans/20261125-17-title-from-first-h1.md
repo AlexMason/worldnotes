@@ -216,3 +216,28 @@ Unit and integration tests run with Vitest (`npm test`); the pg integration suit
 ## Review
 
 Mode: sub-agents
+
+Reviewers: A (plan conformance & correctness), B (code quality), C (security & scalability), fresh-context sub-agents, 2026-11-25. Conformance: all six steps and Decisions 1–16 implemented as specified; typecheck, lint, tests (incl. Postgres suite) and build clean.
+
+**Fixed (related):**
+
+| Finding | Lenses | Fix |
+| ------- | ------ | --- |
+| **major**: `pageTitle` ran the full inline scan, O(n²) on pathological one-line content (80 KB of `[[` = 4 s) on every POST/PUT/move and in the boot backfill. | C | `fix: title pass skips inline scanning` — line-level grammar + block regions only (same H1 result; 1 MB worst case < 1 ms). |
+| minor: no test pinned `'updated'` vs `'retitled'`; always-retitled would clear the cache on every autosave unnoticed. | A, B | `fix: pin that title-keeping saves do not clear the render cache`. |
+| minor: editor re-parsed the buffer per H1 keystroke and duplicated the fallback rule. | B, C | `fix: editor reuses the render's title instead of re-parsing` (shared `titleOfDoc`). |
+| nit: home page ran a pointless `titles()` query on cache miss. | A, B | `fix: skip the ancestor-title query on the home page`. |
+| nits: unused `compute` seam in the backfill; duplicated shell embed literal. | B | `fix: drop unused backfill seam, build the shell embed once`. |
+| minor: `onTitleChange` across navigation untested. | B | `fix: cover onTitleChange across in-editor navigation`. |
+
+**Unrelated, issue opened:** #18 — the render path's inline scan is itself quadratic on the same pathological content (reader first render, editor shell link-existence pass, moves). Pre-existing.
+
+**Dismissed:**
+
+- CRLF heading lines fall back to the slug label (A): the renderer does not treat `# x\r` as a heading either; Decision 2 (same structure the renderer sees).
+- Whole-cache clear on autosaves that retitle (C): accepted Decision 9.
+- Uncached `titles()` query on 404s (C): Decision 8; one bounded, indexed `= ANY` query.
+- Backfill loads all rows under one lock (C): one-time boot step, single-instance deployment.
+- Client chunking called dead (B): a trail can exceed 100 prefixes (255-char slugs), so the 100-slug cap is reachable.
+- Separate shell `titles()` read, extra PUT `get`, hand-copied `refreshTitles` mocks (B): pre-existing patterns, no behavior impact.
+- Move-field/live-title interaction test (B): core move needs a move-capable store; the flag is reset on every repaint, covered by reading.
