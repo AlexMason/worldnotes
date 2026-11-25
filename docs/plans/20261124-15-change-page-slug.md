@@ -3,7 +3,7 @@ issue: 15
 title: Let editors change a page's slug after creation
 type: feature
 branch: feature/15-change-page-slug
-status: implementing
+status: implemented
 created: 2026-11-24
 pr: ""
 ---
