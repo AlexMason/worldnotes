@@ -17,7 +17,7 @@ function setup(opts: {
   load?: PageStore['load']
   initialPage?: string
   onPageMoved?: EditorOptions['onPageMoved']
-  flushSaves?: () => Promise<void>
+  flushSaves?: () => Promise<boolean>
 }) {
   const options: EditorOptions = {
     initialPage: opts.initialPage ?? 'projects/acme',
@@ -51,7 +51,8 @@ function setup(opts: {
     render,
     notifications,
     options,
-    flushSaves: opts.flushSaves ?? (async () => undefined),
+    flushSaves: opts.flushSaves ?? (async () => true),
+    retargetSave: vi.fn(),
   })
   return { mover, state, buffers, render, notify, events }
 }
@@ -68,6 +69,7 @@ describe('createPageMover', () => {
     const { mover } = setup({
       flushSaves: async () => {
         order.push('flush')
+        return true
       },
       move: async () => {
         order.push('move')
@@ -222,5 +224,66 @@ describe('editor instance + moves', () => {
     expect(instance.getCurrentPage()).toBe('c/d')
     expect(instance.getContent()).toBe('body')
     expect(trails.at(-1)).toEqual(['home', 'c', 'd'])
+  })
+})
+
+describe('moves never lose or delete edits', () => {
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it('refuses to move when the flushed save failed', async () => {
+    const move = vi.fn(async () => okResult([['projects/acme', 'x']]))
+    const { mover, state } = setup({ move, flushSaves: async () => false })
+    await expect(mover.movePage('x')).resolves.toMatch(/could not be saved/)
+    expect(move).not.toHaveBeenCalled()
+    expect(state.getCurrentPage()).toBe('projects/acme')
+  })
+
+  it('typing while the move is in flight: the pending save follows the page, never a blank save to the old slug', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const base = createMemoryPageStore({ 'projects/acme': '# Acme\n\n[[/projects/acme/x]]' })
+    const saves: [string, string][] = []
+    let release!: () => void
+    const store: PageStore = {
+      load: (page) => base.load(page),
+      save: async (page, content) => {
+        saves.push([page, content])
+      },
+      move: async (from, to) => {
+        await new Promise<void>((r) => (release = r))
+        // The server rewrote the page's own absolute link into its subtree.
+        await base.save(to, '# Acme\n\n[[/clients/acme/x]]')
+        return { ok: true, moved: [{ from, to }], rewritten: [to] }
+      },
+    }
+    const instance = await createEditor(container, {
+      pageStore: store,
+      initialPage: 'projects/acme',
+      homeSlug: 'home',
+      saveDebounceMs: 20,
+    }).mount()
+
+    instance.beginMovePage()
+    const input = container.querySelector('.wn-move-input') as HTMLInputElement
+    input.value = 'clients/acme'
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+
+    // Typed during the move: arms a debounced save for projects/acme.
+    instance.insertText('typed ')
+    release()
+
+    await vi.waitFor(() => expect(instance.getCurrentPage()).toBe('clients/acme'))
+    await vi.waitFor(() => expect(saves.length).toBeGreaterThan(0))
+    await new Promise((r) => setTimeout(r, 60))
+
+    // The typed text survives (the server reload did not clobber it) and is
+    // saved under the NEW slug; no blank save was ever sent.
+    expect(instance.getContent()).toContain('typed ')
+    expect(saves.every(([, content]) => content.trim() !== '')).toBe(true)
+    expect(saves.at(-1)![0]).toBe('clients/acme')
+    expect(saves.at(-1)![1]).toContain('typed ')
   })
 })

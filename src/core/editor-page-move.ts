@@ -28,8 +28,13 @@ export interface PageMoverDeps {
   render: EditorRenderAPI
   notifications: NotificationSystem
   options: EditorOptions
-  /** Run any pending debounced save now and await every in-flight save. */
-  flushSaves(): Promise<void>
+  /**
+   * Run any pending debounced save now and await every in-flight save;
+   * resolves false when one failed (unsaved edits remain).
+   */
+  flushSaves(): Promise<boolean>
+  /** A page was re-keyed: a debounced save still pending for `from` follows to `to`. */
+  retargetSave(from: string, to: string): void
 }
 
 export interface PageMover {
@@ -51,10 +56,20 @@ export function createPageMover(deps: PageMoverDeps): PageMover {
     render.renderBreadcrumb()
   }
 
+  /** Re-key a moved page's buffer AND any save still pending for it. */
+  function rekey(from: string, to: string): void {
+    state.getPageBuffers().renamePage(from, to)
+    deps.retargetSave(from, to)
+  }
+
   async function movePage(to: string): Promise<string | null> {
     if (!pageStore.move) return 'Moving pages is not supported here.'
     const from = state.getCurrentPage()
-    await deps.flushSaves()
+    if (!(await deps.flushSaves())) {
+      return 'Your latest edits could not be saved — the page was not moved.'
+    }
+    const buffers = state.getPageBuffers()
+    const flushed = buffers.getPageText(from)
 
     let result: PageMoveResult
     try {
@@ -65,16 +80,17 @@ export function createPageMover(deps: PageMoverDeps): PageMover {
     }
     if (!result.ok) return result.error
 
-    const buffers = state.getPageBuffers()
-    for (const pair of result.moved) buffers.renamePage(pair.from, pair.to)
+    for (const pair of result.moved) rekey(pair.from, pair.to)
     const current = result.moved.find((pair) => pair.from === from)?.to ?? from
     for (const slug of result.rewritten) if (slug !== current) buffers.dropPage(slug)
-    if (result.rewritten.includes(current)) {
-      // Its own links were rewritten server-side (e.g. absolute links into its
-      // subtree): adopt the server text, which also records the new version.
+    // Its own links were rewritten server-side (e.g. absolute links into its
+    // subtree): adopt the server text, which also records the new version —
+    // unless the user typed during the move. Their text wins; the next save
+    // then surfaces the usual conflict instead of silently losing input.
+    if (result.rewritten.includes(current) && buffers.getPageText(current) === flushed) {
       try {
         const fresh = await pageStore.load(current)
-        if (fresh !== null) {
+        if (fresh !== null && buffers.getPageText(current) === flushed) {
           buffers.setPageText(current, fresh)
           buffers.clearHistory(current)
         }
@@ -99,7 +115,7 @@ export function createPageMover(deps: PageMoverDeps): PageMover {
 
   function pageMoved(from: string, to: string): void {
     if (from === to) return
-    state.getPageBuffers().renamePage(from, to)
+    rekey(from, to)
     if (state.getCurrentPage() !== from) return
     follow(from, to)
     notifications.notify({
