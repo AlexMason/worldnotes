@@ -1,6 +1,12 @@
-import type { ContentPlugin, Token, EditorContext, StaticRenderContext } from '../types'
+import type {
+  ContentPlugin,
+  Token,
+  EditorContext,
+  StaticRenderContext,
+  LinkRewriteContext,
+} from '../types'
 import { parseWikiLink } from '../navigation'
-import { wikiLinkAddress, wikiTargetToSlug } from '../../shared/slug'
+import { rewriteWikiTarget, wikiLinkAddress, wikiTargetToSlug } from '../../shared/slug'
 import { wikiLinkClass } from './link-class'
 import { escapeHTML, escapeAttr } from '../escape'
 
@@ -66,5 +72,22 @@ export const wikiLinkPlugin: ContentPlugin = {
     const { page } = parseWikiLink(token.groups[0] ?? '')
     context.navigate(wikiLinkAddress(page, context.linkBase))
     return true // suppress default — we handle it
+  },
+
+  // Page moves: rewrite only links that resolved to a moved page AND no
+  // longer resolve to its new slug from the (possibly moved) linking page —
+  // relative links inside a moved subtree already follow the move. An
+  // explicit `|label` is kept byte-exact.
+  rewriteLink(token: Token, context: LinkRewriteContext): string | null {
+    const inner = token.groups[0] ?? ''
+    const pipe = inner.indexOf('|')
+    const rest = pipe === -1 ? '' : inner.slice(pipe)
+    const { page } = parseWikiLink(inner)
+    const oldSlug = wikiTargetToSlug(wikiLinkAddress(page, context.oldBase))
+    if (oldSlug === null) return null
+    const newSlug = context.moved(oldSlug)
+    if (newSlug === undefined) return null
+    if (wikiTargetToSlug(wikiLinkAddress(page, context.newBase)) === newSlug) return null
+    return `[[${rewriteWikiTarget(page, newSlug, context.newBase)}${rest}]]`
   },
 }

@@ -7,6 +7,9 @@ import {
   slugDisplayName,
   wikiLinkBase,
   wikiLinkAddress,
+  relocateSlug,
+  styleLinkPath,
+  rewriteWikiTarget,
   SLUG_MAX_LENGTH,
 } from '../slug'
 
@@ -140,5 +143,38 @@ describe('wikiLinkAddress', () => {
 describe('slugDisplayName', () => {
   it('title-cases the last segment', () => {
     expect(slugDisplayName('blog/my-first-post')).toBe('My First Post')
+  })
+})
+
+describe('relocateSlug', () => {
+  it('relocates the page and its subtree, segment-aware', () => {
+    expect(relocateSlug('alpha', 'alpha', 'gamma')).toBe('gamma')
+    expect(relocateSlug('alpha/beta/c', 'alpha', 'x/gamma')).toBe('x/gamma/beta/c')
+    expect(relocateSlug('alpha-x', 'alpha', 'gamma')).toBeNull()
+    expect(relocateSlug('beta', 'alpha', 'gamma')).toBeNull()
+  })
+})
+
+describe('styleLinkPath', () => {
+  it('keeps slug-cased originals in slug form', () => {
+    expect(styleLinkPath('projects/acme', 'clients/acme-corp')).toBe('clients/acme-corp')
+    expect(styleLinkPath('/v2', 'docs/v3-final')).toBe('docs/v3-final')
+  })
+
+  it('humanizes segments for human-written originals', () => {
+    expect(styleLinkPath('Projects/Acme', 'clients/acme-corp')).toBe('Clients/Acme Corp')
+    expect(styleLinkPath('My Page', 'release-2')).toBe('Release 2')
+  })
+})
+
+describe('rewriteWikiTarget', () => {
+  it('stays relative only while the target is under the new base', () => {
+    expect(rewriteWikiTarget('Acme', 'clients/acme-corp', null)).toBe('Clients/Acme Corp')
+    expect(rewriteWikiTarget('acme', 'clients/acme-corp', 'clients')).toBe('acme-corp')
+    expect(rewriteWikiTarget('acme', 'clients/acme-corp', 'projects')).toBe('/clients/acme-corp')
+  })
+
+  it('keeps absolute originals absolute', () => {
+    expect(rewriteWikiTarget('/acme', 'clients/acme', 'clients')).toBe('/clients/acme')
   })
 })

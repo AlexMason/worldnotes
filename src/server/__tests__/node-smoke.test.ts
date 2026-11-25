@@ -53,6 +53,16 @@ describe('core modules import in plain node (no DOM)', () => {
     expect(html).toContain('<img class="wn-image-img" src="/i.png"')
   })
 
+  it('the page-move link rewriter runs DOM-free under plain node', async () => {
+    const { rewriteLinks } = await import('../../core/link-rewrite')
+    const out = rewriteLinks('- see [[/a/b]]', defaultPlugins, {
+      oldBase: null,
+      newBase: null,
+      moved: (slug) => (slug === 'a/b' ? 'c/d' : undefined),
+    })
+    expect(out).toBe('- see [[/c/d]]')
+  })
+
   it('navigation helpers are DOM-free pure functions', () => {
     expect(parseWikiLink('projects/worldnotes|Notes')).toEqual({
       page: 'projects/worldnotes',

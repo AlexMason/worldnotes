@@ -199,6 +199,21 @@ export interface StaticRenderContext extends LinkContext {
   renderInline(text: string): string
 }
 
+/**
+ * Context for rewriting link SOURCE when pages move (src/core/link-rewrite.ts).
+ * The linking page itself may be moving, so its link base is given both
+ * before and after the move.
+ *
+ * @property oldBase - Link base of the linking page before the move (wikiLinkBase)
+ * @property newBase - Link base of the linking page after the move
+ * @method   moved   - New slug of a moved page; undefined when `slug` did not move
+ */
+export interface LinkRewriteContext {
+  oldBase: string | null
+  newBase: string | null
+  moved(slug: string): string | undefined
+}
+
 // ─── Plugin Lifecycle ──────────────────────────────────────────────────────────
 
 /**
@@ -259,6 +274,12 @@ export interface ContentPlugin extends PluginLifecycle {
    * @returns       - HTML string representation of the token
    */
   renderToHTML?(token: Token, context: StaticRenderContext): string
+  /**
+   * Optional (link plugins only): source rewrite for page moves. Returns the
+   * token's replacement raw markdown, or null to keep it unchanged. Grammar
+   * stays here — the generic walker never parses link syntax itself.
+   */
+  rewriteLink?(token: Token, context: LinkRewriteContext): string | null
 }
 
 // ─── UI Plugin ─────────────────────────────────────────────────────────────────

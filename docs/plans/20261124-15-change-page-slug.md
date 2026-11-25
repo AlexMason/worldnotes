@@ -347,7 +347,7 @@ Manual (`npm run dev`, Postgres, logged in as editor):
 
 ## Steps
 
-- [ ] 1. **Shared + engine link rewriting.** `relocateSlug`, `styleLinkPath`, `rewriteWikiTarget` in `src/shared/slug.ts`; `LinkRewriteContext` + `ContentPlugin.rewriteLink` in `src/core/types.ts`; hooks in `wikiLink.ts` and `link.ts`; `src/core/link-rewrite.ts`; tests (`slug`, `link-rewrite` incl. corpus identity, `node-smoke`).
+- [x] 1. **Shared + engine link rewriting.** `relocateSlug`, `styleLinkPath`, `rewriteWikiTarget` in `src/shared/slug.ts`; `LinkRewriteContext` + `ContentPlugin.rewriteLink` in `src/core/types.ts`; hooks in `wikiLink.ts` and `link.ts`; `src/core/link-rewrite.ts`; tests (`slug`, `link-rewrite` incl. corpus identity, `node-smoke`).
 - [ ] 2. **Aliases + atomic move in the repository.** `migrations/007_page_aliases.sql`; `PagesRepository.resolveAlias`/`move`, alias-aware `existing()`; memory + pg implementations; `pages-memory` + `pages-pg.integration` tests.
 - [ ] 3. **Move endpoint and alias-aware page API.** `POST /api/page-moves`, settings follow (`updateSettings` dep wired in `app.ts`), `PageWriteChange 'moved'`, GET 301 / mutation 409 `movedTo` on aliases; `pages-api` tests.
 - [ ] 4. **Alias redirects on the HTML read path.** `renderArticle` 301 for readers and editors (and `/` via home); `pages-html` tests.
