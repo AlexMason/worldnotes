@@ -222,6 +222,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await registerPageApiRoutes(app, {
     pages: deps.pages,
     getSettings: () => settingsService.get(),
+    updateSettings: (patch, by) => settingsService.update(patch, by),
     onWrite: invalidate,
   })
 
