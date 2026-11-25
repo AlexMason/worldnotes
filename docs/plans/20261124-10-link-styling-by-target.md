@@ -3,7 +3,7 @@ issue: 10
 title: Style links by target — existing vs missing internal pages, icon for external links
 type: feature
 branch: feature/10-link-styling-by-target
-status: implementing
+status: implemented
 created: 2026-11-24
 pr: ""
 ---
