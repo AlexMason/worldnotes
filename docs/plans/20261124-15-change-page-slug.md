@@ -352,7 +352,7 @@ Manual (`npm run dev`, Postgres, logged in as editor):
 - [x] 3. **Move endpoint and alias-aware page API.** `POST /api/page-moves`, settings follow (`updateSettings` dep wired in `app.ts`), `PageWriteChange 'moved'`, GET 301 / mutation 409 `movedTo` on aliases; `pages-api` tests.
 - [x] 4. **Alias redirects on the HTML read path.** `renderArticle` 301 for readers and editors (and `/` via home); `pages-html` tests.
 - [x] 5. **Client store support.** Core `PageStore.move?`/`canonicalOf?` + `PageMoveResult` types; `ApiPageStore.move`, redirected-load aliasing, 409 `movedTo` re-key + retry + `onMoved`; `api-page-store` tests.
-- [ ] 6. **Core move flow.** `PageBuffers.renamePage`/`dropPage`, lifecycle `flushSaves`, alias-following navigation, `editor-page-move.ts`, `EditorInstance.beginMovePage`/`pageMoved`, `EditorOptions.onPageMoved`; `page-buffers`, `editor-page-move`, `editor-navigation` tests.
+- [x] 6. **Core move flow.** `PageBuffers.renamePage`/`dropPage`, lifecycle `flushSaves`, alias-following navigation, `editor-page-move.ts`, `EditorInstance.beginMovePage`/`pageMoved`, `EditorOptions.onPageMoved`; `page-buffers`, `editor-page-move`, `editor-navigation` tests.
 - [ ] 7. **Inline move field in the breadcrumb.** `breadcrumb.ts` `onEditActive`, `page-move-field.ts`, styles + tokens in `styles.ts`, wiring in `editor-render.ts`; breadcrumb/field tests.
 - [ ] 8. **Client wiring.** `main.ts` `onPageMoved` (replaceState/title/link existence/home reload) and store `onMoved` → `pageMoved`; `chrome.ts` "Move page…" item; `chrome` tests; manual test pass.
 - [ ] 9. **Docs.** `docs/api.md` (page-moves, alias 301/409 semantics, `pages-exist` alias note); `docs/architecture.md` (routing table, aliases, move flow, link-rewrite module under the single-renderer rule, database section); `docs/theming.md` (move-field tokens).
@@ -368,5 +368,8 @@ Manual (`npm run dev`, Postgres, logged in as editor):
 - *Accepted:* Decision 8 replaces the chosen "retry once" with row locks. The all-or-nothing contract is unchanged. Reviewer: confirm or ask to revert to optimistic guards.
 
 ## Implementation notes
+
+- 2026-11-24 — Step 6/7 boundary: `EditorInstance.beginMovePage` lands in step 7 together with the field it opens (step 6 would otherwise ship a method with nothing to open). No design change.
+- 2026-11-24 — Engine-faithful rewriting means links the engine does not render as links are not rewritten: emphasis content is plain text in this engine (`**[[x]]**` renders literally), so such text is left alone, like fences and code spans. Pinned by `link-rewrite.test.ts`.
 
 ## Review

@@ -409,6 +409,13 @@ export interface EditorOptions {
   onTrailChange?: (trail: string[]) => void
   onPageLoad?: (page: string, content: string) => void
   onSave?: (page: string, content: string) => void
+  /**
+   * The current page moved (this editor's own move, or a store-detected move
+   * from elsewhere when `result` is absent). Fires BEFORE the breadcrumb
+   * repaints, so `onTrailChange` already sees the page at its new slug —
+   * hosts update their URL (replaceState) and bookkeeping here.
+   */
+  onPageMoved?: (from: string, to: string, result?: PageMoveResult) => void
 }
 
 // ─── Toast Notifications ─────────────────────────────────────────────────────
@@ -504,4 +511,9 @@ export interface EditorInstance {
   notify(options: ToastOptions): string
   /** Dismiss a specific toast by ID. */
   dismiss(toastId: string): void
+  /**
+   * The store learned that `from` was moved to `to` elsewhere (another tab or
+   * editor): re-key it, and follow it when it is the current page.
+   */
+  pageMoved(from: string, to: string): void
 }

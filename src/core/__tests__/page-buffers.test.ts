@@ -109,3 +109,26 @@ describe('createPageBuffers', () => {
     })
   })
 })
+
+describe('PageBuffers page moves', () => {
+  it('renamePage moves content and undo history; absent pages are a no-op', () => {
+    const buffers = createPageBuffers()
+    buffers.setPageText('a', 'one')
+    buffers.setPageText('a', 'two')
+    buffers.renamePage('a', 'b')
+    expect(buffers.hasPage('a')).toBe(false)
+    expect(buffers.getPageText('b')).toBe('two')
+    expect(buffers.undo('b')).toBe('one')
+
+    buffers.renamePage('ghost', 'c')
+    expect(buffers.hasPage('c')).toBe(false)
+  })
+
+  it('dropPage forgets content and history', () => {
+    const buffers = createPageBuffers()
+    buffers.setPageText('a', 'one')
+    buffers.dropPage('a')
+    expect(buffers.hasPage('a')).toBe(false)
+    expect(buffers.canUndo('a')).toBe(false)
+  })
+})
