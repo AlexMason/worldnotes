@@ -167,7 +167,38 @@ export function wikiLinkAddress(target: string, base: string | null | undefined)
 
 - 2026-11-24 (approval): approved by the implementer under the user's standing instruction ("plan, implement, review, and file — I don't want to be in the loop until the change is in main"). The user tests manually after the merge.
 - 2026-11-24 (step 3): `admin.ts` needed no edit (it forwards the renderer into `statusDocument`, which now passes the status page slug). There is no `settings-api` test file; the home-change cache clear is exercised end to end in `pages-html.test.ts` ("changing the home page re-renders cached articles with the new base"). Existing server fixtures that relied on root-semantics `[[x]]` on non-home pages were changed to `[[/x]]` (same intent under the new rule). No decision affected.
+- 2026-11-24 (review): `classifyLinkTarget` moved from `core/plugins/link.ts` to `shared/url-policy.ts` (all callers repointed, no re-export) so the shared `wikiLinkAddress` can leave non-page targets unprefixed. `LinkContext.linkBase` widened to `string | null` (null = root) to drop conditional spreads. Neither changes a decision.
 
 ## Review
 
 Mode: sub-agents (three fresh-context reviewers: A plan conformance & correctness, B code quality, C security & scalability). Review run unattended at the user's request.
+
+### Findings (no blockers, no majors)
+
+Fixed (each its own `fix: … (#12 review)` commit):
+
+- **URL-shaped wiki targets escaped the editor's refusal on nested pages** (lens C, minor). On `alpha`, `[[https://x.com/y]]` became `/alpha/https://x.com/y`, which `pageAddressToSlug` classified `internal` and folded into a junk page `alpha/https/x-com/y`. Fix: `wikiLinkAddress` never prefixes targets whose `classifyLinkTarget` is not `internal`. The editor refuses them on every page again. Tests: shared unit + editor click on `[[https://…]]`/`[[#frag]]`. The reader's pre-existing root fold of such targets (`/https/x-com/y`, unchanged from `main`) is out of scope.
+- **Nav parse could cache links built with the old home** (lens A nit, lens C noted). Fix: the nav service skips `cache.set` when `cache.generation` moved during the page load (same guard as article/status renders). Test with a parked load.
+- **Home-change coverage** (lens B). Added SSR tests: a home change refreshes nav links and the custom 404 body; a settings PUT that keeps `homeSlug` keeps cached articles. Added an `info` log when a home change clears the render cache.
+- **Relative existence re-class untested** (lens B). Added an editor test: answers keyed on `alpha/later` toggle `wn-link-missing`, answers for root `later` do not.
+- **Unset-`homeSlug` editor path untested** (lens B). Added an editor test: on page `home` with no home configured, `[[beta]]` opens `home/beta`.
+- **Cleanups** (lens B, lens A): one `currentPage()` helper in `editor-state.ts` (was three copies); `linkBase` accepts `null`, so the four conditional spreads and `reader.ts`'s `baseFor` are gone; stale "RAW author target" comments in `link-existence-sync.ts` and `plugins/link.ts` and the `ReaderRenderer` doc corrected.
+
+Unrelated but important (issue opened):
+
+- **Concurrent settings saves can silently revert each other** (lens C nit). `SettingsService.update` is a pre-existing lost-update. Since this change it can also skip the home-change cache clear, bounded by the cache TTL. Opened #13.
+
+Dismissed:
+
+- `Pick<RenderCache, 'clear'>` vs `RenderCache` in `SettingsApiDeps` (lens B nit). The narrow type is deliberate (the route only clears) and harmless.
+- Each link is folded about three times per render (lenses B, C nit). This is a small constant factor on a path already capped at 500 links and served from cache.
+- `surface-parity.test.ts` pins the exact `data-page` address string (lens B nit). The address format is the documented cross-surface contract (Decision 2).
+
+Manual review: run by the implementer in a real browser against a local server (`AUTH_DISABLED=1`, throwaway Postgres):
+
+- On `/alpha`, `[[beta]]` renders dotted with the `/` marker (`/alpha/beta` missing). `[[/beta|Root beta]]` and `[md](beta)` render solid (`/beta` exists).
+- The editor-shell seed is `{"alpha/beta":false,"beta":true}`.
+- Clicking `[[beta]]` navigated to `/alpha/beta` and opened a seeded `# Beta` page. Clicking `[[/beta]]` navigated to `/beta`.
+- After `PUT /api/settings {"homeSlug":"alpha"}`, `/` seeds `{"beta":true}`, so relative links resolve from the root.
+
+Manual-review sign-off waived by the user, who tests after the merge.
