@@ -14,6 +14,11 @@ const CRUMB_MAX_BOXES = 4
 export interface BreadcrumbOptions {
   /** Root crumb label (site name); defaults to 'Home'. */
   homeLabel?: string
+  /**
+   * Label of path crumb `index` (≥ 1) — the production editor names pages by
+   * their titles. Defaults to the humanized trail segment.
+   */
+  label?(index: number): string
   /** A non-active crumb was activated; `index` is its ORIGINAL trail index. */
   onCrumb(index: number): void
   /**
@@ -48,13 +53,13 @@ export function renderBreadcrumb(
     })
     options.onCrumb(i)
   }
-  const addCrumb = (page: string, i: number): void => {
+  const labelOf = (i: number): string => options.label?.(i) ?? slugDisplayName(trail[i]!)
+  const addCrumb = (i: number): void => {
     const crumb = document.createElement('span')
     crumb.className = 'wn-crumb' + (i === trail.length - 1 ? ' wn-crumb--active' : '')
     // Root crumb is always the wiki home (labelled with the site name when
-    // branded, else "Home"); path segments are humanized slugs, matching
-    // the viewer's breadcrumb chrome.
-    crumb.textContent = i === 0 ? options.homeLabel || 'Home' : slugDisplayName(page)
+    // branded, else "Home"); path crumbs name their pages.
+    crumb.textContent = i === 0 ? options.homeLabel || 'Home' : labelOf(i)
     if (i < trail.length - 1) {
       crumb.addEventListener('click', () => activate(i))
     } else if (options.onEditActive) {
@@ -75,16 +80,16 @@ export function renderBreadcrumb(
   }
 
   if (trail.length <= CRUMB_MAX_BOXES) {
-    trail.forEach((page, i) => {
+    trail.forEach((_, i) => {
       if (i > 0) addSep()
-      addCrumb(page, i)
+      addCrumb(i)
     })
     return
   }
 
   // Home / … / parent / current — hidden crumbs keep their ORIGINAL trail
   // indices inside the dropdown, so truncateTrail behaves identically.
-  addCrumb(trail[0]!, 0)
+  addCrumb(0)
   addSep()
   const more = document.createElement('details')
   more.className = 'wn-crumb-more'
@@ -97,7 +102,7 @@ export function renderBreadcrumb(
   for (let i = 1; i < trail.length - 2; i++) {
     const item = document.createElement('span')
     item.className = 'wn-crumb'
-    item.textContent = slugDisplayName(trail[i]!)
+    item.textContent = labelOf(i)
     const index = i
     item.addEventListener('click', () => activate(index))
     drop.appendChild(item)
@@ -105,7 +110,7 @@ export function renderBreadcrumb(
   more.appendChild(drop)
   breadcrumb.appendChild(more)
   addSep()
-  addCrumb(trail[trail.length - 2]!, trail.length - 2)
+  addCrumb(trail.length - 2)
   addSep()
-  addCrumb(trail[trail.length - 1]!, trail.length - 1)
+  addCrumb(trail.length - 1)
 }

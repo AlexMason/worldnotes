@@ -202,7 +202,7 @@ Unit and integration tests run with Vitest (`npm test`); the pg integration suit
 - [x] 2. Repository `titles(slugs)` (pg + memory + tests) and the one-time `backfillTitles` boot step wired in `index.ts` (+ pg integration test); `docs/architecture.md` migration note.
 - [x] 3. Reader breadcrumb from titles: async `trailFor` with `titles()`, trail stored in the page cache value, ETag mixes trail, `'retitled'` write change from PUT; pages-html/pages-api tests.
 - [x] 4. `GET /api/page-titles` endpoint + editor shell `<title>` from the stored title and embedded ancestor `titles`; tests; `docs/api.md`.
-- [ ] 5. Editor core: `PageTitleResolver` + `pageTitles`/`onTitleChange` options, breadcrumb `label` option, crumb labels per Decision 13, live repaint on H1 change; core tests.
+- [x] 5. Editor core: `PageTitleResolver` + `pageTitles`/`onTitleChange` options, breadcrumb `label` option, crumb labels per Decision 13, live repaint on H1 change; core tests.
 - [ ] 6. Client: `src/client/page-titles.ts` resolver (+ tests), `main.ts` wiring (`pageTitles`, `document.title` from `onTitleChange`, slug-based writes removed); `docs/architecture.md` request-flow note.
 
 ## Risks & open questions

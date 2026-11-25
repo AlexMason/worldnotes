@@ -160,6 +160,8 @@ async function mountEditor(
     },
     onTrailChange: options.onTrailChange,
     homeLabel: options.homeLabel,
+    pageTitles: options.pageTitles,
+    onTitleChange: options.onTitleChange,
   }
   const render = createEditorRender(dom, contentPlugins, state, renderOpts)
   navigation.setRenderAPI(render)

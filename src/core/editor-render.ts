@@ -1,6 +1,6 @@
 // ─── Editor Render ───────────────────────────────────────────────────────────
 
-import type { ContentPlugin, EditorContext } from './types'
+import type { ContentPlugin, EditorContext, PageTitleResolver } from './types'
 import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
 import {
@@ -16,6 +16,8 @@ import { buildDocument, regionAt } from './document'
 import { renderInlineContent } from './renderer'
 import { renderBreadcrumb as renderBreadcrumbChrome } from './breadcrumb'
 import { openPageMoveField } from './page-move-field'
+import { pageTitle, titleFromDoc } from './page-title'
+import { slugDisplayName } from '../shared/slug'
 
 export interface EditorRenderAPI {
   /**
@@ -25,7 +27,14 @@ export interface EditorRenderAPI {
    * else the caret keeps its raw offset.
    */
   render(force?: boolean, cursorOffset?: number): void
+  /** Repaint the breadcrumb after the trail changed (fires `onTrailChange`). */
   renderBreadcrumb(): void
+  /**
+   * Repaint crumb labels in place (title answers arrived); the trail is
+   * unchanged, so `onTrailChange` does not fire. Skipped while the inline
+   * move field occupies the breadcrumb.
+   */
+  refreshTitles(): void
   /** Re-render when a collapsed caret moved to another line; true if it did. */
   checkSelectChange(): boolean
   /**
@@ -43,6 +52,10 @@ export interface EditorRenderOptions {
   navigateFn?: (page: string) => void
   /** Breadcrumb root crumb label (site name); defaults to 'Home'. */
   homeLabel?: string
+  /** Stored titles for crumbs of pages not loaded in this editor. */
+  pageTitles?: PageTitleResolver
+  /** The current page's title changed (after `onTrailChange`). */
+  onTitleChange?: (title: string) => void
 }
 
 function determineActiveLine(raw: string, offset: number): number {
@@ -73,6 +86,12 @@ export function createEditorRender(
   const { editorDiv, placeholder, breadcrumb } = dom
 
   let activeLine = -1
+  /** Page + title the breadcrumb was last painted for (live H1 edits). */
+  let paintedPage: string | null = null
+  let paintedTitle: string | null = null
+  /** Last title reported through `onTitleChange`. */
+  let reportedTitle: string | null = null
+  let moveFieldOpen = false
 
   // ── Full render pipeline ──────────────────────────────────────────────────
 
@@ -114,6 +133,12 @@ export function createEditorRender(
     const region = regionAt(doc.blocks, activeLine)
     if (region) {
       for (let l = region.startLine; l <= region.endLine; l++) activeLines.add(l)
+    }
+    // Live title: an edit to the H1 renames the active crumb and the tab.
+    // Navigation repaints the breadcrumb itself, so only a same-page title
+    // change repaints here.
+    if (page === paintedPage && (titleFromDoc(doc) ?? slugDisplayName(page)) !== paintedTitle) {
+      refreshTitles()
     }
 
     const context: EditorContext = state.toContext(
@@ -178,6 +203,7 @@ export function createEditorRender(
     dom.container.querySelectorAll('details[open]').forEach((open) => {
       ;(open as HTMLDetailsElement).open = false
     })
+    moveFieldOpen = true
     openPageMoveField(breadcrumb, {
       current: state.getCurrentPage(),
       submit,
@@ -185,9 +211,25 @@ export function createEditorRender(
     })
   }
 
-  function renderBreadcrumb(): void {
-    renderBreadcrumbChrome(breadcrumb, dom.container, state.getTrail(), {
+  /** A page's title: from its buffer when loaded (live), else the stored
+   *  title answer, else its humanized slug. */
+  function titleOf(slug: string, unknown?: string[]): string {
+    const buffers = state.getPageBuffers()
+    if (buffers.hasPage(slug)) return pageTitle(buffers.getPageText(slug), slug, contentPlugins)
+    const stored = options.pageTitles?.title(slug)
+    if (stored === undefined) unknown?.push(slug)
+    return stored ?? slugDisplayName(slug)
+  }
+
+  function paintBreadcrumb(): void {
+    // Any repaint replaces the inline move field, if it was open.
+    moveFieldOpen = false
+    const trail = state.getTrail()
+    const unknown: string[] = []
+    renderBreadcrumbChrome(breadcrumb, dom.container, trail, {
       homeLabel: options.homeLabel,
+      // Crumb i addresses the page at the joined trail prefix.
+      label: (i) => titleOf(trail.slice(1, i + 1).join('/'), unknown),
       onCrumb: (i) => {
         state.truncateTrail(i)
         const newTrail = state.getTrail()
@@ -196,8 +238,35 @@ export function createEditorRender(
       },
       ...(moveHandler ? { onEditActive: openMoveField } : {}),
     })
-    options.onTrailChange?.(state.getTrail())
+    if (unknown.length > 0) options.pageTitles?.request(unknown)
+    paintedPage = state.getCurrentPage()
+    paintedTitle = titleOf(paintedPage)
   }
 
-  return { render, renderBreadcrumb, checkSelectChange, setMoveHandler, openMoveField }
+  function reportTitle(): void {
+    if (paintedTitle === null || paintedTitle === reportedTitle) return
+    reportedTitle = paintedTitle
+    options.onTitleChange?.(paintedTitle)
+  }
+
+  function renderBreadcrumb(): void {
+    paintBreadcrumb()
+    options.onTrailChange?.(state.getTrail())
+    reportTitle()
+  }
+
+  function refreshTitles(): void {
+    if (moveFieldOpen) return
+    paintBreadcrumb()
+    reportTitle()
+  }
+
+  return {
+    render,
+    renderBreadcrumb,
+    refreshTitles,
+    checkSelectChange,
+    setMoveHandler,
+    openMoveField,
+  }
 }
