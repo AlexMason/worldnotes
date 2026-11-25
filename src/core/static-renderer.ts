@@ -20,7 +20,7 @@ import type {
   Token,
   ContentPlugin,
   StaticRenderContext,
-  PageExists,
+  LinkContext,
 } from './types'
 import { scanInline } from './tokenizer'
 import { buildPluginMap } from './plugin-map'
@@ -60,13 +60,11 @@ export function renderLineToHTML(
 }
 
 /** The context every plugin `renderToHTML` receives (nested inline rendering + link state). */
-function staticContext(
-  contentPlugins: ContentPlugin[],
-  pageExists?: PageExists,
-): StaticRenderContext {
+function staticContext(contentPlugins: ContentPlugin[], links: LinkContext): StaticRenderContext {
   return {
-    renderInline: (text: string) => renderInlineHTML(text, contentPlugins, pageExists),
-    ...(pageExists ? { pageExists } : {}),
+    renderInline: (text: string) => renderInlineHTML(text, contentPlugins, links),
+    ...(links.pageExists ? { pageExists: links.pageExists } : {}),
+    ...(links.linkBase ? { linkBase: links.linkBase } : {}),
   }
 }
 
@@ -78,7 +76,7 @@ function staticContext(
 export function renderInlineHTML(
   text: string,
   contentPlugins: ContentPlugin[],
-  pageExists?: PageExists,
+  links: LinkContext = {},
 ): string {
   const inlineDefs = contentPlugins
     .flatMap((p) => p.tokens)
@@ -100,7 +98,7 @@ export function renderInlineHTML(
       continue
     }
 
-    const ctx = staticContext(contentPlugins, pageExists)
+    const ctx = staticContext(contentPlugins, links)
     parts.push(plugin.renderToHTML(token, ctx))
   }
 
@@ -118,10 +116,10 @@ export function renderInlineHTML(
 export function renderDocumentToHTML(
   lines: Token[][],
   contentPlugins: ContentPlugin[],
-  pageExists?: PageExists,
+  links: LinkContext = {},
 ): string {
   const pluginMap = buildPluginMap(contentPlugins)
-  const ctx = staticContext(contentPlugins, pageExists)
+  const ctx = staticContext(contentPlugins, links)
   const parts: string[] = []
 
   for (let i = 0; i < lines.length; i++) {
@@ -149,10 +147,10 @@ export function renderDocumentToHTML(
 export function renderDocModelToHTML(
   doc: DocModel,
   contentPlugins: ContentPlugin[],
-  pageExists?: PageExists,
+  links: LinkContext = {},
 ): string {
   const pluginMap = buildPluginMap(contentPlugins)
-  const ctx = staticContext(contentPlugins, pageExists)
+  const ctx = staticContext(contentPlugins, links)
 
   const regionsByStart = new Map<number, BlockRegion>()
   const owner = new Map<number, BlockRegion>()
@@ -206,10 +204,10 @@ export function renderDocModelToHTML(
 export function renderDocumentHtml(
   markdown: string,
   plugins: ContentPlugin[],
-  pageExists?: PageExists,
+  links: LinkContext = {},
 ): string {
   // The block pass (buildDocument) is part of THE pipeline — both this
   // reader entry and the editor's renderLines must go through it, or the
   // surfaces drift.
-  return renderDocModelToHTML(buildDocument(markdown, plugins), plugins, pageExists)
+  return renderDocModelToHTML(buildDocument(markdown, plugins), plugins, links)
 }

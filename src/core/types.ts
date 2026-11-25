@@ -145,6 +145,21 @@ export interface PageExistenceResolver {
 /** Existence lookup: `false` = missing, `true` = exists, `undefined` = unknown. */
 export type PageExists = (slug: string) => boolean | undefined
 
+/**
+ * Link state shared by both render surfaces (reader HTML + editor DOM).
+ *
+ * @property pageExists - Existence lookup for internal page links: `false` =
+ *   the target page is known not to exist (link gets `wn-link-missing`),
+ *   `true` = exists, `undefined` or absent = unknown (rendered like an
+ *   existing page).
+ * @property linkBase - Slug that relative wiki links (`[[beta]]`) resolve
+ *   under — the page being rendered (see `wikiLinkBase`). Absent = site root.
+ */
+export interface LinkContext {
+  pageExists?: PageExists
+  linkBase?: string
+}
+
 // ─── Editor Context ───────────────────────────────────────────────────────────
 
 /**
@@ -158,7 +173,7 @@ export type PageExists = (slug: string) => boolean | undefined
  * @method getPageText    - Return raw Markdown for a page ('' if unknown)
  * @method setPageText    - Replace a page's whole content (undo-recorded)
  */
-export interface EditorContext {
+export interface EditorContext extends LinkContext {
   navigate(page: string): void
   getTrail(): string[]
   getCurrentPage(): string
@@ -172,12 +187,6 @@ export interface EditorContext {
    * Falls back to plain textContent when not provided.
    */
   renderInline?(text: string): DocumentFragment
-  /**
-   * Existence lookup for internal page links (same contract as
-   * `StaticRenderContext.pageExists`). Optional: absent = every link looks
-   * like an existing page.
-   */
-  pageExists?: PageExists
 }
 
 /**
@@ -185,14 +194,8 @@ export interface EditorContext {
  *
  * @method renderInline - Render inline markdown text as an HTML string
  */
-export interface StaticRenderContext {
+export interface StaticRenderContext extends LinkContext {
   renderInline(text: string): string
-  /**
-   * Existence lookup for internal page links: `false` = the target page is
-   * known not to exist (link gets `wn-link-missing`), `true` = exists,
-   * `undefined` = unknown (rendered like an existing page).
-   */
-  pageExists?: PageExists
 }
 
 // ─── Plugin Lifecycle ──────────────────────────────────────────────────────────

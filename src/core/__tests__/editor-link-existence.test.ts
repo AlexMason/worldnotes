@@ -52,6 +52,8 @@ async function mount(fake: FakeResolver) {
     pageStore: createMemoryPageStore({ home: DOC }),
     saveDebounceMs: 5000,
     initialPage: 'home',
+    // The configured home page: its relative links resolve from the root.
+    homeSlug: 'home',
     pageExists: fake.resolver,
   }).mount()
   const editorDiv = container.querySelector('.wn-editor') as HTMLElement

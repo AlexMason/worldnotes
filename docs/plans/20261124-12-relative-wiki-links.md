@@ -153,7 +153,7 @@ export function wikiLinkAddress(target: string, base: string | null | undefined)
 ## Steps
 
 - [x] 1. Shared resolver: `wikiLinkBase` + `wikiLinkAddress` in `src/shared/slug.ts` with unit tests.
-- [ ] 2. Core: `LinkContext` type; static engine `links` options object (all callers + tests migrated); wiki-link plugin resolves via `context.linkBase` on both surfaces and in `onNavigate`; `editor-state` `toContext` sets `linkBase`; `collectLinkSlugs` takes `linkBase`. Tests: static render, link-slugs, surface parity, editor navigation.
+- [x] 2. Core: `LinkContext` type; static engine `links` options object (all callers + tests migrated); wiki-link plugin resolves via `context.linkBase` on both surfaces and in `onNavigate`; `editor-state` `toContext` sets `linkBase`; `collectLinkSlugs` takes `linkBase`. Tests: static render, link-slugs, surface parity, editor navigation.
 - [ ] 3. Server: `ReaderRenderer.render(src, pageSlug)` + `linkExistence`, `createReaderRenderer(pages, getHomeSlug)`; migrate `pages-html.ts`, `status-page.ts`, `admin.ts`, `app.ts`; nav extraction with the nav page's base; settings `homeSlug` change clears the render cache. Tests: reader-renderer, pages-html, nav, settings-api.
 - [ ] 4. Docs: `docs/api.md` (wiki-link resolution in the viewer-markdown section, nav-page links, settings home-change cache effect), `docs/architecture.md` (link resolution rule and where it lives), `README.md`/`docs/overview.md` wiki-link wording; full local validation.
 

@@ -2,6 +2,7 @@
 
 import type { EditorContext, EditorOptions } from './types'
 import { createPageBuffers, type PageBuffers } from './page-buffers'
+import { wikiLinkBase } from '../shared/slug'
 
 /**
  * Full API surface for editor mutable state.
@@ -123,10 +124,16 @@ export function createEditorState(
         setPageText: (page: string, content: string) => pageBuffers.setPageText(page, content),
       }
       const resolver = options.pageExists
+      const currentPage = trail.length <= 1 ? (trail[0] ?? '') : trail.slice(1).join('/')
+      // Relative wiki links nest under the page being rendered — the RAW
+      // homeSlug setting (not the 'home' trail fallback), so the editor and
+      // the reader agree on which page counts as the site root.
+      const linkBase = wikiLinkBase(currentPage, options.homeSlug)
       return {
         ...context,
         getTrail: () => [...trail],
         getCurrentPage: () => (trail.length <= 1 ? (trail[0] ?? '') : trail.slice(1).join('/')),
+        ...(linkBase ? { linkBase } : {}),
         // Asking is how a link gets resolved: every render of a link requests
         // its slug (the resolver dedupes and ignores fresh answers).
         ...(resolver
