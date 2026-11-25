@@ -25,7 +25,7 @@ const MAX_EXIST_SLUGS = 100
 /** Settings that name a page by slug — they follow the page when it moves. */
 const PAGE_SLUG_SETTINGS = ['homeSlug', 'navSlug', 'notFoundSlug', 'forbiddenSlug'] as const
 
-export type PageWriteChange = 'created' | 'updated' | 'deleted' | 'moved'
+export type PageWriteChange = 'created' | 'updated' | 'retitled' | 'deleted' | 'moved'
 
 export interface PageApiDeps {
   pages: PagesRepository
@@ -36,7 +36,8 @@ export interface PageApiDeps {
   /** Bump when any write succeeds — SSR cache keys off this (step 8).
    *  `change` says whether the write altered page EXISTENCE (created /
    *  deleted / moved) — reader HTML of every page linking to it is then
-   *  stale. */
+   *  stale — or the page's TITLE (retitled), which every descendant's
+   *  breadcrumb shows. */
   onWrite?: (slug: string, change: PageWriteChange) => void
 }
 
@@ -237,6 +238,10 @@ export async function registerPageApiRoutes(
     }
 
     const title = pageTitle(body.content, validated.slug)
+    // The row this save replaces when the If-Match holds (versions grow, so a
+    // successful putIfMatch replaced this snapshot; a concurrent
+    // delete-and-recreate can at worst cost one cache clear too many/few).
+    const previous = await deps.pages.get(validated.slug)
 
     const result = await deps.pages.putIfMatch(
       validated.slug,
@@ -250,7 +255,7 @@ export async function registerPageApiRoutes(
         .header('etag', etagOf(result.current.version))
         .send({ error: 'version conflict', current: result.current })
     }
-    deps.onWrite?.(validated.slug, 'updated')
+    deps.onWrite?.(validated.slug, previous?.title === title ? 'updated' : 'retitled')
     return reply.header('etag', etagOf(result.record.version)).send({ ...result.record })
   })
 

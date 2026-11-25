@@ -230,6 +230,47 @@ describe('SSR pages', () => {
     expect(after.body).toContain('v2 edited')
   })
 
+  it('labels breadcrumbs with each ancestor page title, else its humanized slug', async () => {
+    await repo.put('lore', { title: 'Lore of Ashfall', content: '# Lore of Ashfall' })
+    await repo.put('lore/gods/old-gods', { title: 'The Old Gods', content: '# The Old Gods' })
+    const res = await app.inject({ method: 'GET', url: '/lore/gods/old-gods' })
+    expect(res.body).toContain('<title>The Old Gods — WorldNotes</title>')
+    expect(res.body).toContain(
+      '<a href="/lore">Lore of Ashfall</a><span class="wn-crumb-sep" aria-hidden="true">/</span>' +
+        '<a href="/lore/gods">Gods</a><span class="wn-crumb-sep" aria-hidden="true">/</span>' +
+        '<span aria-current="page">The Old Gods</span>',
+    )
+
+    // The 404 trail names existing ancestors the same way.
+    const missing = await app.inject({ method: 'GET', url: '/lore/ghost-ship' })
+    expect(missing.statusCode).toBe(404)
+    expect(missing.body).toContain('<a href="/lore">Lore of Ashfall</a>')
+    expect(missing.body).toContain('<span aria-current="page">Ghost Ship</span>')
+  })
+
+  it('a parent retitle reaches a cached child breadcrumb and busts its ETag', async () => {
+    await repo.put('lore', { title: 'Lore of Ashfall', content: '# Lore of Ashfall' })
+    await repo.put('lore/kid', { title: 'Kid', content: '# Kid' })
+    const first = await app.inject({ method: 'GET', url: '/lore/kid' })
+    expect(first.body).toContain('<a href="/lore">Lore of Ashfall</a>')
+
+    const saved = await app.inject({
+      method: 'PUT',
+      url: '/api/pages/lore',
+      headers: { cookie: auth, 'if-match': '"1"' },
+      payload: { content: 'no heading any more' },
+    })
+    expect(saved.json().title).toBe('Lore')
+
+    const after = await app.inject({
+      method: 'GET',
+      url: '/lore/kid',
+      headers: { 'if-none-match': first.headers.etag as string },
+    })
+    expect(after.statusCode).toBe(200)
+    expect(after.body).toContain('<a href="/lore">Lore</a>')
+  })
+
   it('404s unknown slugs without create affordances — and never caches the 404', async () => {
     const res = await app.inject({ method: 'GET', url: '/nope/missing' })
     expect(res.statusCode).toBe(404)

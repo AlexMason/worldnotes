@@ -52,9 +52,16 @@ export interface PageHtmlDeps {
   themes: ThemeService
 }
 
+interface Crumb {
+  href: string
+  label: string
+}
+
 interface PageCacheValue {
   title: string
   article: string
+  /** Ancestor crumbs (titles embedded): a retitle clears the cache. */
+  crumbs: Crumb[]
 }
 
 interface CacheEntry {
@@ -128,18 +135,25 @@ export async function registerPageHtmlRoutes(
       .send()
   }
 
-  function trailFor(slug: string) {
-    const crumbs = [{ href: '/', label: 'Home' }]
-    const homeSlug = getSettings().homeSlug ?? 'home'
-    if (slug === homeSlug) return crumbs
+  /** `a/b/c` → `['a', 'a/b', 'a/b/c']`. */
+  function slugChain(slug: string): string[] {
     const parts = slug.split('/')
-    for (let i = 0; i < parts.length; i++) {
-      crumbs.push({
-        href: pageUrl(parts.slice(0, i + 1).join('/')),
-        label: slugDisplayName(parts[i]!),
-      })
-    }
-    return crumbs
+    return parts.map((_, i) => parts.slice(0, i + 1).join('/'))
+  }
+
+  /** One crumb per ancestor (and the page itself), each labelled with its
+   *  page's stored title, else its humanized slug (missing pages). */
+  async function chainCrumbs(slug: string): Promise<Crumb[]> {
+    const chain = slugChain(slug)
+    const titles = await pages.titles(chain)
+    return chain.map((s) => ({ href: pageUrl(s), label: titles.get(s) ?? slugDisplayName(s) }))
+  }
+
+  /** The served trail: Home alone on the home page (decided per request — the
+   *  home slug is a setting), else Home + the chain crumbs. */
+  function trailOf(slug: string, home: boolean, crumbs: Crumb[]): Crumb[] {
+    const root = { href: '/', label: 'Home' }
+    return home || slug === (getSettings().homeSlug ?? 'home') ? [root] : [root, ...crumbs]
   }
 
   /** Parsed `?previewTheme=<id>` — decimal positive ids only. */
@@ -280,10 +294,12 @@ export async function registerPageHtmlRoutes(
     const cached = cache.get<PageCacheValue>(`p:${slug}`)
     let title: string
     let articleHtml: string
+    let crumbs: Crumb[]
 
     if (cached) {
       title = cached.value.title
       articleHtml = cached.value.article
+      crumbs = cached.value.crumbs
     } else {
       const page = await pages.get(slug)
       if (!page) {
@@ -294,42 +310,46 @@ export async function registerPageHtmlRoutes(
         const html = await status404(
           req,
           notFoundBodyHtml(pageUrl(slug)),
-          home ? [{ href: '/', label: 'Home' }] : trailFor(slug),
+          trailOf(slug, home, await chainCrumbs(slug)),
         )
         return respond(reply, { html, etag: hashEtag(html) }, 404)
       }
       title = page.title
       const generation = cache.generation
+      crumbs = await chainCrumbs(slug)
       articleHtml = `<article class="wn-root wn-article">${await render.render(page.content, slug)}</article>`
-      // A create/delete (cache.clear) that landed while the existence lookup
-      // was in flight makes this render stale: serve it, but do not cache it.
+      // A create/delete/retitle (cache.clear) that landed while the trail or
+      // existence lookups were in flight makes this render stale: serve it,
+      // but do not cache it.
       if (cache.generation === generation) {
         cache.set(`p:${slug}`, {
-          value: { title, article: articleHtml },
+          value: { title, article: articleHtml, crumbs },
           etag: hashEtag(articleHtml),
           storedAt: Date.now(),
         })
       }
     }
 
+    const trail = trailOf(slug, home, crumbs)
     const html = layout({
       title,
       body: articleHtml,
-      trail: home ? [{ href: '/', label: 'Home' }] : trailFor(slug),
+      trail,
       ...chrome(req.user, getSettings(), navLinks, theme.css),
     })
-    // ETag covers article bytes, the settings revision, the nav links AND the
-    // theme CSS: cached entries are article-only, but the served document
-    // embeds chrome (branding bands, nav toggles, nav-page links, theme) that
-    // re-renders per request — a nav-page or theme edit must bust browser
-    // revalidation of every page (the CSS is hashed in, not just the
-    // revision, so a restart that resets the revision can never alias it).
+    // ETag covers article bytes, the breadcrumb (ancestor titles), the
+    // settings revision, the nav links AND the theme CSS: cached entries are
+    // article-only, but the served document embeds chrome (branding bands,
+    // nav toggles, nav-page links, theme) that re-renders per request — a
+    // nav-page or theme edit must bust browser revalidation of every page
+    // (the CSS is hashed in, not just the revision, so a restart that resets
+    // the revision can never alias it), and so must a parent's retitle.
     return respond(
       reply,
       {
         html,
         etag: hashEtag(
-          `${articleHtml}\n${getSettingsRevision()}\n${JSON.stringify(navLinks)}\n${theme.css}`,
+          `${articleHtml}\n${JSON.stringify(trail)}\n${getSettingsRevision()}\n${JSON.stringify(navLinks)}\n${theme.css}`,
         ),
       },
       200,

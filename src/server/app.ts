@@ -137,8 +137,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const invalidate = (slug: string, change: PageWriteChange): void => {
     // Reader HTML embeds link state (existing vs missing page), so a page
     // coming into or going out of existence makes EVERY cached page that
-    // links to it stale — not just this slug. Creates/deletes are rare;
-    // clearing the bounded in-process cache is cheaper than a reverse index.
+    // links to it stale — not just this slug; a retitle does the same to
+    // every descendant's cached breadcrumb. Creates/deletes/retitles are
+    // rare; clearing the bounded in-process cache is cheaper than a reverse
+    // index.
     if (change !== 'updated') cache.clear()
     cache.invalidate(`p:${slug}`)
     cache.invalidate(INDEX_CACHE_KEY)
