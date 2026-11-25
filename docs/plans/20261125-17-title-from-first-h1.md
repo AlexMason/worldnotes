@@ -3,7 +3,7 @@ issue: 17
 title: Derive page titles and breadcrumb labels from the page's first H1
 type: feature
 branch: feature/17-title-from-first-h1
-status: approved
+status: implementing
 created: 2026-11-25
 pr: ""
 ---
