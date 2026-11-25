@@ -75,7 +75,7 @@ export function createMemoryPagesRepository(
       return resolveAlias(slug)
     },
 
-    async move({ from, to, by = null, validate, rewrite }): Promise<MoveResult> {
+    async move({ from, to, by = null, validate, rewrite, title }): Promise<MoveResult> {
       const subtree = [...pages.keys()]
         .filter((slug) => slug === from || slug.startsWith(`${from}/`))
         .sort()
@@ -94,7 +94,7 @@ export function createMemoryPagesRepository(
       }
 
       const rows = [...pages.values()].filter((p) => sources.has(p.slug) || p.content.includes('['))
-      const updates = computeRowUpdates(rows, plan.moved, rewrite)
+      const updates = computeRowUpdates(rows, plan.moved, rewrite, title)
       // Apply: detach every moving row first, then re-insert under its new slug
       // (targets never collide with sources — planMove refused overlaps).
       const staged = updates.map((u) => ({

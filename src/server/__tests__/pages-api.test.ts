@@ -220,14 +220,24 @@ describe('pages API', () => {
       expect(writes).toEqual(['page'])
     })
 
-    it('keeps the stored title when new content has no heading', async () => {
+    it('falls back to the slug label when new content has no H1 (h2 does not count)', async () => {
       const res = await app.inject({
         method: 'PUT',
         url: '/api/pages/page',
-        payload: { content: 'just text' },
+        payload: { content: '## Section\n\njust text' },
         headers: { cookie: auth, 'if-match': '"1"' },
       })
-      expect(res.json().title).toBe('P')
+      expect(res.json().title).toBe('Page')
+    })
+
+    it('ignores a title in the body: the H1 is the title', async () => {
+      const res = await app.inject({
+        method: 'PUT',
+        url: '/api/pages/page',
+        payload: { content: '# From Heading\n\nbody', title: 'Explicit' },
+        headers: { cookie: auth, 'if-match': '"1"' },
+      })
+      expect(res.json().title).toBe('From Heading')
     })
 
     it('adopts a new heading as title when content grows one', async () => {
@@ -312,7 +322,7 @@ describe('pages API', () => {
         expect(writes).toEqual([])
       })
 
-      it('guards run first: missing If-Match is 428, bad content/title still 400', async () => {
+      it('guards run first: missing If-Match is 428, bad content still 400', async () => {
         const noMatch = await app.inject({
           method: 'PUT',
           url: '/api/pages/page',
@@ -328,15 +338,7 @@ describe('pages API', () => {
           headers: { cookie: auth, 'if-match': '"1"' },
         })
         expect(badContent.statusCode).toBe(400)
-
-        const longTitle = await app.inject({
-          method: 'PUT',
-          url: '/api/pages/page',
-          payload: { content: '', title: 'x'.repeat(201) },
-          headers: { cookie: auth, 'if-match': '"1"' },
-        })
-        expect(longTitle.statusCode).toBe(400)
-        expect(await repo.get('page')).not.toBeNull() // title guard blocks the delete
+        expect(await repo.get('page')).not.toBeNull()
       })
     })
   })

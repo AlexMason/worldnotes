@@ -7,6 +7,7 @@ import type { MoveInput, PagesRepository } from '../../db/repository'
 import { rewriteLinks } from '../../../core/link-rewrite'
 import { defaultPlugins } from '../../../core/plugins/defaults'
 import { validateSlug, wikiLinkBase } from '../../../shared/slug'
+import { pageTitle } from '../../../core/page-title'
 
 export function moveInput(from: string, to: string): MoveInput {
   return {
@@ -23,8 +24,9 @@ export function moveInput(from: string, to: string): MoveInput {
         newBase: wikiLinkBase(row.newSlug, null),
         moved: (s) => moved.get(s),
       })
-      return content === row.content ? null : { title: row.title, content }
+      return content === row.content ? null : content
     },
+    title: (slug, content) => pageTitle(content, slug),
   }
 }
 
@@ -71,6 +73,15 @@ export function describeMoveContract(
         'mv/alpha',
         'mv/gamma',
       ])
+    })
+
+    it('retitles moved rows: an H1 stays the title, a slug-derived title follows the slug', async () => {
+      const r = repo()
+      await r.put('rt/old', { title: 'Old', content: 'no heading' })
+      await r.put('rt/old/kid', { title: 'Kid Story', content: '# Kid Story\n\nbody' })
+      expect((await r.move(moveInput('rt/old', 'rt/new-place'))).ok).toBe(true)
+      expect(await r.get('rt/new-place')).toMatchObject({ title: 'New Place', version: 1 })
+      expect(await r.get('rt/new-place/kid')).toMatchObject({ title: 'Kid Story', version: 1 })
     })
 
     it('never chains aliases and reclaims an alias moved onto', async () => {

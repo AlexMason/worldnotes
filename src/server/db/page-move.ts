@@ -48,21 +48,25 @@ export interface RowUpdate {
 
 /** The writes a move performs: every row whose slug or content changes. */
 export function computeRowUpdates(
-  rows: readonly { slug: string; title: string; content: string }[],
+  rows: readonly { slug: string; content: string }[],
   moved: ReadonlyMap<string, string>,
   rewrite: MoveInput['rewrite'],
+  title: MoveInput['title'],
 ): RowUpdate[] {
   const updates: RowUpdate[] = []
   for (const row of rows) {
     const newSlug = moved.get(row.slug) ?? row.slug
-    const next = rewrite({ slug: row.slug, newSlug, title: row.title, content: row.content }, moved)
-    const contentChanged = next !== null && next.content !== row.content
+    const next = rewrite({ slug: row.slug, newSlug, content: row.content }, moved)
+    const contentChanged = next !== null && next !== row.content
     if (newSlug === row.slug && !contentChanged) continue
+    const content = contentChanged ? next : row.content
     updates.push({
       oldSlug: row.slug,
       newSlug,
-      title: contentChanged ? next.title : row.title,
-      content: contentChanged ? next.content : row.content,
+      // A page without an H1 is named by its slug, so a moved row is
+      // retitled even when its content did not change.
+      title: title(newSlug, content),
+      content,
       contentChanged,
     })
   }

@@ -13,14 +13,13 @@ import { requireRole, requireSameOrigin } from '../auth/session'
 import { cacheControlFor, requireLoginJson } from '../auth/login-gate'
 import type { MoveInput, PagesRepository } from '../db/repository'
 import type { AppSettings, SettingsPatch } from '../settings'
-import { validateSlug, slugDisplayName, navTargetToSlug, wikiLinkBase } from '../../shared/slug'
+import { validateSlug, navTargetToSlug, wikiLinkBase } from '../../shared/slug'
 import { isBlankContent } from '../../shared/content'
-import { extractTitle } from '../render/title'
+import { pageTitle } from '../../core/page-title'
 import { rewriteLinks } from '../../core/link-rewrite'
 import { defaultPlugins } from '../../core/plugins/defaults'
 
 const MAX_CONTENT_BYTES = 1_000_000 // 1 MB
-const MAX_TITLE_LENGTH = 200
 const MAX_EXIST_SLUGS = 100
 
 /** Settings that name a page by slug — they follow the page when it moves. */
@@ -46,7 +45,6 @@ function apiPagePath(slug: string): string {
 }
 
 interface PageBody {
-  title?: unknown
   content?: unknown
   slug?: unknown
 }
@@ -184,11 +182,7 @@ export async function registerPageApiRoutes(
     if (Buffer.byteLength(content, 'utf8') > MAX_CONTENT_BYTES) {
       return reply.code(413).send({ error: 'content exceeds size limit' })
     }
-    const rawTitle = typeof body.title === 'string' ? body.title.trim() : ''
-    if (rawTitle.length > MAX_TITLE_LENGTH) {
-      return reply.code(400).send({ error: 'title too long' })
-    }
-    const title = rawTitle || extractTitle(content, slugDisplayName(validated.slug))
+    const title = pageTitle(content, validated.slug)
 
     const movedTo = await deps.pages.resolveAlias(validated.slug)
     if (movedTo !== null) return moved(reply, movedTo)
@@ -220,10 +214,6 @@ export async function registerPageApiRoutes(
     if (Buffer.byteLength(body.content, 'utf8') > MAX_CONTENT_BYTES) {
       return reply.code(413).send({ error: 'content exceeds size limit' })
     }
-    const rawTitle = typeof body.title === 'string' ? body.title.trim() : ''
-    if (rawTitle.length > MAX_TITLE_LENGTH) {
-      return reply.code(400).send({ error: 'title too long' })
-    }
 
     const ifMatch = parseIfMatch(req.headers['if-match'] as string | undefined)
     if (ifMatch === null) {
@@ -232,7 +222,7 @@ export async function registerPageApiRoutes(
 
     // Blank content means "all content deleted": the save REMOVES the page
     // (version-guarded, so a stale client can never destroy newer content).
-    // A blank PUT never recreates — hence before the title-derivation get().
+    // A blank PUT never recreates.
     if (isBlankContent(body.content)) {
       const deleted = await deps.pages.deleteIfMatch(validated.slug, ifMatch)
       if (deleted.ok === false) {
@@ -246,13 +236,7 @@ export async function registerPageApiRoutes(
       return reply.code(204).send()
     }
 
-    // Title: explicit > derived from new content > existing
-    let title = rawTitle
-    if (!title) {
-      const existing = await deps.pages.get(validated.slug)
-      if (!existing) return missingOrMoved(reply, validated.slug)
-      title = extractTitle(body.content, existing.title)
-    }
+    const title = pageTitle(body.content, validated.slug)
 
     const result = await deps.pages.putIfMatch(
       validated.slug,
@@ -309,6 +293,7 @@ export async function registerPageApiRoutes(
         return v.ok ? null : v.error
       },
       rewrite: moveRewriter(() => deps.getSettings().homeSlug),
+      title: (slug, content) => pageTitle(content, slug),
     })
 
     if (result.ok === false) {
@@ -390,8 +375,7 @@ function moveRewriter(getHomeSlug: () => string | null): MoveInput['rewrite'] {
       newBase: wikiLinkBase(row.newSlug, homeAfter),
       moved: (slug) => movedSlugs.get(slug),
     })
-    if (content === row.content) return null
-    return { content, title: extractTitle(content, row.title) }
+    return content === row.content ? null : content
   }
 }
 

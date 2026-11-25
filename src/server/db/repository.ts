@@ -37,7 +37,6 @@ export interface MovePageRow {
   slug: string
   /** Slug after the move (=== slug for pages outside the moved subtree). */
   newSlug: string
-  title: string
   content: string
 }
 
@@ -49,13 +48,12 @@ export interface MoveInput {
   validate(slug: string): string | null
   /**
    * Rewrite one page's links for the move (`moved`: old → new slug of every
-   * moved page). Return null when the content is unchanged. Must be pure and
-   * synchronous — it runs inside the move transaction.
+   * moved page). Return the new content, or null when it is unchanged. Must be
+   * pure and synchronous — it runs inside the move transaction.
    */
-  rewrite(
-    row: MovePageRow,
-    moved: ReadonlyMap<string, string>,
-  ): { title: string; content: string } | null
+  rewrite(row: MovePageRow, moved: ReadonlyMap<string, string>): string | null
+  /** Title to store for a row the move writes (its slug after the move). */
+  title(slug: string, content: string): string
 }
 
 export type MoveResult =

@@ -36,8 +36,8 @@ a viewer's write is a 403.
 | `GET /api/pages[?q=&limit=]` | —      | no¹                                                                                                                                                                                      | list/search (ILIKE), newest first, default limit 100        |
 | `GET /api/pages/{slug}`      | —      | no¹                                                                                                                                                                                      | `{slug,title,content,version,updatedAt,updatedBy}` + `ETag`; a **former slug** (alias) answers `301` → `/api/pages/{current}` |
 | `GET /api/pages-exist?slugs=a,b/c` | — | no¹ | link-state lookup → `{exists:{"a":true,"b/c":false}}`. ≤100 comma-separated slugs (400 above); invalid/reserved slugs are omitted (unknown); former slugs (aliases) count as existing; `Cache-Control` like the list. Not under `/api/pages/*`, which would read it as a slug |
-| `POST /api/pages`            | editor | body `{slug, title?, content}` — **content required and non-blank** (400 otherwise); title defaults to the first `#` heading, else humanized slug; 409 on exists; 409 `{movedTo}` on a former slug |
-| `PUT /api/pages/{slug}`      | editor | body `{content, title?}` **requires `If-Match: "<version>"`**; 409 `{current:{version}}` on stale, 428 without header, 404 unknown, 409 `{movedTo}` on a former slug, 403 viewer. **Blank content DELETES the page** → 204 |
+| `POST /api/pages`            | editor | body `{slug, content}` — **content required and non-blank** (400 otherwise); the stored title is derived (see Titles below); 409 on exists; 409 `{movedTo}` on a former slug |
+| `PUT /api/pages/{slug}`      | editor | body `{content}` **requires `If-Match: "<version>"`**; the title is re-derived from the new content; 409 `{current:{version}}` on stale, 428 without header, 404 unknown, 409 `{movedTo}` on a former slug, 403 viewer. **Blank content DELETES the page** → 204 |
 | `DELETE /api/pages/{slug}`   | editor | 204 / 404 / 409 `{movedTo}` on a former slug / 403 viewer                                                                                                                                |
 | `POST /api/page-moves`       | editor | body `{from, to}` — move a page **and its subtree** (see Page moves below) → `200 {moved:[{from,to}], rewritten:[slug], settings:[field]}`                                               |
 
@@ -51,6 +51,12 @@ API _and_ by a DB `CHECK`. Titles keep case; slugs don't. (`icons`/`media`
 back the bundled icon set and the media store below; `004_media.sql` aborts
 if an existing page already uses those prefixes, so they never get silently
 shadowed.)
+
+Titles: a page's title is the text of its **first H1** (`# …`, outside code
+fences), else its humanized last slug segment (`lore/old-gods` → `Old Gods`).
+It is derived on every write (create, save, move) and stored; request bodies
+carry no title (a `title` field is ignored). The same rule names the page in
+tab titles and breadcrumbs.
 
 ### Conflict semantics (autosave)
 
