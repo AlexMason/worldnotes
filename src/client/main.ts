@@ -96,6 +96,8 @@ async function main(): Promise<void> {
         const slug = navTargetToSlug(page)
         if (slug !== null) linkExistence.set(slug, false)
       },
+      // Another tab/editor moved this page; a save followed it — re-key.
+      onMoved: (from, to) => instance?.pageMoved(from, to),
       loadServerContent: (content) => instance?.setContent(content),
     }),
     // Seed the store version from the SSR embed so the first autosave sends
@@ -128,6 +130,24 @@ async function main(): Promise<void> {
       // over the new page on mobile.
       container.querySelector('details[open]')?.removeAttribute('open')
     },
+    onPageMoved: (from, to, result) => {
+      const pairs = result?.ok ? result.moved : [{ from, to }]
+      // Former slugs redirect, so links to them still work (not "missing").
+      for (const pair of pairs) {
+        linkExistence.set(pair.from, true)
+        linkExistence.set(pair.to, true)
+      }
+      // The home page moved: the editor's homeSlug option (link base, seeds,
+      // trail root) is now stale — reload at the new address instead.
+      if (cfg.homeSlug !== null && pairs.some((pair) => pair.from === cfg.homeSlug)) {
+        window.location.replace(pageUrlPath(to))
+        return
+      }
+      // Replace, never push: the old URL now redirects here.
+      currentSlug = to
+      window.history.replaceState(null, '', pageUrlPath(to))
+      document.title = composeDocTitle(slugDisplayName(to), cfg.siteName)
+    },
   })
 
   instance = await editor.mount()
@@ -137,7 +157,12 @@ async function main(): Promise<void> {
   const editorWrap = container.querySelector<HTMLElement>('.wn-editor-wrap')
   if (editorWrap) insertSiteBands(editorWrap, cfg.headerHtml, cfg.footerHtml)
 
-  mountHeaderActions(container, cfg, (slug) => instance?.navigate(slug))
+  mountHeaderActions(
+    container,
+    cfg,
+    (slug) => instance?.navigate(slug),
+    () => instance?.beginMovePage(),
+  )
   bindPopstate(
     () => currentSlug,
     (slug) => {
