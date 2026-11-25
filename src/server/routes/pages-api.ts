@@ -13,12 +13,7 @@ import { requireRole, requireSameOrigin } from '../auth/session'
 import { cacheControlFor, requireLoginJson } from '../auth/login-gate'
 import type { PagesRepository } from '../db/repository'
 import type { AppSettings, SettingsPatch } from '../settings'
-import {
-  validateSlug,
-  slugDisplayName,
-  navTargetToSlug,
-  wikiLinkBase,
-} from '../../shared/slug'
+import { validateSlug, slugDisplayName, navTargetToSlug, wikiLinkBase } from '../../shared/slug'
 import { isBlankContent } from '../../shared/content'
 import { extractTitle } from '../render/title'
 import { rewriteLinks } from '../../core/link-rewrite'
