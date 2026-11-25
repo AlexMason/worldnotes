@@ -300,7 +300,7 @@ Shown as `token → fallback when unset`.
 | Buttons (admin, toast actions) | `--wn-color-button-bg` → `transparent`; `--wn-color-button-fg` / `--wn-color-button-border` → `accent`; `--wn-color-admin-msg` → `accent`                                                         |
 | Status pages                   | `--wn-color-status-heading` → `heading-h1`; `.wn-status` links use `--wn-color-link`                                                                                                              |
 | Page lists / users table       | `--wn-padding-list-item` → `.15rem 0`; `--wn-color-table-border` → `border`                                                                                                                       |
-| Article                        | `--wn-color-list-marker` → `fg-muted`; `--wn-color-list-text` → `fg`; `--wn-color-blockquote-border` → `border`; `--wn-color-link-marker` (`↗`) → `fg-muted`; `--wn-color-image-alt` → `fg-muted` |
+| Article                        | `--wn-color-list-marker` → `fg-muted`; `--wn-color-list-text` → `fg`; `--wn-color-blockquote-border` → `border`; `--wn-color-link-marker` (external-link icon tint) → `fg-muted`; `--wn-icon-external` (icon shape: a CSS `url(...)` image used as a mask) → built-in box-and-arrow; `--wn-color-wiki-link-missing` (links to missing pages) → `fg-muted`; `--wn-link-missing-marker` (CSS string after missing links; `''` removes it) → `'/'`; `--wn-color-image-alt` → `fg-muted` |
 | Code blocks                    | `--wn-color-code-block-bg` → `code-bg`; `--wn-color-code-block-fg` → `code`; `--wn-color-code-fence` → `punct`; `--wn-border-code-block` → `none`                                                 |
 | Tables                         | `--wn-color-table-border` → `border`; `--wn-color-table-head-bg` → `transparent`                                                                                                                  |
 | Selection                      | `--wn-color-selection-fg` → `currentColor`                                                                                                                                                        |
@@ -362,9 +362,17 @@ the stable hooks are the `.wn-*` classes:
   but `/admin` never loads a theme, so none of the `/admin` selectors are
   themeable.
 
-Off-site links carry a `↗` marker via `.wn-link[target="_blank"]::after`
-(`target="_blank"` is emitted ONLY for absolute http(s) URLs by both
-renderers). Generated `::after` content never enters DOM text.
+Links to internal pages carry state: a link whose target page exists is a
+plain `.wn-wiki-link` (solid underline); a link whose target is known **not**
+to exist also carries `.wn-link-missing` (dotted underline, muted colour,
+trailing `/`). The class is set identically by the reader (server-side, from
+one batched existence lookup per render) and the editor (client-side, patched
+in place when the answer arrives). Unknown existence — lookup pending or
+failed — keeps the plain look. Off-site links carry an icon via
+`.wn-link[target="_blank"]::after`, a CSS mask tinted by
+`--wn-color-link-marker` (`target="_blank"` is emitted ONLY for absolute
+http(s) URLs by both renderers). Generated `::after` content never enters DOM
+text.
 
 Rules of thumb for theme authors:
 

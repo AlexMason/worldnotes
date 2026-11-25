@@ -180,6 +180,10 @@ export const EDITOR_TOKENS_CSS = `
 }
 `
 
+/* Off-site link icon (16x16 box-with-arrow), consumed as a CSS mask. */
+const EXTERNAL_ICON =
+  `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6.5 3H3.5v9.5H13v-3M9.5 2.5h4v4M13.5 2.5l-6 6'/%3E%3C/svg%3E")`
+
 /** Content rules for the token markup both surfaces emit. Reader-safe. */
 export const EDITOR_CONTENT_CSS = `
 /* Selection + keyboard focus — both surfaces. Presentation only: no DOM text. */
@@ -280,16 +284,31 @@ export const EDITOR_CONTENT_CSS = `
    punct spans, so editing always shows every pipe. */
 .wn-table-row .wn-punct { display: none; }
 
-/* Wiki link — mirrors the viewer (dotted underline, no pill) */
+/* Wiki link — solid underline when the target page exists. Links to pages
+   known NOT to exist (.wn-link-missing, set identically by the reader and the
+   editor) turn dotted, muted, and gain a trailing slash. Unknown existence
+   keeps the plain look. The marker is generated content (never DOM text);
+   --wn-link-missing-marker: '' removes it. */
 .wn-wiki-link {
   color: var(--wn-color-wiki-link, #1a5fb4);
   text-decoration: underline;
-  text-decoration-style: dotted;
+  text-decoration-style: solid;
   text-underline-offset: 2px;
   cursor: pointer;
   transition: var(--wn-transition-color, color 0.15s);
 }
 .wn-wiki-link:hover { color: var(--wn-color-link-hover, var(--wn-color-accent-hover, #3f79c4)); }
+.wn-wiki-link.wn-link-missing {
+  color: var(--wn-color-wiki-link-missing, var(--wn-color-fg-muted, #6f6a61));
+  text-decoration-style: dotted;
+}
+.wn-wiki-link.wn-link-missing:hover { color: var(--wn-color-link-hover, var(--wn-color-accent-hover, #3f79c4)); }
+.wn-wiki-link.wn-link-missing::after {
+  content: var(--wn-link-missing-marker, '/');
+  display: inline-block;
+  margin-inline-start: .1em;
+  text-decoration: none;
+}
 
 /* Strikethrough */
 .wn-strikethrough { text-decoration: line-through; }
@@ -304,14 +323,21 @@ export const EDITOR_CONTENT_CSS = `
 .wn-link:hover { color: var(--wn-color-link-hover, var(--wn-color-accent-hover, #3f79c4)); }
 /* Off-site marker: absolute http(s) links are the only ones both renderers
    emit with target="_blank" (internal folds, #fragments and mailto: are not),
-   so the attribute selects exactly "leaves the site". Generated ::after
-   content is invisible to DOM-text extraction — byte fidelity holds. */
+   so the attribute selects exactly "leaves the site". The icon is a CSS mask
+   (tinted by --wn-color-link-marker; swap the shape via --wn-icon-external).
+   Generated ::after content is invisible to DOM-text extraction — byte
+   fidelity holds. */
 .wn-link[target='_blank']::after {
-  content: '\\2197';
+  content: '';
+  display: inline-block;
+  width: .8em;
+  height: .8em;
+  margin-inline-start: .2em;
+  vertical-align: -.05em;
   text-decoration: none;
-  margin-inline-start: .15em;
-  font-size: .85em;
-  color: var(--wn-color-link-marker, var(--wn-color-fg-muted, #6f6a61));
+  background-color: var(--wn-color-link-marker, var(--wn-color-fg-muted, #6f6a61));
+  -webkit-mask: var(--wn-icon-external, ${EXTERNAL_ICON}) center / contain no-repeat;
+  mask: var(--wn-icon-external, ${EXTERNAL_ICON}) center / contain no-repeat;
 }
 
 /* Image — punct-fidelity source (dimmed markers) + the rendered preview.

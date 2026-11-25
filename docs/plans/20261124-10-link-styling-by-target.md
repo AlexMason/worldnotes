@@ -134,7 +134,7 @@ All tests co-located, deterministic, no network.
 ## Steps
 
 - [x] 1. Shared core: `pageExists` on `StaticRenderContext` / `EditorContext`; `link-slugs.ts` + tests; plugins (`link.ts`, `wikiLink.ts`) emit `wn-link-missing`; thread the optional resolver through `static-renderer.ts`; extend plugin, static-renderer and surface-parity tests.
-- [ ] 2. CSS: solid existing underline, missing style, SVG external icon, new tokens; update `docs/theming.md` (token table, selectors, replace the `↗` paragraph).
+- [x] 2. CSS: solid existing underline, missing style, SVG external icon, new tokens; update `docs/theming.md` (token table, selectors, replace the `↗` paragraph).
 - [ ] 3. Repository: `PagesRepository.existing` for memory and pg, with tests (incl. pg integration).
 - [ ] 4. Reader: async `createReaderRenderer(pages)`, update `pages-html.ts` and `status-page.ts` callers, `onWrite(slug, change)` + `cache.clear()` on create/delete in `pages-api.ts`/`app.ts`; reader tests (incl. cache-clear behaviour).
 - [ ] 5. API: `GET /api/pages-exist` with tests; document in `docs/api.md`.
