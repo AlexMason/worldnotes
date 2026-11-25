@@ -107,6 +107,19 @@ Boundary rules (enforced by tooling):
   arriving after render re-class links IN PLACE (`link-existence-sync.ts`),
   never by re-rendering (caret/selection safety). Styling is CSS-only
   (`styles.ts`; tokens in `docs/theming.md`).
+- **Page titles are one rule, `core/page-title.ts`:** a page's title is its
+  first H1 (block-aware, so fenced `# x` never counts), else its humanized
+  slug. The server stores it in `pages.title` on every create/save/move
+  (request bodies carry no title). Reader: the tab title is the stored
+  title, and every breadcrumb crumb is its ancestor's stored title (one
+  `PagesRepository.titles()` query on a cache miss; crumbs are cached with
+  the article and mixed into the ETag; a save that changes a title reports
+  `PageWriteChange` `retitled`, which clears the render cache like
+  create/delete). Editor: crumbs come from the page's buffer when loaded
+  (live while the H1 is typed), else `EditorOptions.pageTitles`
+  (`PageTitleResolver`; the client's `page-titles.ts` seeds from
+  `#wn-page.titles` and asks `GET /api/page-titles` once per slug), else
+  the humanized slug; `onTitleChange` drives `document.title`.
 - **Favicon & uploads are server chrome, not renderer grammar:** the icon
   `<link>` tags come from `render/icons.ts`, fed by the `faviconMediaId`
   setting, and are emitted synchronously in BOTH the reader head
@@ -292,6 +305,7 @@ Public, no query strings anywhere:
 | `GET /{slug}` (catch-all, last)                           | editor shell (editor\|admin) / SSR article (viewer/anon); former slug → 301 to the current one; miss → 404 document (customizable) | mixed (anon reads gate)         |
 | `GET /api/pages`, `GET /api/pages/{slug}`                 | JSON reads + ETags (former slug → 301)                                                                     | anon ok (403 when login-only)   |
 | `GET /api/pages-exist?slugs=a,b`                          | batched existence lookup (≤100 slugs) for the editor's missing-link styling; outside `/api/pages/*` so the slug wildcard cannot claim it | anon ok (403 when login-only)   |
+| `GET /api/page-titles?slugs=a,b`                          | batched stored-title lookup (≤100 slugs) for the editor's breadcrumb labels; outside `/api/pages/*` likewise | anon ok (403 when login-only)   |
 | `POST/PUT/DELETE /api/pages[/{slug}]`                     | writes; `requireSameOrigin` + `requireRole(editor,admin)`; former slug → 409 `{movedTo}`                   | editors                         |
 | `POST /api/page-moves`                                    | move a page + subtree, rewrite links, leave aliases; outside `/api/pages/*` (see Page moves)               | editors                         |
 | `PUT /api/settings`                                       | instance settings write; `requireSameOrigin` + `requireRole(admin)`                                        | admins                          |
@@ -307,7 +321,8 @@ Public, no query strings anywhere:
 
 Slugs are lowercase `[a-z0-9-]` segments (`blog/post-name`), validated by a
 shared `validateSlug()` **and** a DB `CHECK` constraint. Nesting is cosmetic:
-no parent must exist; breadcrumbs derive from segments. First segments
+no parent must exist; breadcrumbs follow segments, each crumb labelled with
+that page's title (its humanized segment when the page does not exist). First segments
 `api, oidc, edit, search, assets, static, healthz, favicon.ico, icons, media,
 all, admin`
 are reserved.
