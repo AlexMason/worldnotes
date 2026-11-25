@@ -3,7 +3,7 @@ issue: 12
 title: Resolve relative wiki links against the current page
 type: feature
 branch: feature/12-relative-wiki-links
-status: draft
+status: approved
 created: 2026-11-24
 pr: ""
 ---
@@ -164,5 +164,7 @@ export function wikiLinkAddress(target: string, base: string | null | undefined)
 - CM6 spike keeps root semantics — *accepted* (non-goal, opt-in spike).
 
 ## Implementation notes
+
+- 2026-11-24 (approval): approved by the implementer under the user's standing instruction ("plan, implement, review, and file — I don't want to be in the loop until the change is in main"). The user tests manually after the merge.
 
 ## Review
