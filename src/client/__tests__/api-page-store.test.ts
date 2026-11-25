@@ -392,3 +392,33 @@ describe('createApiPageStore — page moves', () => {
     expect(recordedCalls(fn)[1]!.init?.method).toBe('POST')
   })
 })
+
+describe('createApiPageStore — move edge cases', () => {
+  beforeEach(() => vi.unstubAllGlobals())
+
+  it('a page moved twice during one save fails the save loudly instead of dropping it', async () => {
+    const onMoved = vi.fn()
+    stubFetch(
+      { status: 409, body: { error: 'page moved', movedTo: 'b' } }, // PUT a
+      { status: 409, body: { error: 'page moved', movedTo: 'c' } }, // retry PUT b
+    )
+    const store = createApiPageStore({ onConflict: vi.fn(), onMoved }, [{ slug: 'a', version: 1 }])
+    await expect(store.save('a', 'text')).rejects.toThrow(/moved again/)
+    expect(onMoved).toHaveBeenNthCalledWith(1, 'a', 'b')
+    expect(onMoved).toHaveBeenNthCalledWith(2, 'b', 'c')
+    // The next save goes straight to the latest address with the carried version.
+    expect(store.canonicalOf!('a')).toBe('c')
+    expect(store.versionOf('c')).toBe(1)
+  })
+
+  it('move reports lost sessions and revoked access', async () => {
+    const onAuthLost = vi.fn()
+    const onForbidden = vi.fn()
+    stubFetch({ status: 401, body: { error: 'unauthenticated' } }, { status: 403, body: {} })
+    const store = createApiPageStore({ onConflict: vi.fn(), onAuthLost, onForbidden })
+    await expect(store.move!('a', 'b')).resolves.toEqual({ ok: false, error: 'unauthenticated' })
+    expect(onAuthLost).toHaveBeenCalledTimes(1)
+    await expect(store.move!('a', 'b')).resolves.toEqual({ ok: false, error: 'Move failed (403)' })
+    expect(onForbidden).toHaveBeenCalledTimes(1)
+  })
+})

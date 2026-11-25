@@ -152,7 +152,9 @@ export function createApiPageStore(
   /**
    * A save to `page` was answered "moved to `to`": carry the tracked version
    * over (a slug-only move keeps the version), remember the alias, tell the
-   * surface, and retry the save ONCE at the new address.
+   * surface, and retry the save ONCE at the new address. Moved again while
+   * retrying: fail the save (the surface reports it; the next save goes
+   * straight to the latest address) rather than drop the edit silently.
    */
   async function followMove(page: string, to: string, content: string, hops: number) {
     const version = versions.get(page)
@@ -160,7 +162,8 @@ export function createApiPageStore(
     if (version !== undefined) versions.set(to, version)
     rememberMove(page, to)
     events.onMoved?.(page, to)
-    if (hops === 0) await save(to, content, 1)
+    if (hops > 0) throw new Error(`page moved again while saving (now at /${to})`)
+    await save(to, content, 1)
   }
 
   /** Record where a created/recreated page landed and report the outcome. */
