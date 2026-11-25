@@ -15,7 +15,7 @@ import type { EditorStateAPI } from './editor-state'
 import type { EditorDOM } from './editor-dom'
 import type { EditorRenderAPI } from './editor-render'
 import type { NotificationSystem } from './notifications'
-import { classifyLinkTarget } from './plugins/link'
+import { classifyLinkTarget } from '../shared/url-policy'
 import { navTargetToSlug, slugDisplayName } from '../shared/slug'
 
 const DEFAULT_HOME = `# Welcome to your world

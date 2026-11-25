@@ -94,7 +94,9 @@ export async function statusDocument(deps: StatusDeps, doc: StatusDoc): Promise<
       const page = await deps.pages.get(doc.customSlug)
       if (page) {
         const generation = deps.cache.generation
-        const rendered = wrap(await deps.render.render(page.content))
+        // Relative wiki links resolve under the status page's own slug — the
+        // same targets its editor shows, whatever URL the 404/403 answers.
+        const rendered = wrap(await deps.render.render(page.content, doc.customSlug))
         if (deps.cache.generation === generation) {
           deps.cache.set(key, {
             value: rendered,

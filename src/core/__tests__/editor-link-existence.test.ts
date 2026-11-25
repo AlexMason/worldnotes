@@ -45,13 +45,15 @@ function fakeResolver(initial: Record<string, boolean>): FakeResolver {
   }
 }
 
-async function mount(fake: FakeResolver) {
+async function mount(fake: FakeResolver, page = 'home') {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const instance = await createEditor(container, {
-    pageStore: createMemoryPageStore({ home: DOC }),
+    pageStore: createMemoryPageStore({ [page]: DOC }),
     saveDebounceMs: 5000,
-    initialPage: 'home',
+    initialPage: page,
+    // The configured home page: its relative links resolve from the root.
+    homeSlug: 'home',
     pageExists: fake.resolver,
   }).mount()
   const editorDiv = container.querySelector('.wn-editor') as HTMLElement
@@ -96,6 +98,18 @@ describe('editor link state', () => {
     fake.answer('gone', true) // a missing page got created
     expect(link(editorDiv, 'gone').classList.contains('wn-link-missing')).toBe(false)
     expect(extractContentText(editorDiv)).toBe(textBefore)
+  })
+
+  it('re-classes relative links by their RESOLVED slug', async () => {
+    const fake = fakeResolver({})
+    const { editorDiv } = await mount(fake, 'alpha')
+    const later = link(editorDiv, 'later')
+    expect(fake.requested).toContain('alpha/later')
+
+    fake.answer('later', false) // the root page is irrelevant here
+    expect(later.classList.contains('wn-link-missing')).toBe(false)
+    fake.answer('alpha/later', false)
+    expect(later.classList.contains('wn-link-missing')).toBe(true)
   })
 
   it('unsubscribes from the resolver on destroy', async () => {

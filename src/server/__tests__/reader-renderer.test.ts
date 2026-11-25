@@ -218,6 +218,10 @@ describe('createReaderRenderer (existence-aware)', () => {
         updatedBy: null,
       })),
     )
+  // Rendered as the configured home page: relative links resolve from the root.
+  const atRoot = (repo: ReturnType<typeof pagesWith>) => ({
+    render: (src: string) => createReaderRenderer(repo, () => 'home').render(src, 'home'),
+  })
 
   it('marks only links whose page does not exist, using one batched lookup', async () => {
     const repo = pagesWith('here')
@@ -227,7 +231,7 @@ describe('createReaderRenderer (existence-aware)', () => {
       calls++
       return existing(slugs)
     }
-    const html = await createReaderRenderer(repo).render('[[here]] [[gone]] [x](gone) [[here]]')
+    const html = await atRoot(repo).render('[[here]] [[gone]] [x](gone) [[here]]')
     expect(html).toContain('<a class="wn-wiki-link" href="/here"')
     expect(html).toContain('<a class="wn-wiki-link wn-link-missing" href="/gone"')
     expect(calls).toBe(1)
@@ -239,14 +243,37 @@ describe('createReaderRenderer (existence-aware)', () => {
       throw new Error('must not be called')
     }
     const src = '# Title [ext](https://x.test)'
-    await expect(createReaderRenderer(repo).render(src)).resolves.toBe(render.render(src))
+    await expect(atRoot(repo).render(src)).resolves.toBe(render.render(src))
   })
 
   it('renders slugs beyond the collection cap as unknown, never as missing', async () => {
     const links = Array.from({ length: MAX_LINK_SLUGS + 1 }, (_, i) => `[[p${i}]]`).join(' ')
-    const html = await createReaderRenderer(pagesWith()).render(links)
+    const html = await atRoot(pagesWith()).render(links)
     // first MAX are asked about (all missing); the overflow one is unknown
     expect(html.match(/wn-link-missing/g)).toHaveLength(MAX_LINK_SLUGS)
     expect(html).toContain(`<a class="wn-wiki-link" href="/p${MAX_LINK_SLUGS}"`)
+  })
+
+  it('resolves relative wiki links under the page being rendered', async () => {
+    // /beta exists, /alpha/beta does not: the relative link is missing.
+    const renderer = createReaderRenderer(pagesWith('beta'), () => 'home')
+    const html = await renderer.render('[[beta]] [[/beta]] [x](beta)', 'alpha')
+    expect(html).toContain('<a class="wn-wiki-link wn-link-missing" href="/alpha/beta"')
+    expect(html).toContain('<a class="wn-wiki-link" href="/beta" data-page="/beta"')
+    expect(html).toContain('<a class="wn-wiki-link" href="/beta" data-page="beta"')
+    await expect(renderer.linkExistence('[[beta]] [[/beta]]', 'alpha')).resolves.toEqual(
+      new Map([
+        ['alpha/beta', false],
+        ['beta', true],
+      ]),
+    )
+  })
+
+  it('follows the CURRENT home setting: the home page resolves from the root', async () => {
+    let home: string | null = 'start'
+    const renderer = createReaderRenderer(pagesWith(), () => home)
+    expect(await renderer.render('[[beta]]', 'start')).toContain('href="/beta"')
+    home = null
+    expect(await renderer.render('[[beta]]', 'start')).toContain('href="/start/beta"')
   })
 })

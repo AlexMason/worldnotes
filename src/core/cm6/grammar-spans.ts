@@ -20,8 +20,7 @@ import { buildDocument } from '../document'
 import { scanInline } from '../tokenizer'
 import { parseWikiLink } from '../navigation'
 import { isBulletMarker } from '../editor-indentation'
-import { classifyLinkTarget } from '../plugins/link'
-import { isSafeHref, isSafeImageUrl } from '../../shared/url-policy'
+import { classifyLinkTarget, isSafeHref, isSafeImageUrl } from '../../shared/url-policy'
 import { wikiTargetToSlug } from '../../shared/slug'
 
 /**

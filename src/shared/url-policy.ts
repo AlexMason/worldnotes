@@ -81,3 +81,23 @@ export function isSafeImageUrl(url: string): boolean {
   }
   return staysOnOrigin(trimmed)
 }
+
+/**
+ * Classify a link target by URL shape. Scheme-based — NOT the old
+ * `includes('://')` heuristic, which misrouted `mailto:`, `javascript:` and
+ * `#fragments` into the internal branch.
+ *
+ * - `external`: carries a scheme (`https:`, `javascript:`, …) or is
+ *   protocol-relative (`//host/…`) → gated by `isSafeHref` at emit time.
+ * - `same-doc`: leading `#` or `?` → origin-safe relative anchor, emitted as-is.
+ * - `internal`: everything else → a page address, folded to a slug; safety of
+ *   the resulting href rides on `validateSlug`'s `[a-z0-9-]`-segment charset
+ *   (AGENTS.md slug policy — loosening SEGMENT_RE would delete this guard).
+ */
+export type LinkTarget = 'external' | 'same-doc' | 'internal'
+
+export function classifyLinkTarget(url: string): LinkTarget {
+  if (hasScheme(url) || url.startsWith('//')) return 'external'
+  if (url.startsWith('#') || url.startsWith('?')) return 'same-doc'
+  return 'internal'
+}

@@ -164,6 +164,28 @@ still pending when the user navigates persists the page that was TYPED ON
 (fire-time `getCurrentPage()` would instead POST the destination's seeded
 buffer and silently skip the originating page's edits).
 
+**Wiki-link resolution (relative vs root):** `[[beta]]` resolves under the
+page it is written on, `[[/beta]]` from the site root, and the configured
+home page (served at `/`) resolves relative targets from the root. The rule
+lives in ONE env-agnostic pair in `shared/slug.ts`: `wikiLinkBase(pageSlug,
+homeSlug)` picks the base and `wikiLinkAddress(target, base)` turns a target
+into a root-absolute address (`/alpha/beta`). Only the wiki-link plugin knows
+a token is a wiki link, so it converts there — `data-page`, the reader
+`href`, and `onNavigate` all carry the address — and every downstream
+consumer (navigation folding below, `wikiLinkClass`, `link-existence-sync`,
+the API store) keeps its single root-semantics fold. The base travels as
+`linkBase` on `LinkContext` (shared by `StaticRenderContext` and
+`EditorContext`): the editor derives it per render from the current page and
+the RAW `homeSlug` option; the server's `createReaderRenderer(pages,
+getHomeSlug)` derives it from the page slug every caller must pass
+(`render(src, pageSlug)`, `linkExistence(src, pageSlug)` for the editor
+shell seed; status pages pass their own slug). Nav extraction resolves
+under the nav page. `PUT /api/settings` clears the render cache when
+`homeSlug` changes. Markdown links keep root semantics. Targets that are not
+page addresses (`classifyLinkTarget` in `shared/url-policy.ts` ≠ `internal`:
+schemes, `#`, `?`) and targets that fold to nothing are never prefixed, so
+navigation refuses them on every page exactly as it does at the root.
+
 **Navigation folding:** every in-editor navigation source (link clicks,
 breadcrumb/header nav, popstate, `instance.navigate`) funnels through
 `editor-navigation.ts`'s `navigateToPage`, which folds the target through

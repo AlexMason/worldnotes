@@ -14,8 +14,10 @@ export function syncLinkExistence(
   resolver: Pick<PageExistenceResolver, 'exists'>,
 ): void {
   root.querySelectorAll<HTMLElement>('.wn-wiki-link[data-page]').forEach((el) => {
-    // data-page carries the RAW author target; fold it exactly as navigation
-    // and the plugins do. Unfoldable targets are never marked.
+    // data-page carries a root-semantics navigation target (wiki links: the
+    // resolved root-absolute address; markdown links: the raw URL); fold it
+    // exactly as navigation and the plugins do. Unfoldable targets are never
+    // marked.
     const slug = navTargetToSlug(el.dataset.page ?? '')
     el.classList.toggle(MISSING_LINK_CLASS, slug !== null && resolver.exists(slug) === false)
   })

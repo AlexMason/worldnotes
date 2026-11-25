@@ -11,8 +11,17 @@ import type { ContentPlugin } from './types'
 /** Ceiling per document: bounds the batched lookup (extra slugs render as unknown). */
 export const MAX_LINK_SLUGS = 500
 
+export interface CollectLinkSlugsOptions {
+  /** Base for relative wiki links (the page `markdown` belongs to); absent/null = root. */
+  linkBase?: string | null
+  /** Collection cap (defaults to MAX_LINK_SLUGS). */
+  max?: number
+}
+
 /**
- * Distinct internal page slugs linked from `markdown`, in first-seen order.
+ * Distinct internal page slugs linked from `markdown`, in first-seen order —
+ * resolved exactly as the render resolves them (relative wiki links nest
+ * under `linkBase`).
  * Cost note: this is a full (discarded) render, so an uncached reader miss
  * pays roughly 2x render CPU; documents without a `[` cannot contain a link
  * and skip it entirely.
@@ -20,13 +29,16 @@ export const MAX_LINK_SLUGS = 500
 export function collectLinkSlugs(
   markdown: string,
   plugins: ContentPlugin[],
-  max: number = MAX_LINK_SLUGS,
+  { linkBase, max = MAX_LINK_SLUGS }: CollectLinkSlugsOptions = {},
 ): string[] {
   if (!markdown.includes('[')) return []
   const seen = new Set<string>()
-  renderDocumentHtml(markdown, plugins, (slug) => {
-    if (seen.size < max) seen.add(slug)
-    return undefined
+  renderDocumentHtml(markdown, plugins, {
+    linkBase,
+    pageExists: (slug) => {
+      if (seen.size < max) seen.add(slug)
+      return undefined
+    },
   })
   return [...seen]
 }

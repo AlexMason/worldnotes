@@ -5,8 +5,8 @@ for storage, generic OIDC for auth, Fastify for serving. Anonymous visitors
 read fast cached server-rendered HTML rendered by the same engine as the
 editor; logged-in users edit with an inline
 WYSIWYG markdown editor that autosaves with conflict detection. Pages nest by
-slug (`/blog/post-name`) and wiki links (`[[Page]]`) are real URLs with a
-create-on-missing flow.
+slug (`/blog/post-name`) and wiki links (`[[Page]]` relative to the current
+page, `[[/Page]]` from the root) are real URLs with a create-on-missing flow.
 
 **History.** WorldNotes began as an extensible client-side collaborative editor
 library (Yjs CRDT sync, pluggable storage backends, npm packaging). It pivoted

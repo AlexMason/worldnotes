@@ -119,7 +119,8 @@ key/value table and editable from `GET /admin`.
   `/search` and `/search/{terms}` remain functional.
 - `navSlug` (default unset) — designates a page as **the nav**: its top-level
   list items that contain an internal page link (wiki `[[target|label]]` or
-  markdown `[label](/slug)`, same fold the link plugins use) become site-nav
+  markdown `[label](/slug)`, same fold the link plugins use; relative wiki
+  targets resolve under the nav page itself, as in its editor) become site-nav
   links in the header chrome, rendered before Search/All-pages on both the
   reader and the editor. Extraction runs the real engine (`buildDocument` +
   inline scan), so fence/table regions and the full list-marker grammar
@@ -364,7 +365,15 @@ ordered markers as typed** (`1.`, `a.`, `A.`, `i.`, `II.`, …) that
 existing lines are never renumbered, no `<ol>` — indent is visual, not
 semantic) —, `---`
 rules, `[text](url)` links, `[[Page]]` / `[[a/b|Display]]` wiki links →
-`<a class="wn-wiki-link" href="/a/b">Display</a>` (targets that can't fold
+`<a class="wn-wiki-link" href="/{slug}">Display</a>`. **Wiki-link targets
+resolve against the page they are written on:** `[[beta]]` on `/alpha`
+links to `/alpha/beta` (on `/alpha/gamma` to `/alpha/gamma/beta`), even when
+a root-level `/beta` exists; a leading slash roots the target at the site,
+`[[/beta]]` → `/beta`. The configured home page (`homeSlug`, served at `/`)
+resolves relative targets from the root, so changing `homeSlug` clears the
+render cache. Custom 404/403 bodies resolve under their own page's slug.
+Markdown links `[text](beta)` keep root semantics (`/beta`); `../` is not
+parent traversal (empty/dot segments fold away). Targets that can't fold
 to a valid slug stay literal; a link whose target page does not exist also
 carries `wn-link-missing` — resolved server-side per render, so the zero-JS
 reader shows it too; existence changes clear the render cache),

@@ -2,6 +2,7 @@
 
 import type { EditorContext, EditorOptions } from './types'
 import { createPageBuffers, type PageBuffers } from './page-buffers'
+import { wikiLinkBase } from '../shared/slug'
 
 /**
  * Full API surface for editor mutable state.
@@ -61,6 +62,10 @@ export function createEditorState(
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   let isNavigating = false
 
+  /** The page the trail points at: home alone, else the joined path segments. */
+  const currentPage = (): string =>
+    trail.length <= 1 ? (trail[0] ?? '') : trail.slice(1).join('/')
+
   // ── API ────────────────────────────────────────────────────────────────────
 
   return {
@@ -73,8 +78,7 @@ export function createEditorState(
     },
 
     getCurrentPage(): string {
-      if (trail.length <= 1) return trail[0] ?? ''
-      return trail.slice(1).join('/')
+      return currentPage()
     },
 
     getWorld(): Record<string, string> {
@@ -126,7 +130,11 @@ export function createEditorState(
       return {
         ...context,
         getTrail: () => [...trail],
-        getCurrentPage: () => (trail.length <= 1 ? (trail[0] ?? '') : trail.slice(1).join('/')),
+        getCurrentPage: currentPage,
+        // Relative wiki links nest under the page being rendered — the RAW
+        // homeSlug setting (not the 'home' trail fallback), so the editor and
+        // the reader agree on which page counts as the site root.
+        linkBase: wikiLinkBase(currentPage(), options.homeSlug),
         // Asking is how a link gets resolved: every render of a link requests
         // its slug (the resolver dedupes and ignores fresh answers).
         ...(resolver

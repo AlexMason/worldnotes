@@ -9,6 +9,7 @@
 import type { FastifyInstance } from 'fastify'
 import { requireRole, requireSameOrigin } from '../auth/session'
 import type { MediaRepository } from '../db/media-repository'
+import type { RenderCache } from '../cache'
 import type { SettingsPatch, SettingsService } from '../settings'
 import type { ThemeService } from '../themes'
 
@@ -20,6 +21,9 @@ export interface SettingsApiDeps {
   media: MediaRepository
   /** `activeThemeId` references are validated against the theme store. */
   themes: ThemeService
+  /** Rendered HTML depends on which page is home (its relative wiki links
+   *  resolve from the root), so a home change clears it. */
+  cache: Pick<RenderCache, 'clear'>
 }
 
 export async function registerSettingsApiRoutes(
@@ -108,7 +112,8 @@ export async function registerSettingsApiRoutes(
         patch.activeThemeId = body.activeThemeId as number | null
       }
 
-      const previousFavicon = deps.settings.get().faviconMediaId
+      const previous = deps.settings.get()
+      const previousFavicon = previous.faviconMediaId
       let next
       try {
         next = await deps.settings.update(patch, req.user?.sub ?? null)
@@ -121,6 +126,14 @@ export async function registerSettingsApiRoutes(
         }
         req.log.error({ err: e }, 'settings update failed')
         return reply.code(500).send({ error: 'failed to save settings' })
+      }
+
+      if (next.homeSlug !== previous.homeSlug) {
+        deps.cache.clear()
+        req.log.info(
+          { from: previous.homeSlug, to: next.homeSlug },
+          'home page changed; render cache cleared',
+        )
       }
 
       // Orphan cleanup: a replaced or cleared override's row can no longer be

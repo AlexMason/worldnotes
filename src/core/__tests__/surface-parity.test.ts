@@ -12,7 +12,7 @@
 // zero-JS page can navigate. The comparator treats a reader anchor == editor
 // span when all other attrs/children match (the "anchor exception").
 
-import type { PageExists } from '../types'
+import type { LinkContext, PageExists } from '../types'
 import { describe, it, expect } from 'vitest'
 import { renderInlineContent } from '../renderer'
 import { renderLines } from '../line-renderer'
@@ -91,7 +91,7 @@ function snapshot(node: Node, root: boolean): NodeSpec {
   return { tag: el.tagName.toUpperCase(), attrs, children }
 }
 
-function editorRoot(pageExists?: PageExists): HTMLElement {
+function editorRoot(links: LinkContext = {}): HTMLElement {
   const ctx: EditorContext = {
     navigate: () => undefined,
     getTrail: () => [],
@@ -99,7 +99,7 @@ function editorRoot(pageExists?: PageExists): HTMLElement {
     getWorld: () => ({ page: FIXTURE }),
     getPageText: () => FIXTURE,
     setPageText: () => undefined,
-    ...(pageExists ? { pageExists } : {}),
+    ...links,
   }
   ctx.renderInline = (t: string) => renderInlineContent(t, plugins, ctx)
 
@@ -111,10 +111,10 @@ function editorRoot(pageExists?: PageExists): HTMLElement {
   return root
 }
 
-function readerRoot(pageExists?: PageExists): Document {
+function readerRoot(links: LinkContext = {}): Document {
   // Drive the REAL reader pipeline (renderDocumentHtml → buildDocument →
   // model-aware static rendering), so block wrappers appear on both sides.
-  const html = renderDocumentHtml(FIXTURE, plugins, pageExists)
+  const html = renderDocumentHtml(FIXTURE, plugins, links)
   return new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html')
 }
 
@@ -152,19 +152,37 @@ function diff(e: NodeSpec, r: NodeSpec, path: string, out: string[]): void {
   }
 }
 
+function parityDiff(links: LinkContext = {}): string[] {
+  const eRoot = editorRoot(links)
+  const rBody = readerRoot(links).querySelector('div')
+  expect(rBody).not.toBeNull()
+
+  const eSnap = snapshot(eRoot, true).children as NodeSpec[]
+  const rSnap = snapshot(rBody as unknown as Node, true).children as NodeSpec[]
+  expect(rSnap.length).toBe(eSnap.length)
+
+  const out: string[] = []
+  eSnap.forEach((e, i) => diff(e, rSnap[i], `line${i}`, out))
+  return out
+}
+
 describe('editor DOM and reader static HTML are the same tree', () => {
   it('parity across all default plugins (one documented anchor exception)', () => {
-    const eRoot = editorRoot()
-    const rBody = readerRoot().querySelector('div')
-    expect(rBody).not.toBeNull()
-
-    const eSnap = snapshot(eRoot, true).children as NodeSpec[]
-    const rSnap = snapshot(rBody as unknown as Node, true).children as NodeSpec[]
-    expect(rSnap.length).toBe(eSnap.length)
-
-    const out: string[] = []
-    eSnap.forEach((e, i) => diff(e, rSnap[i], `line${i}`, out))
+    const out = parityDiff()
     expect(out, out.join('\n')).toEqual([])
+  })
+
+  it('parity holds when relative wiki links resolve under a page base', () => {
+    const out = parityDiff({ linkBase: 'alpha' })
+    expect(out, out.join('\n')).toEqual([])
+
+    const pages = (root: ParentNode): string[] =>
+      Array.from(root.querySelectorAll<HTMLElement>('.wn-wiki-link')).map(
+        (n) => n.dataset.page ?? '',
+      )
+    const expected = ['/alpha/Some/Page', '/alpha/projects/acme', '/alpha/plain-page']
+    expect(pages(editorRoot({ linkBase: 'alpha' }))).toEqual(expected)
+    expect(pages(readerRoot({ linkBase: 'alpha' }).body)).toEqual(expected)
   })
 })
 
@@ -172,8 +190,8 @@ describe('missing-page link marker is identical on both surfaces', () => {
   it('same nodes carry wn-link-missing in editor DOM and reader HTML', () => {
     // `plain-page` is missing; everything else exists/unknown.
     const exists: PageExists = (slug) => (slug === 'plain-page' ? false : true)
-    const eRoot = editorRoot(exists)
-    const rBody = readerRoot(exists).querySelector('div') as HTMLElement
+    const eRoot = editorRoot({ pageExists: exists })
+    const rBody = readerRoot({ pageExists: exists }).querySelector('div') as HTMLElement
 
     const marked = (root: ParentNode): string[] =>
       Array.from(root.querySelectorAll('.wn-link-missing')).map((n) => n.textContent ?? '')

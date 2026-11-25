@@ -10,7 +10,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import type { ServerConfig } from '../config'
 import type { PagesRepository } from '../db/repository'
-import { resolveLinkExistence, type ReaderRenderer } from '../render/reader'
+import type { ReaderRenderer } from '../render/reader'
 import type { AuthUser } from '../auth/session'
 import { requireLoginHtml } from '../auth/login-gate'
 import {
@@ -229,7 +229,7 @@ export async function registerPageHtmlRoutes(
       const settings = getSettings()
       const page = await pages.get(slug)
       const linkExists = page
-        ? Object.fromEntries(await resolveLinkExistence(pages, page.content))
+        ? Object.fromEntries(await render.linkExistence(page.content, slug))
         : {}
       const html = editorShellHtml(slug, {
         assetPrefix,
@@ -276,7 +276,7 @@ export async function registerPageHtmlRoutes(
       }
       title = page.title
       const generation = cache.generation
-      articleHtml = `<article class="wn-root wn-article">${await render.render(page.content)}</article>`
+      articleHtml = `<article class="wn-root wn-article">${await render.render(page.content, slug)}</article>`
       // A create/delete (cache.clear) that landed while the existence lookup
       // was in flight makes this render stale: serve it, but do not cache it.
       if (cache.generation === generation) {

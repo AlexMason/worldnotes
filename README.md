@@ -9,7 +9,8 @@ A self-hosted markdown wiki with wiki-style navigation.
   editor** that autosaves as you type, with conflict detection and
   [keyboard shortcuts](docs/shortcuts.md) (line moves, word ops, bold/italic/link).
 - Pages live at **nested slugs**: `/blog`, `/blog/post-name`. Wiki links
-  (`[[Some Page]]`) resolve to real URLs; missing pages offer a **create** flow.
+  resolve to real URLs relative to the current page (`[[Post]]` on `/blog` →
+  `/blog/post`; `[[/Post]]` → `/post`); missing pages offer a **create** flow.
 - Content is stored in **PostgreSQL**. Single process; no external cache needed.
 
 > WorldNotes was previously published as a client-side collaborative editor
