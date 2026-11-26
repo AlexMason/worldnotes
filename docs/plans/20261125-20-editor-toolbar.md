@@ -100,7 +100,7 @@ Collapsed caret + bold/italic/underline → empty marker pair with caret between
 - [x] 3. Link ops (pure): `src/core/link-input.ts` (`classifyLinkInput`, `suggestionTarget`, `findLinkAt`, `applyLink`) with full unit tests. No UI yet; `wrapLink` still serves `Ctrl+K`.
 - [x] 4. Suggestions backend: `list({scope:'name'})` (pg + memory), `GET /api/pages?scope=name`, `PageStore.suggest?`, `ApiPageStore` + `MemoryPageStore` implementations; tests incl. pg integration; `docs/api.md`.
 - [x] 5. Toolbar: `editor-toolbar.ts` with Bold/Italic/Underline/List buttons, active/disabled state, `mousedown` focus retention; mount in `editor-lifecycle.ts`, destroy cleanup; CSS in `editor-dom.ts` (incl. mobile touch targets) and new tokens in `docs/theming.md`; `editor-toolbar.test.ts`; `docs/architecture.md` module note.
-- [ ] 6. Link field + cutover: `link-field.ts` (combobox, hint/error, suggestions, stale-text guard), Link button in the toolbar, `Ctrl+K` opens the field, `wrapLink` and its tests removed, shortcuts docs/help text reworded; end-to-end link tests; `docs/architecture.md` request-flow note.
+- [x] 6. Link field + cutover: `link-field.ts` (combobox, hint/error, suggestions, stale-text guard), Link button in the toolbar, `Ctrl+K` opens the field, `wrapLink` and its tests removed, shortcuts docs/help text reworded; end-to-end link tests; `docs/architecture.md` request-flow note.
 
 ## Risks & open questions
 

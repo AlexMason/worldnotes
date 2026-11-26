@@ -7,7 +7,7 @@
 // characters) is rejected HERE with a message, so the field can never write
 // text that silently degrades to literal source.
 
-import type { TokenDef } from './types'
+import type { PageSuggestion, TokenDef } from './types'
 import { coveringTokens, type FormatResult } from './editor-format'
 import { pageDisplayName, parseWikiLink } from './navigation'
 import { isSafeHref } from '../shared/url-policy'
@@ -160,4 +160,25 @@ export function applyLink(
       : wikiLiteral(input.target, existing?.implicitLabel ? '' : label)
   const caret = from + link.length
   return { text: text.slice(0, from) + link + text.slice(to), start: caret, end: caret }
+}
+
+/**
+ * Order suggestions for `query`: exact slug/title matches first, then names
+ * (title, slug, or last slug segment) that START with the query, then the
+ * rest — each group keeps the server's order (newest first).
+ */
+export function rankSuggestions<T extends PageSuggestion>(query: string, items: readonly T[]): T[] {
+  const q = query.trim().toLowerCase().replace(/^\/+/, '')
+  const score = (item: T): number => {
+    const slug = item.slug.toLowerCase()
+    const title = item.title.toLowerCase()
+    if (slug === q || title === q) return 0
+    const last = slug.slice(slug.lastIndexOf('/') + 1)
+    if (slug.startsWith(q) || last.startsWith(q) || title.startsWith(q)) return 1
+    return 2
+  }
+  return items
+    .map((item, index) => ({ item, index, score: score(item) }))
+    .sort((a, b) => a.score - b.score || a.index - b.index)
+    .map(({ item }) => item)
 }

@@ -70,32 +70,6 @@ export function toggleWrap(
   return { text: next, start: s + o, end: e + o }
 }
 
-const LINK_RE = /^\[([^\]]*)\]\(([^)]*)\)$/
-
-/**
- * Wrap the selection as `[selection](url)` and return the selection over the
- * URL slot (type-over, VS Code style). A selection that is ALREADY a link
- * literal just gets its URL slot re-selected instead of double-wrapping.
- * Collapsed caret → `[]()` with the caret inside the parens.
- */
-export function wrapLink(text: string, start: number, end: number): FormatResult {
-  const s = Math.max(0, Math.min(start, text.length))
-  const e = Math.max(s, Math.min(end, text.length))
-
-  const selected = text.slice(s, e)
-  const existing = LINK_RE.exec(selected)
-  if (existing) {
-    // Selection is `[label](url)` — place the selection on its url part.
-    const urlStart = s + 1 + existing[1]!.length + 2
-    return { text, start: urlStart, end: urlStart + existing[2]!.length }
-  }
-
-  const inserted = `[${selected}]()`
-  const next = text.slice(0, s) + inserted + text.slice(e)
-  const urlSlot = s + inserted.length - 1 // between '(' and ')'
-  return { text: next, start: urlSlot, end: urlSlot }
-}
-
 function lineStartOffsets(lines: readonly string[]): number[] {
   const starts: number[] = []
   let pos = 0

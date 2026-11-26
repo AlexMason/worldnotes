@@ -29,7 +29,7 @@ import {
   moveWord,
   wordExtend,
 } from './editor-text-ops'
-import { toggleWrap, toggleList, wrapLink } from './editor-format'
+import { toggleWrap, toggleList } from './editor-format'
 import { commitModelEdit, type ModelCommitDeps, type TextEdit } from './editor-commit'
 
 // ─── Binding table — the SINGLE source for keymap, help overlay, and docs ──
@@ -50,7 +50,7 @@ export const SHORTCUT_BINDINGS: ShortcutBinding[] = [
   { group: 'Formatting', keys: 'Ctrl+B', action: 'Bold selection (toggle)' },
   { group: 'Formatting', keys: 'Ctrl+I', action: 'Italic selection (toggle)' },
   { group: 'Formatting', keys: 'Ctrl+U', action: 'Underline selection (toggle)' },
-  { group: 'Formatting', keys: 'Ctrl+K', action: 'Wrap selection as [link](url)' },
+  { group: 'Formatting', keys: 'Ctrl+K', action: 'Link to a page or URL' },
   { group: 'Document', keys: 'Ctrl+S', action: 'Save now' },
   { group: 'Document', keys: 'Ctrl+Click', action: 'Open an external link in a new tab' },
   { group: 'Document', keys: 'Ctrl+A', action: 'Select the whole page' },
@@ -65,6 +65,8 @@ export interface EditingKeymapDeps extends ModelCommitDeps {
   saveNow(): void
   /** Line indices of `text` inside block regions (fences, tables). */
   blockLines(text: string): ReadonlySet<number>
+  /** Open the link field (Ctrl+K). True when consumed; see LinkController.open. */
+  openLink(): boolean
 }
 
 export interface EditingKeymap {
@@ -131,7 +133,7 @@ export function createEditingKeymap(deps: EditingKeymapDeps): EditingKeymap {
       if (k === 'b') consumed = format('bold')
       else if (k === 'i') consumed = format('italic')
       else if (k === 'u') consumed = format('underline')
-      else if (k === 'k') consumed = formatOp((t, s, en) => wrapLink(t, s, en))
+      else if (k === 'k') consumed = deps.openLink()
       else if (k === 'a') consumed = selectAll()
       else if (k === 's') {
         deps.saveNow()

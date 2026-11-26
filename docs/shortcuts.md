@@ -31,7 +31,7 @@ Cmd** throughout; Alt means **Alt/Option**.
 | `Ctrl+B` | Toggle `**bold**` around the selection. Collapsed caret: inserts `****` with the caret between. Press again to unwrap |
 | `Ctrl+I` | Same for `*italic*` |
 | `Ctrl+U` | Same for `<u>underline</u>` (the exact `<u>…</u>` pair is grammar; other HTML stays literal text). Also stops the browser's native contenteditable underline and view-source chord |
-| `Ctrl+K` | Wrap the selection as `[selection]()`, with the URL slot selected for type-over. An already-linked selection just gets its URL re-selected |
+| `Ctrl+K` | Open the link field in the toolbar row (same as the toolbar **Link** button). Type a page name or a URL: URLs (a scheme, `www.`, or a dotted host like `example.com`) become `[selection](url)`, anything else a wiki link `[[page\|selection]]`; matching page names are suggested as you type (↑/↓ + Enter). Inside an existing link it edits that link's target and keeps its text. `Escape` or leaving the field cancels; invalid input (`javascript:` URLs, unfoldable page names, a multi-line selection) shows an inline error and writes nothing |
 
 Formatting chords are inert **inside fenced code and tables** (the key
 event is consumed, nothing changes) so markdown markers can never splice

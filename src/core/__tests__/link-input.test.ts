@@ -3,6 +3,7 @@ import {
   applyLink,
   classifyLinkInput,
   findLinkAt,
+  rankSuggestions,
   suggestionTarget,
   type ValidLinkInput,
 } from '../link-input'
@@ -191,5 +192,33 @@ describe('applyLink', () => {
     const r = applyLink('x docs y', 2, 6, url('https://x.test/a'), defs) as { text: string }
     const link = findLinkAt(r.text, 5, 5, defs)
     expect(link).toMatchObject({ kind: 'url', target: 'https://x.test/a', label: 'docs' })
+  })
+})
+
+describe('rankSuggestions', () => {
+  const page = (slug: string, title: string) => ({ slug, title })
+
+  it('exact first, then prefix matches (title, slug, last segment), then the rest — stable within a group', () => {
+    const items = [
+      page('diary/the-old-men', 'Diary'), // contains only
+      page('lore/old-gods', 'The Old Gods'), // last segment prefix
+      page('old', 'Something'), // exact slug
+      page('misc/zzz', 'Old Maps'), // title prefix
+      page('notes/older', 'Notes'), // last segment prefix
+    ]
+    expect(rankSuggestions('old', items).map((i) => i.slug)).toEqual([
+      'old',
+      'lore/old-gods',
+      'misc/zzz',
+      'notes/older',
+      'diary/the-old-men',
+    ])
+  })
+
+  it('ignores case and a leading slash, and never mutates its input', () => {
+    const items = [page('b', 'Beta'), page('a/alpha', 'Alpha')]
+    const before = [...items]
+    expect(rankSuggestions('/ALPHA', items).map((i) => i.slug)).toEqual(['a/alpha', 'b'])
+    expect(items).toEqual(before)
   })
 })

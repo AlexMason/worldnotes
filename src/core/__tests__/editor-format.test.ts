@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { toggleWrap, toggleList, activeFormats, wrapLink } from '../editor-format'
+import { toggleWrap, toggleList, activeFormats } from '../editor-format'
 import { defaultPlugins } from '../plugins/defaults'
 
 const defs = defaultPlugins.flatMap((p) => p.tokens)
@@ -56,35 +56,6 @@ describe('toggleWrap', () => {
     expect(bold.text).toBe('***word***')
     expect(bold.start).toBe(3)
     expect(bold.end).toBe(7)
-  })
-})
-
-describe('wrapLink', () => {
-  it('wraps a selection and selects the empty URL slot', () => {
-    const r = wrapLink('see foo here', 4, 7)
-    expect(r.text).toBe('see [foo]() here')
-    expect(r.text.slice(r.start, r.end)).toBe('')
-    expect(r.start).toBe(10) // just after the '(' at index 9
-  })
-
-  it('collapsed caret creates []() with caret inside the parens', () => {
-    const r = wrapLink('xy', 1, 1)
-    expect(r.text).toBe('x[]()y')
-    expect(r.start).toBe(4)
-    expect(r.end).toBe(4)
-  })
-
-  it('a selection that is already a link re-selects its URL instead of double-wrapping', () => {
-    const r = wrapLink('[foo](bar)', 0, 10)
-    expect(r.text).toBe('[foo](bar)')
-    expect(r.text.slice(r.start, r.end)).toBe('bar')
-  })
-
-  it('an empty existing link lands inside the parens', () => {
-    const r = wrapLink('[]()', 0, 4)
-    expect(r.text).toBe('[]()')
-    expect(r.start).toBe(3)
-    expect(r.end).toBe(3)
   })
 })
 

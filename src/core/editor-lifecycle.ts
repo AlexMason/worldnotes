@@ -23,7 +23,9 @@ import type { ToastOptions } from './types'
 import { syncLinkExistence } from './link-existence-sync'
 import { createPageMover } from './editor-page-move'
 import { createEditorToolbar } from './editor-toolbar'
+import { createLinkController } from './editor-link'
 import { classifyLinkTarget, isSafeHref } from '../shared/url-policy'
+import { wikiLinkBase } from '../shared/slug'
 
 export interface EditorLifecycleAPI {
   mount(): Promise<EditorInstance>
@@ -178,6 +180,18 @@ export function createEditorLifecycle(
       })
     }
 
+    // ── Link field (Link button + Ctrl+K) ──────────────────────────────
+
+    const tokenDefs = contentPlugins.flatMap((p) => p.tokens)
+    const linkController = createLinkController({
+      ...commitDeps,
+      host: dom.toolbar,
+      defs: tokenDefs,
+      getLinkBase: () => wikiLinkBase(state.getCurrentPage(), options.homeSlug),
+      suggest: pageStore.suggest?.bind(pageStore),
+      onOpenChange: (open) => toolbar.setHidden(open),
+    })
+
     // ── Editing keymap (line ops, word ops, formatting, Ctrl+S) ────────
 
     const keymap = createEditingKeymap({
@@ -190,6 +204,7 @@ export function createEditorLifecycle(
         }
         return lines
       },
+      openLink: () => linkController.open(),
     })
 
     // ── Input handler ──────────────────────────────────────────────────────
@@ -599,11 +614,12 @@ export function createEditorLifecycle(
     const toolbar = createEditorToolbar({
       host: dom.toolbar,
       editorEl: dom.editorDiv,
-      defs: contentPlugins.flatMap((p) => p.tokens),
+      defs: tokenDefs,
       getCurrentPage: () => state.getCurrentPage(),
       pageExists: (page) => buffers.hasPage(page),
       getPageText: (page) => buffers.getPageText(page),
       format: (action) => keymap.format(action),
+      openLink: () => linkController.open(),
     })
 
     // ── Link state: re-class links in place when existence answers arrive ──
@@ -618,6 +634,7 @@ export function createEditorLifecycle(
     return {
       destroy() {
         stopExistenceSync?.()
+        linkController.destroy()
         toolbar.destroy()
         stopTitleSync?.()
         state.clearSaveTimer()

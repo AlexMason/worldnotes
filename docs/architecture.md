@@ -262,6 +262,18 @@ its selection. Enabled/pressed state is derived from the markdown source
 (`activeFormats` in `editor-format.ts`) on `selectionchange`, never from DOM
 styling.
 
+**Link field.** The toolbar's **Link** button and `Ctrl+K` both call
+`editor-link.ts` `open()`: it captures the selection offsets AND the page text,
+opens `link-field.ts` in the toolbar row (a combobox like the page-move field),
+and on a valid answer applies the link through `commitModelEdit` — dropping it
+without a write if the page or its text changed while the field was open.
+Input classification and link construction are the pure `link-input.ts`
+(URL vs wiki target, `isSafeHref`, slug fold under the current page's link
+base, `findLinkAt` for editing an existing link). Page-name suggestions come
+from the optional `PageStore.suggest`, which `ApiPageStore` serves from
+`GET /api/pages?scope=name` (slug/title only, so body matches cannot crowd
+out pages named like the query).
+
 **Model commits.** `editor-commit.ts` is the ONE path for edits the editor
 defines itself: `commitModelEdit` = `setPageText` (one undo step) → forced
 render → restore caret-or-selection → scroll the caret line into view →

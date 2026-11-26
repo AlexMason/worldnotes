@@ -2,9 +2,10 @@
 //
 // Mounted into the `wn-toolbar` row by the lifecycle (not a UIPlugin: buttons
 // need the model-commit path, which a plugin never receives). Every button
-// runs the SAME `EditingKeymap.format()` action as its keyboard chord, so
-// toggle semantics, one-undo-step, autosave and the inert-inside-blocks rule
-// can never differ between the two entry points.
+// runs the SAME action as its keyboard chord (`EditingKeymap.format()`, or the
+// link controller for Link/Ctrl+K), so toggle semantics, one-undo-step,
+// autosave and the inert-inside-blocks rule can never differ between the two
+// entry points.
 //
 // Focus: a button press must not blur the editor or collapse its selection —
 // `mousedown` is cancelled (clicks and touch taps still fire), and keyboard
@@ -28,16 +29,20 @@ export interface EditorToolbarDeps {
   pageExists(page: string): boolean
   getPageText(page: string): string
   format(action: FormatAction): boolean
+  /** Open the link field (the Link button; same as Ctrl+K). */
+  openLink(): boolean
 }
 
 export interface EditorToolbar {
   /** Recompute enabled/pressed state now (otherwise: next selectionchange frame). */
   refresh(): void
+  /** Hide the buttons while the link field occupies the row. */
+  setHidden(hidden: boolean): void
   destroy(): void
 }
 
 interface ButtonSpec {
-  action: FormatAction
+  action: FormatAction | 'link'
   flag: keyof ActiveFormats
   label: string
   title: string
@@ -55,6 +60,7 @@ const BUTTONS: ButtonSpec[] = [
     cls: 'underline',
   },
   { action: 'list', flag: 'list', label: '\u2022', title: 'Bullet list', cls: 'list' },
+  { action: 'link', flag: 'link', label: 'Link', title: 'Link (Ctrl+K)', cls: 'link' },
 ]
 
 export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
@@ -86,10 +92,11 @@ export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
 
   group.addEventListener('click', (e) => {
     const button = e.target instanceof Element ? e.target.closest('button') : null
-    const action = button?.dataset.action as FormatAction | undefined
+    const action = button?.dataset.action as ButtonSpec['action'] | undefined
     if (!button || button.disabled || !action) return
     if (document.activeElement !== deps.editorEl) deps.editorEl.focus({ preventScroll: true })
-    deps.format(action)
+    if (action === 'link') deps.openLink()
+    else deps.format(action)
     refresh()
   })
 
@@ -117,6 +124,10 @@ export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
 
   return {
     refresh,
+    setHidden(hidden) {
+      group.hidden = hidden
+      if (!hidden) refresh()
+    },
     destroy() {
       document.removeEventListener('selectionchange', schedule)
       if (frame) cancelAnimationFrame(frame)
