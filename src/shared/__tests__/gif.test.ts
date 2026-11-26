@@ -149,10 +149,44 @@ describe('parseGif', () => {
     })
   })
 
-  it('too-many-frames when frames × width × height exceeds the pixel budget', () => {
+  it('too-many-frames when the summed frame areas exceed the pixel budget', () => {
     // 2048² = 4.19 M px: 95 frames = 398 M (ok), 96 = 402 M (over 400 M).
     expect(parseGif(animatedGif(95, 2048, 2048))).toMatchObject({ ok: true, frames: 95 })
     expect(parseGif(animatedGif(96, 2048, 2048))).toEqual({ ok: false, reason: 'too-many-frames' })
+  })
+
+  it('charges each frame its OWN declared area, not the logical screen', () => {
+    // Tiny screen, huge frames: the screen-based budget would call this free.
+    const bigFrames = (n: number) =>
+      bytes(gifHeader(1, 1), ...Array.from({ length: n }, () => gifFrame(2048, 2048)), GIF_TRAILER)
+    expect(parseGif(bigFrames(95))).toMatchObject({ ok: true, frames: 95 })
+    expect(parseGif(bigFrames(96))).toEqual({ ok: false, reason: 'too-many-frames' })
+    // And the reverse: a huge screen with 1×1 frames is cheap to decode.
+    expect(parseGif(animatedGif(1, 2048, 2048))).toMatchObject({ ok: true })
+    const tinyFrames = bytes(
+      gifHeader(2048, 2048),
+      ...Array.from({ length: 500 }, () => gifFrame()),
+      GIF_TRAILER,
+    )
+    expect(parseGif(tinyFrames)).toMatchObject({ ok: true, frames: 500 })
+  })
+
+  it('rejects a frame declaring more than PHOTO_MAX_SIDE, whatever the screen says', () => {
+    for (const [w, h] of [
+      [65535, 65535],
+      [PHOTO_MAX_SIDE + 1, 1],
+      [1, PHOTO_MAX_SIDE + 1],
+    ]) {
+      expect(parseGif(bytes(gifHeader(1, 1), gifFrame(w, h), GIF_TRAILER))).toEqual({
+        ok: false,
+        reason: 'invalid-gif',
+      })
+    }
+    expect(
+      parseGif(bytes(gifHeader(1, 1), gifFrame(PHOTO_MAX_SIDE, 1), GIF_TRAILER)),
+    ).toMatchObject({
+      ok: true,
+    })
   })
 })
 
@@ -195,6 +229,41 @@ describe('sanitizeGif', () => {
     const res = sanitizeGif(input)
     expect(res.ok).toBe(true)
     if (res.ok) same(res.gif, animatedGif(2))
+  })
+
+  it('cannot be amplified by junk extensions: one graphic control per image, one loop block', () => {
+    const junk: number[][] = []
+    for (let i = 0; i < 2000; i++) junk.push(GIF_GCE, gifComment('x'), GIF_NETSCAPE)
+    const input = bytes(gifHeader(), ...junk, gifFrame(), GIF_TRAILER)
+    const res = sanitizeGif(input)
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    // header + one NETSCAPE? (first seen is after the first GCE) + one GCE + frame + trailer
+    same(res.gif, bytes(gifHeader(), GIF_GCE, GIF_NETSCAPE, gifFrame(), GIF_TRAILER))
+  })
+
+  it('keeps one graphic control per image, resetting after each frame', () => {
+    const input = bytes(
+      gifHeader(),
+      GIF_GCE,
+      GIF_GCE,
+      gifFrame(),
+      GIF_GCE,
+      GIF_GCE,
+      gifFrame(),
+      GIF_TRAILER,
+    )
+    const res = sanitizeGif(input)
+    expect(res.ok).toBe(true)
+    if (res.ok)
+      same(res.gif, bytes(gifHeader(), GIF_GCE, gifFrame(), GIF_GCE, gifFrame(), GIF_TRAILER))
+  })
+
+  it('drops a graphic control whose block size is not 4', () => {
+    const badGce = [0x21, 0xf9, 0x02, 0x00, 0x00, 0x00]
+    const res = sanitizeGif(bytes(gifHeader(), badGce, gifFrame(), GIF_TRAILER))
+    expect(res.ok).toBe(true)
+    if (res.ok) same(res.gif, bytes(gifHeader(), gifFrame(), GIF_TRAILER))
   })
 
   it('preserves frame order and local color tables byte-exact', () => {

@@ -338,7 +338,7 @@ toast (frames cannot be downscaled without an encoder). The server
 (`POST /api/media/photos` dispatches on magic bytes) validates GIFs with the
 same `shared/gif.ts` walker — no LZW decoding — and rewrites them keeping only
 graphic-control/loop/image blocks, with caps on dimensions, frame count and
-frames × width × height; they are stored as `image/gif`. A browser's "Copy
+the summed frame areas; they are stored as `image/gif`. A browser's "Copy
 image" puts only a still PNG on the clipboard plus the source URL in
 `text/html`, so when that HTML names an absolute `https:` `.gif`
 (`gifUrlFromClipboardHtml`) and the host supplied

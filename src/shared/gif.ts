@@ -100,6 +100,13 @@ function walk(b: Uint8Array): Walked {
 
   const kept: Range[] = [[0, pos]]
   let frames = 0
+  // Decode cost: the sum of each frame's OWN declared area (a frame may
+  // disagree with the logical screen; browsers clip or grow to it).
+  let pixelFrames = 0
+  // Bounds the output: at most one loop block, and one graphic control per
+  // image, so junk extensions cannot be amplified into thousands of kept ranges.
+  let netscapeKept = false
+  let gceKept = false
 
   for (;;) {
     if (pos === b.length) break // no trailer, but a clean block boundary
@@ -113,7 +120,11 @@ function walk(b: Uint8Array): Walked {
       const first = pos + 2
       const end = skipSubBlocks(b, first)
       if (end < 0) return INVALID
-      if (label === GRAPHIC_CONTROL || (label === APPLICATION && isNetscape(b, first))) {
+      if (label === GRAPHIC_CONTROL && b[first] === 4 && !gceKept) {
+        gceKept = true
+        kept.push([start, end])
+      } else if (label === APPLICATION && !netscapeKept && isNetscape(b, first)) {
+        netscapeKept = true
         kept.push([start, end])
       }
       pos = end
@@ -123,6 +134,8 @@ function walk(b: Uint8Array): Walked {
     if (introducer === IMAGE) {
       const start = pos
       if (pos + 10 > b.length) return INVALID
+      const frameW = b[pos + 5] | (b[pos + 6] << 8)
+      const frameH = b[pos + 7] | (b[pos + 8] << 8)
       const localPacked = b[pos + 9]
       pos += 10
       if (localPacked & 0x80) pos += colorTableBytes(localPacked)
@@ -132,11 +145,13 @@ function walk(b: Uint8Array): Walked {
       const end = skipSubBlocks(b, pos + 1)
       if (end < 0) return INVALID
       frames++
-      if (
-        !oversize &&
-        (frames > GIF_MAX_FRAMES || frames * width * height > GIF_MAX_PIXEL_FRAMES)
-      ) {
-        return { ok: false, reason: 'too-many-frames' }
+      gceKept = false
+      pixelFrames += frameW * frameH
+      if (!oversize) {
+        if (frameW > PHOTO_MAX_SIDE || frameH > PHOTO_MAX_SIDE) return INVALID
+        if (frames > GIF_MAX_FRAMES || pixelFrames > GIF_MAX_PIXEL_FRAMES) {
+          return { ok: false, reason: 'too-many-frames' }
+        }
       }
       kept.push([start, end])
       pos = end

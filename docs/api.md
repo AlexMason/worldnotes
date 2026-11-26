@@ -368,10 +368,13 @@ control extensions, the `NETSCAPE2.0` loop-count extension and the image
 blocks (with local color tables), followed by one trailer. Comments,
 plain-text and other application extensions (XMP, ICC), unknown extensions and
 any bytes after the trailer are never stored. A missing trailer is accepted
-only at a clean block boundary. Caps: each side ≤ `PHOTO_MAX_SIDE` (2048),
-at most 500 frames, and frames × width × height ≤ 400 million pixels (LZW
-compresses blank frames ~1000:1, so file size alone would not bound the
-decoder work every reader's browser pays for an immutably cached image);
+only at a clean block boundary. Caps: each side of the screen **and of every
+frame** ≤ `PHOTO_MAX_SIDE` (2048), at most 500 frames, and the summed area of
+all frames ≤ 400 million pixels (LZW compresses blank frames ~1000:1, so file
+size alone would not bound the decoder work every reader's browser pays for an
+immutably cached image). Output is bounded too: at most one `NETSCAPE2.0`
+block and one graphic control extension (block size 4) per image are kept, so
+junk extensions cannot be amplified;
 the byte ceiling is `PHOTO_MAX_BYTES` as for PNGs. Animated GIFs are not
 re-encoded or downscaled: the browser sends a still PNG instead when an
 animated GIF is larger than 2048 px.
