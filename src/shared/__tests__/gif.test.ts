@@ -112,11 +112,34 @@ describe('parseGif', () => {
     })
   })
 
-  it('over-dimension past PHOTO_MAX_SIDE, before looking at frames', () => {
+  it('over-dimension past PHOTO_MAX_SIDE, reporting size and frame count', () => {
     const wide = bytes(gifHeader(PHOTO_MAX_SIDE + 1, 1), gifFrame(), GIF_TRAILER)
-    expect(parseGif(wide)).toEqual({ ok: false, reason: 'over-dimension' })
-    const tall = bytes(gifHeader(1, PHOTO_MAX_SIDE + 1))
-    expect(parseGif(tall)).toEqual({ ok: false, reason: 'over-dimension' })
+    expect(parseGif(wide)).toEqual({
+      ok: false,
+      reason: 'over-dimension',
+      width: PHOTO_MAX_SIDE + 1,
+      height: 1,
+      frames: 1,
+    })
+    expect(parseGif(animatedGif(4, 1, PHOTO_MAX_SIDE + 1))).toEqual({
+      ok: false,
+      reason: 'over-dimension',
+      width: 1,
+      height: PHOTO_MAX_SIDE + 1,
+      frames: 4,
+    })
+  })
+
+  it('an oversize GIF is not held to the frame caps, but must still be well-formed', () => {
+    expect(parseGif(animatedGif(GIF_MAX_FRAMES + 5, 3000, 3000))).toMatchObject({
+      reason: 'over-dimension',
+      frames: GIF_MAX_FRAMES + 5,
+    })
+    expect(parseGif(bytes(gifHeader(3000, 3000)))).toEqual({ ok: false, reason: 'invalid-gif' })
+    expect(parseGif(animatedGif(2, 3000, 3000).subarray(0, 40))).toEqual({
+      ok: false,
+      reason: 'invalid-gif',
+    })
   })
 
   it('too-many-frames past the frame cap', () => {
@@ -206,7 +229,10 @@ describe('sanitizeGif', () => {
       ok: false,
       reason: 'invalid-gif',
     })
-    expect(sanitizeGif(animatedGif(1, 2049, 1))).toEqual({ ok: false, reason: 'over-dimension' })
+    expect(sanitizeGif(animatedGif(1, 2049, 1))).toMatchObject({
+      ok: false,
+      reason: 'over-dimension',
+    })
     expect(sanitizeGif(animatedGif(GIF_MAX_FRAMES + 1))).toEqual({
       ok: false,
       reason: 'too-many-frames',

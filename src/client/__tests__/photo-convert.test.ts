@@ -4,9 +4,11 @@ import {
   convertToPng,
   fitInside,
   pngDimensions,
+  preparePhoto,
   type ConvertEnv,
   type DecodedImage,
 } from '../photo-convert'
+import { animatedGif } from '../../shared/__tests__/gif-fixtures'
 
 /** 24-byte PNG prefix (signature + IHDR header) followed by padding. */
 function pngHead(width: number, height: number): Uint8Array {
@@ -128,5 +130,94 @@ describe('convertToPng', () => {
     const err = await convertToPng(file('garbage', 'image/jpeg'), env).catch((e: unknown) => e)
     expect(err).toBeInstanceOf(PhotoConvertError)
     expect((err as Error).message).toBe('Could not read this image')
+  })
+})
+
+describe('preparePhoto', () => {
+  const gifFile = (frames: number, w: number, h: number, type = 'image/gif') =>
+    file(animatedGif(frames, w, h), type, 'giphy.gif')
+
+  it('sends an animated GIF unchanged so it stays animated (no decode)', async () => {
+    const gif = gifFile(5, 480, 270)
+    const { env, decode, encode } = fakeEnv({ width: 1, height: 1 })
+    const prepared = await preparePhoto(gif, env)
+    expect(prepared).toEqual({ blob: gif, filename: 'photo.gif' })
+    expect(prepared.blob).toBe(gif)
+    expect(decode).not.toHaveBeenCalled()
+    expect(encode).not.toHaveBeenCalled()
+  })
+
+  it('recognizes a GIF by its bytes even when the type is empty', async () => {
+    const gif = gifFile(3, 40, 30, '')
+    const { env, decode } = fakeEnv({ width: 1, height: 1 })
+    expect(await preparePhoto(gif, env)).toEqual({ blob: gif, filename: 'photo.gif' })
+    expect(decode).not.toHaveBeenCalled()
+  })
+
+  it('accepts an animated GIF at exactly 2048 px', async () => {
+    const gif = gifFile(2, 2048, 2048)
+    const { env } = fakeEnv({ width: 1, height: 1 })
+    expect((await preparePhoto(gif, env)).filename).toBe('photo.gif')
+  })
+
+  it('falls back to a downscaled still PNG with a notice for an animated GIF over 2048 px', async () => {
+    const gif = gifFile(3, 3000, 2500)
+    const { env, decode, encode, out } = fakeEnv({ width: 3000, height: 2500 })
+    const prepared = await preparePhoto(gif, env)
+    expect(prepared.blob).toBe(out)
+    expect(prepared.filename).toBe('photo.png')
+    expect(prepared.notice).toMatch(/first frame.*2048 px/)
+    expect(decode).toHaveBeenCalledWith(gif)
+    expect(encode).toHaveBeenCalledWith(expect.anything(), 2048, 1707)
+  })
+
+  it('converts a single-frame GIF to PNG like any other photo, without a notice', async () => {
+    for (const [w, h] of [
+      [40, 30],
+      [3000, 3000],
+    ]) {
+      const { env, encode, out } = fakeEnv({ width: w, height: h })
+      const prepared = await preparePhoto(gifFile(1, w, h), env)
+      expect(prepared).toEqual({ blob: out, filename: 'photo.png' })
+      expect(encode).toHaveBeenCalledTimes(1)
+    }
+  })
+
+  it('sends an over-long GIF as-is so the server states the reason instead of a silent still', async () => {
+    const gif = gifFile(501, 8, 8)
+    const { env, decode } = fakeEnv({ width: 1, height: 1 })
+    expect(await preparePhoto(gif, env)).toEqual({ blob: gif, filename: 'photo.gif' })
+    expect(decode).not.toHaveBeenCalled()
+  })
+
+  it('lets the browser decoder handle a GIF that fails structural parsing', async () => {
+    const broken = file('GIF89a-but-not-really-a-gif', 'image/gif')
+    const { env, decode, out } = fakeEnv({ width: 10, height: 10 })
+    expect(await preparePhoto(broken, env)).toEqual({ blob: out, filename: 'photo.png' })
+    expect(decode).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves non-GIF handling to the PNG path (pass-through and re-encode)', async () => {
+    const png = file(pngHead(100, 100), 'image/png')
+    const { env, decode } = fakeEnv({ width: 1, height: 1 })
+    expect(await preparePhoto(png, env)).toEqual({ blob: png, filename: 'photo.png' })
+    expect(decode).not.toHaveBeenCalled()
+
+    const jpg = file('\xff\xd8\xff', 'image/jpeg')
+    const jpegEnv = fakeEnv({ width: 800, height: 600 })
+    expect(await preparePhoto(jpg, jpegEnv.env)).toEqual({
+      blob: jpegEnv.out,
+      filename: 'photo.png',
+    })
+  })
+
+  it('still refuses SVG and non-image files', async () => {
+    const { env } = fakeEnv({ width: 1, height: 1 })
+    await expect(preparePhoto(file('<svg/>', 'image/svg+xml'), env)).rejects.toThrow(
+      'SVG images are not supported',
+    )
+    await expect(preparePhoto(file('%PDF-', 'application/pdf'), env)).rejects.toThrow(
+      'This file is not an image',
+    )
   })
 })

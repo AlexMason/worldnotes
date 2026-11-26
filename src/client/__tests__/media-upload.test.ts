@@ -1,12 +1,17 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createMediaUploader } from '../media-upload'
+import type { PreparedPhoto } from '../photo-convert'
 
 const photo = new File(['raw'], 'holiday.jpg', { type: 'image/jpeg' })
 const converted = new Blob(['png-bytes'], { type: 'image/png' })
+const prepared = { blob: converted, filename: 'photo.png' as const }
 
-function uploader(respond: () => Response | Promise<Response>, convert = async () => converted) {
+function uploader(
+  respond: () => Response | Promise<Response>,
+  prepare: () => Promise<PreparedPhoto> = async () => prepared,
+) {
   const fetchImpl = vi.fn(async () => respond())
-  const upload = createMediaUploader({ fetchImpl: fetchImpl as unknown as typeof fetch, convert })
+  const upload = createMediaUploader({ fetchImpl: fetchImpl as unknown as typeof fetch, prepare })
   return { upload, fetchImpl }
 }
 
@@ -46,7 +51,7 @@ describe('createMediaUploader', () => {
       fetchImpl: (async () => {
         throw new TypeError('fetch failed')
       }) as unknown as typeof fetch,
-      convert: async () => converted,
+      prepare: async () => prepared,
     })
     await expect(upload(photo)).rejects.toThrow('Upload failed: network error')
   })
@@ -65,5 +70,29 @@ describe('createMediaUploader', () => {
     )
     await expect(upload(photo)).rejects.toThrow('Could not read this image')
     expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('returns the preparation notice with the url so the editor can show it', async () => {
+    const { upload } = uploader(
+      () => Response.json({ id: 3, url: '/media/3' }, { status: 201 }),
+      async () => ({ ...prepared, notice: 'Only the first frame was kept' }),
+    )
+    expect(await upload(photo)).toEqual({
+      url: '/media/3',
+      notice: 'Only the first frame was kept',
+    })
+  })
+
+  it('uploads an animated GIF blob unchanged', async () => {
+    const gif = new Blob(['GIF89a-bytes'], { type: 'image/gif' })
+    const { upload, fetchImpl } = uploader(
+      () => Response.json({ id: 4, url: '/media/4' }, { status: 201 }),
+      async () => ({ blob: gif, filename: 'photo.gif' }),
+    )
+    expect(await upload(photo)).toEqual({ url: '/media/4' })
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit]
+    const part = (init.body as FormData).get('file') as File
+    expect(part.type).toBe('image/gif')
+    expect(await part.text()).toBe('GIF89a-bytes')
   })
 })

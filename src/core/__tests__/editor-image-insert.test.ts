@@ -157,6 +157,26 @@ describe('image paste', () => {
     expect(instance.getContent()).toBe('```\ncode\n```')
   })
 
+  it('inserts the image and then shows the uploader notice as a warning', async () => {
+    const uploader: ImageUploader = async () => ({
+      url: '/media/9',
+      notice: 'Only the first frame was kept',
+    })
+    const { instance, editorDiv } = await mount({ uploader })
+    setSelectionOffsets(editorDiv, 5, 5)
+    pasteFiles(editorDiv, [png('big.gif')])
+    await vi.waitFor(() => expect(instance.getContent()).toBe('hello![big](/media/9) world'))
+    await vi.waitFor(() => expect(toasts()).toContain('Only the first frame was kept'))
+  })
+
+  it('shows no notice toast when the uploader sends none', async () => {
+    const { instance, editorDiv } = await mount()
+    setSelectionOffsets(editorDiv, 5, 5)
+    pasteFiles(editorDiv, [png()])
+    await vi.waitFor(() => expect(instance.getContent()).toContain('![shot](/media/9)'))
+    expect(toasts().filter((t) => !t?.startsWith('Uploading') && t !== 'Saved')).toEqual([])
+  })
+
   it('shows the uploader error and leaves the page untouched', async () => {
     const uploader: ImageUploader = async () => {
       throw new Error('file exceeds the upload size limit (15 MiB)')

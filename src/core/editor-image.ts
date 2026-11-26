@@ -150,8 +150,11 @@ export async function insertImages(files: readonly File[], ctx: ImageInsertConte
 
     const progress = notify({ message: `Uploading ${file.name || 'photo'}...`, duration: 0 })
     let url: string
+    let notice: string | undefined
     try {
-      url = (await ctx.upload(file)).url
+      const uploaded = await ctx.upload(file)
+      url = uploaded.url
+      notice = uploaded.notice
       if (!SAFE_URL.test(url)) throw new Error('Upload failed: unexpected response')
     } catch (e) {
       dismiss(progress)
@@ -177,5 +180,6 @@ export async function insertImages(files: readonly File[], ctx: ImageInsertConte
     })
     fallback = caret
     inserted++
+    if (notice) notify({ message: notice, type: 'warning' })
   }
 }

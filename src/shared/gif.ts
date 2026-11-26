@@ -16,19 +16,34 @@ import { GIF_MAX_FRAMES, GIF_MAX_PIXEL_FRAMES, PHOTO_MAX_SIDE } from './media-po
 
 export type GifFailure = 'not-gif' | 'invalid-gif' | 'over-dimension' | 'too-many-frames'
 
+/** An otherwise well-formed GIF whose screen exceeds PHOTO_MAX_SIDE. It
+ *  carries what the walk learned so callers can tell an animated oversize GIF
+ *  (the browser's still-PNG fallback + notice) from a static one. */
+export interface GifOverDimension {
+  ok: false
+  reason: 'over-dimension'
+  width: number
+  height: number
+  frames: number
+}
+
+export type GifFailureResult =
+  | { ok: false; reason: Exclude<GifFailure, 'over-dimension'> }
+  | GifOverDimension
+
 export type GifResult =
   | { ok: true; width: number; height: number; frames: number }
-  | { ok: false; reason: GifFailure }
+  | GifFailureResult
 
 export type GifSanitizeResult =
   | { ok: true; gif: Uint8Array; width: number; height: number; frames: number }
-  | { ok: false; reason: GifFailure }
+  | GifFailureResult
 
 type Range = readonly [start: number, end: number]
 
 type Walked =
   | { ok: true; width: number; height: number; frames: number; kept: Range[] }
-  | { ok: false; reason: GifFailure }
+  | GifFailureResult
 
 const INVALID = { ok: false, reason: 'invalid-gif' } as const
 const NETSCAPE = 'NETSCAPE2.0'
@@ -74,9 +89,9 @@ function walk(b: Uint8Array): Walked {
   const width = b[6] | (b[7] << 8)
   const height = b[8] | (b[9] << 8)
   if (width === 0 || height === 0) return INVALID
-  if (width > PHOTO_MAX_SIDE || height > PHOTO_MAX_SIDE) {
-    return { ok: false, reason: 'over-dimension' }
-  }
+  // An oversize screen is still walked (frames counted, structure checked) and
+  // reported at the end; the frame/pixel caps only guard in-range GIFs.
+  const oversize = width > PHOTO_MAX_SIDE || height > PHOTO_MAX_SIDE
 
   const screenPacked = b[10]
   let pos = 13
@@ -117,7 +132,10 @@ function walk(b: Uint8Array): Walked {
       const end = skipSubBlocks(b, pos + 1)
       if (end < 0) return INVALID
       frames++
-      if (frames > GIF_MAX_FRAMES || frames * width * height > GIF_MAX_PIXEL_FRAMES) {
+      if (
+        !oversize &&
+        (frames > GIF_MAX_FRAMES || frames * width * height > GIF_MAX_PIXEL_FRAMES)
+      ) {
         return { ok: false, reason: 'too-many-frames' }
       }
       kept.push([start, end])
@@ -129,6 +147,7 @@ function walk(b: Uint8Array): Walked {
   }
 
   if (frames === 0) return INVALID
+  if (oversize) return { ok: false, reason: 'over-dimension', width, height, frames }
   return { ok: true, width, height, frames, kept }
 }
 

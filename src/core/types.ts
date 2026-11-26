@@ -155,11 +155,13 @@ export type PageMoveResult =
 
 /**
  * Optional transport for photos the user pastes, drops or picks. Receives the
- * raw file; the implementation (client: convert to PNG + POST) returns the
- * stored image's URL. Rejects with an `Error` whose message is shown to the
- * user. Without one the editor offers no image upload.
+ * raw file; the implementation (client: prepare + POST) returns the stored
+ * image's URL, plus an optional `notice` for the user when something was lost
+ * (e.g. an oversize animated GIF kept as a still). Rejects with an `Error`
+ * whose message is shown to the user. Without one the editor offers no image
+ * upload.
  */
-export type ImageUploader = (file: File) => Promise<{ url: string }>
+export type ImageUploader = (file: File) => Promise<{ url: string; notice?: string }>
 
 // ─── Page Existence ──────────────────────────────────────────────────────────
 
