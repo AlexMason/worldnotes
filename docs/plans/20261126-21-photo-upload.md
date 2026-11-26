@@ -3,7 +3,7 @@ issue: 21
 title: Allow editors to upload user photos (converted to PNG, stored in Postgres)
 type: feature
 branch: feature/21-photo-upload
-status: draft
+status: approved
 created: 2026-11-26
 pr: ""
 ---
