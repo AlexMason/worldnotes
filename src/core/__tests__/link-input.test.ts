@@ -98,7 +98,6 @@ describe('findLinkAt', () => {
       to: 30,
       target: 'https://x.test',
       label: 'the docs',
-      implicitLabel: false,
     })
   })
 
@@ -107,13 +106,11 @@ describe('findLinkAt', () => {
       kind: 'wiki',
       target: 'a/b',
       label: 'Bee',
-      implicitLabel: false,
     })
     expect(findLinkAt('[[a/b]]', 4, 4, defs)).toMatchObject({
       kind: 'wiki',
       target: 'a/b',
       label: 'b',
-      implicitLabel: true,
     })
   })
 
@@ -172,10 +169,20 @@ describe('applyLink', () => {
     })
   })
 
-  it('an implicit wiki label follows the new target; as a URL it keeps the derived text', () => {
-    expect(applyLink('[[a/b]]', 3, 3, wiki('c'), defs)).toMatchObject({ text: '[[c]]' })
+  it('keeps the visible text of an existing wiki link when retargeting (derived or explicit)', () => {
+    expect(applyLink('[[a/b]]', 3, 3, wiki('c'), defs)).toMatchObject({ text: '[[c|b]]' })
     expect(applyLink('[[a/b]]', 3, 3, url('https://x.test'), defs)).toMatchObject({
       text: '[b](https://x.test)',
+    })
+  })
+
+  it('refuses to link inside an image instead of corrupting it', () => {
+    const text = 'a ![alt](u.png) b'
+    expect(applyLink(text, 5, 5, url('https://x.test'), defs)).toEqual({
+      error: 'Links cannot go inside an image',
+    })
+    expect(applyLink(text, 4, 7, wiki('page'), defs)).toEqual({
+      error: 'Links cannot go inside an image',
     })
   })
 
@@ -220,5 +227,24 @@ describe('rankSuggestions', () => {
     const before = [...items]
     expect(rankSuggestions('/ALPHA', items).map((i) => i.slug)).toEqual(['a/alpha', 'b'])
     expect(items).toEqual(before)
+  })
+})
+
+describe('classifyLinkInput robustness', () => {
+  it('stays linear on long pasted junk (runs on every keystroke)', () => {
+    const started = performance.now()
+    for (const junk of [
+      '.'.repeat(60_000) + ' x',
+      'a.'.repeat(30_000) + ' x',
+      'x'.repeat(60_000),
+    ]) {
+      classifyLinkInput(junk)
+    }
+    expect(performance.now() - started).toBeLessThan(500)
+  })
+
+  it('a leading dot is not a host: ../x is no URL', () => {
+    expect(classifyLinkInput('../sibling').kind).not.toBe('url')
+    expect(classifyLinkInput('.hidden.txt').kind).not.toBe('url')
   })
 })

@@ -19,11 +19,19 @@ export type ValidLinkInput =
 
 export type LinkInput = ValidLinkInput | { kind: 'error'; message: string }
 
-/** A single whitespace-free token that is URL-shaped: scheme, `//`, `#frag`,
- *  `?query`, `www.`, or a hostname (a dot never occurs in a page slug, so a
- *  dotted word is unambiguous). */
-const URL_SHAPED = /^(?:[a-z][a-z0-9+.-]*:\S*|\/\/\S*|[#?]\S*|www\.\S+|[^\s/]+\.\S+)$/i
-const HAS_SCHEME_OR_SLASHES = /^(?:[a-z][a-z0-9+.-]*:|\/\/|[#?])/i
+const SCHEME_OR_SLASHES = /^(?:[a-z][a-z0-9+.-]*:|\/\/|[#?])/i
+
+/**
+ * URL-shaped: ONE whitespace-free token with a scheme, `//`, `#frag`,
+ * `?query`, `www.`, or a hostname (a dot never occurs in a page slug, so a
+ * dotted word is unambiguous; a leading dot — `../x` — is not a host).
+ * Whitespace is excluded up front so every pattern here stays linear on
+ * pasted junk (this runs on every keystroke).
+ */
+function looksLikeUrl(value: string): boolean {
+  if (/\s/.test(value)) return false
+  return SCHEME_OR_SLASHES.test(value) || /^www\./i.test(value) || /^[^/.][^/]*\.\S/.test(value)
+}
 
 /**
  * Classify the field's text. URL → normalized href (bare hosts get
@@ -39,11 +47,8 @@ export function classifyLinkInput(raw: string, linkBase: string | null = null): 
     return { kind: 'error', message: 'A URL cannot contain spaces' }
   }
 
-  if (URL_SHAPED.test(value)) {
-    const href = (HAS_SCHEME_OR_SLASHES.test(value) ? value : `https://${value}`).replace(
-      /\)/g,
-      '%29',
-    )
+  if (looksLikeUrl(value)) {
+    const href = (SCHEME_OR_SLASHES.test(value) ? value : `https://${value}`).replace(/\)/g, '%29')
     if (!isSafeHref(href)) return { kind: 'error', message: 'That kind of link is not allowed' }
     return { kind: 'url', url: href }
   }
@@ -76,8 +81,6 @@ export interface ExistingLink {
   target: string
   /** Visible text: the explicit label, else a wiki link's derived display. */
   label: string
-  /** Wiki link written without `|label` (its text follows the target). */
-  implicitLabel: boolean
 }
 
 /**
@@ -102,7 +105,6 @@ export function findLinkAt(
       to: token.to,
       target: token.groups[1] ?? '',
       label: token.groups[0] ?? '',
-      implicitLabel: false,
     }
   }
   const inner = token.groups[0] ?? ''
@@ -113,7 +115,6 @@ export function findLinkAt(
     to: token.to,
     target: page,
     label: display,
-    implicitLabel: !inner.includes('|'),
   }
 }
 
@@ -141,6 +142,10 @@ export function applyLink(
   const s = Math.max(0, Math.min(start, text.length))
   const e = Math.max(s, Math.min(end, text.length))
   const existing = findLinkAt(text, s, e, defs)
+  // An image's `[alt](src)` is not a link: wrapping inside it would corrupt it.
+  if (coveringTokens(text, s, e, defs).some((t) => t.type === 'image')) {
+    return { error: 'Links cannot go inside an image' }
+  }
 
   let from = s
   let to = e
@@ -157,7 +162,7 @@ export function applyLink(
   const link =
     input.kind === 'url'
       ? `[${label || input.url}](${input.url})`
-      : wikiLiteral(input.target, existing?.implicitLabel ? '' : label)
+      : wikiLiteral(input.target, label)
   const caret = from + link.length
   return { text: text.slice(0, from) + link + text.slice(to), start: caret, end: caret }
 }
