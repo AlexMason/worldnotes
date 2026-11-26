@@ -3,7 +3,7 @@ issue: 20
 title: Add an editor formatting toolbar (bold, italic, underline, list, link)
 type: feature
 branch: feature/20-editor-toolbar
-status: in-review
+status: reviewed
 created: 2026-11-25
 pr: ""
 ---
@@ -150,7 +150,7 @@ Three fresh-context reviewers (A conformance & correctness, B code quality, C se
 
 **Unrelated but important (not fixed here):**
 
-- *minor* (C): `GET /api/pages` takes `limit` unclamped (`?limit=-1` or `0.5` reaches Postgres `LIMIT` and errors) and a repeated `q` (`?q=a&q=b`) arrives as an array and throws. Both predate this branch (the `limit` and `q` handling are unchanged lines); `scope=name` shares the path. To be filed as an issue.
+- *minor* (C): `GET /api/pages` takes `limit` unclamped (`?limit=-1` or `0.5` reaches Postgres `LIMIT` and errors) and a repeated `q` (`?q=a&q=b`) arrives as an array and throws. Both predate this branch (the `limit` and `q` handling are unchanged lines); `scope=name` shares the path. Filed as #22.
 
 **Dismissed:**
 
