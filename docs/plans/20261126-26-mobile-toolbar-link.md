@@ -3,7 +3,7 @@ issue: 26
 title: Toolbar Link button loses the text selection on mobile, so no link is inserted
 type: fix
 branch: fix/26-mobile-toolbar-link
-status: draft
+status: approved
 created: 2026-11-26
 pr: ""
 ---
