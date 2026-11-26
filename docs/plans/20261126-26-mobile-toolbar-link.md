@@ -83,7 +83,7 @@ Suspected causes, ranked (all **[INFERENCE]** — the soft-keyboard behaviour ca
 
 ## Steps
 
-- [ ] 1. Link field: native `<form>` submit (Enter/Go), visible Link/✕ buttons, blur policy (coarse pointer / inside-field), CSS; tests; docs (`architecture.md`, `theming.md`, `shortcuts.md`).
+- [x] 1. Link field: native `<form>` submit (Enter/Go), visible Link/✕ buttons, blur policy (coarse pointer / inside-field), CSS; tests; docs (`architecture.md`, `theming.md`, `shortcuts.md`).
 - [ ] 2. Toolbar press path: `pointerdown` selection snapshot, refresh freeze, restore-before-action for every button; tests; `architecture.md` note.
 
 ## Risks & open questions

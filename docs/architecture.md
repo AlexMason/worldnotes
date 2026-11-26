@@ -274,6 +274,14 @@ from the optional `PageStore.suggest`, which `ApiPageStore` serves from
 `GET /api/pages?scope=name` (slug/title only, so body matches cannot crowd
 out pages named like the query).
 
+The field is a native `<form>` (`enterkeyhint="go"`): its `submit` event is
+the single commit path, so desktop Enter, a soft keyboard's Go/Enter key (which
+reports composition input, so `keydown` sniffing would swallow it) and the
+visible **Link** button all behave the same, and Enter mid-IME-composition
+never submits. The ✕ button cancels. Blur cancels only on fine-pointer devices
+and never when focus moves to the field's own controls; on touch the soft
+keyboard closing must not abandon the field.
+
 **Model commits.** `editor-commit.ts` is the ONE path for edits the editor
 defines itself: `commitModelEdit` = `setPageText` (one undo step) → forced
 render → restore caret-or-selection → scroll the caret line into view →

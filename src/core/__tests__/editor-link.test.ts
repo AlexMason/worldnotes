@@ -39,6 +39,17 @@ function key(el: HTMLElement, init: KeyboardEventInit): KeyboardEvent {
   return event
 }
 
+/** What a browser does when Enter is pressed in a form's text input. */
+function enter(input: HTMLInputElement): void {
+  const down = key(input, { key: 'Enter' })
+  if (!down.defaultPrevented) submit(input)
+}
+
+/** Implicit submission without a keydown: a soft keyboard's Go key. */
+function submit(input: HTMLInputElement): void {
+  input.form!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+}
+
 function type(input: HTMLInputElement, value: string): void {
   input.value = value
   input.dispatchEvent(new Event('input', { bubbles: true }))
@@ -79,7 +90,7 @@ describe('link field', () => {
     key(t.editorDiv, { key: 'k', ctrlKey: true })
     type(t.input(), 'lore/old-gods')
     expect(t.msg()).toBe('Wiki link → /home/lore/old-gods')
-    key(t.input(), { key: 'Enter' })
+    enter(t.input())
 
     expect(t.instance.getContent()).toBe('[[lore/old-gods|alpha]] one\nbeta two\ngamma three')
     expect(getSelectionOffsets(t.editorDiv)).toEqual({ start: 23, end: 23 })
@@ -96,7 +107,7 @@ describe('link field', () => {
     key(t.editorDiv, { key: 'k', ctrlKey: true })
     type(t.input(), 'example.com')
     expect(t.msg()).toBe('URL')
-    key(t.input(), { key: 'Enter' })
+    enter(t.input())
     expect(t.instance.getContent()).toBe('[alpha](https://example.com) one\nbeta two\ngamma three')
   })
 
@@ -105,7 +116,7 @@ describe('link field', () => {
     await select(t.editorDiv, 0, 5)
     key(t.editorDiv, { key: 'k', ctrlKey: true })
     type(t.input(), 'javascript:alert(1)')
-    key(t.input(), { key: 'Enter' })
+    enter(t.input())
     expect(t.msg()).toBe('That kind of link is not allowed')
     expect(t.input().getAttribute('aria-invalid')).toBe('true')
     expect(t.field()).not.toBeNull()
@@ -117,7 +128,7 @@ describe('link field', () => {
     await select(t.editorDiv, 0, 15)
     key(t.editorDiv, { key: 'k', ctrlKey: true })
     type(t.input(), 'page')
-    key(t.input(), { key: 'Enter' })
+    enter(t.input())
     expect(t.msg()).toBe('Select text on a single line to turn it into a link')
     expect(t.instance.getContent()).toBe(DOC)
   })
@@ -150,7 +161,7 @@ describe('link field', () => {
     key(t.editorDiv, { key: 'k', ctrlKey: true })
     expect(t.input().value).toBe('https://x.test')
     type(t.input(), 'lore')
-    key(t.input(), { key: 'Enter' })
+    enter(t.input())
     expect(t.instance.getContent()).toBe('see [[lore|t]] now')
   })
 
@@ -213,19 +224,96 @@ describe('link field', () => {
     await select(t.editorDiv, 3)
     key(t.editorDiv, { key: 'k', ctrlKey: true })
     type(t.input(), 'page')
-    key(t.input(), { key: 'Enter' })
+    enter(t.input())
     expect(t.msg()).toBe('Links cannot go inside an image')
     expect(t.instance.getContent()).toBe(text)
   })
 
-  it('Enter during IME composition is left to the IME', async () => {
+  it('the field is a form whose input asks for a Go key', async () => {
+    const t = await mount(DOC)
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    expect(t.field()!.tagName).toBe('FORM')
+    expect(t.input().getAttribute('enterkeyhint')).toBe('go')
+  })
+
+  it('a soft-keyboard Go (submit without a keydown) commits the link', async () => {
     const t = await mount(DOC)
     await select(t.editorDiv, 0, 5)
     key(t.editorDiv, { key: 'k', ctrlKey: true })
     type(t.input(), 'page')
-    key(t.input(), { key: 'Enter', isComposing: true })
+    submit(t.input())
+    expect(t.instance.getContent()).toBe('[[page|alpha]] one\nbeta two\ngamma three')
+  })
+
+  it('Enter keydown during IME composition does not submit on its own', async () => {
+    const t = await mount(DOC)
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    type(t.input(), 'page')
+    const e = key(t.input(), { key: 'Enter', isComposing: true })
+    expect(e.defaultPrevented).toBe(false) // left to the IME / the browser's own submit rules
     expect(t.field()).not.toBeNull()
     expect(t.instance.getContent()).toBe(DOC)
+  })
+
+  it('the visible Link button commits, the cancel button restores the selection', async () => {
+    const t = await mount(DOC)
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    type(t.input(), 'page')
+    ;(t.container.querySelector('.wn-link-field-submit') as HTMLButtonElement).click()
+    expect(t.instance.getContent()).toBe('[[page|alpha]] one\nbeta two\ngamma three')
+    expect(t.field()).toBeNull()
+
+    await select(t.editorDiv, 0, 3)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    type(t.input(), 'other')
+    ;(t.container.querySelector('.wn-link-field-cancel') as HTMLButtonElement).click()
+    expect(t.field()).toBeNull()
+    expect(t.group().hidden).toBe(false)
+    expect(t.instance.getContent()).toBe('[[page|alpha]] one\nbeta two\ngamma three')
+    expect(getSelectionOffsets(t.editorDiv)).toEqual({ start: 0, end: 3 })
+  })
+
+  it('pressing the field buttons does not blur the input (mousedown is cancelled)', async () => {
+    const t = await mount(DOC)
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    for (const cls of ['submit', 'cancel']) {
+      const down = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+      t.container.querySelector(`.wn-link-field-${cls}`)!.dispatchEvent(down)
+      expect(down.defaultPrevented).toBe(true)
+    }
+  })
+
+  it('blur to one of the field’s own controls does not cancel it', async () => {
+    const t = await mount(DOC)
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    const submitButton = t.container.querySelector('.wn-link-field-submit') as HTMLButtonElement
+    const blur = new FocusEvent('blur')
+    Object.defineProperty(blur, 'relatedTarget', { value: submitButton })
+    t.input().dispatchEvent(blur)
+    expect(t.field()).not.toBeNull()
+  })
+
+  it('on a touch device the soft keyboard closing (blur) does not cancel the field', async () => {
+    const coarse = vi
+      .spyOn(window, 'matchMedia')
+      .mockImplementation((q) => ({ matches: q === '(pointer: coarse)' }) as MediaQueryList)
+    try {
+      const t = await mount(DOC)
+      await select(t.editorDiv, 0, 5)
+      key(t.editorDiv, { key: 'k', ctrlKey: true })
+      type(t.input(), 'page')
+      t.input().dispatchEvent(new FocusEvent('blur'))
+      expect(t.field()).not.toBeNull()
+      submit(t.input()) // still completes afterwards
+      expect(t.instance.getContent()).toBe('[[page|alpha]] one\nbeta two\ngamma three')
+    } finally {
+      coarse.mockRestore()
+    }
   })
 
   it('caps pasted input length', async () => {
@@ -261,7 +349,7 @@ describe('link field suggestions', () => {
     key(t.input(), { key: 'ArrowDown' })
     expect(t.input().getAttribute('aria-activedescendant')).toBe(t.options()[0]!.id)
     expect(t.options()[0]!.getAttribute('aria-selected')).toBe('true')
-    key(t.input(), { key: 'Enter' })
+    enter(t.input())
 
     // site-root link base → the bare slug
     expect(t.instance.getContent()).toBe('[[lore/old-gods|alpha]] one\nbeta two\ngamma three')
@@ -276,7 +364,7 @@ describe('link field suggestions', () => {
     type(t.input(), 'old')
     await vi.advanceTimersByTimeAsync(150)
     key(t.input(), { key: 'ArrowDown' })
-    key(t.input(), { key: 'Enter' })
+    enter(t.input())
     expect(t.instance.getContent()).toBe('[[/lore/old-gods|alpha]] one\nbeta two\ngamma three')
   })
 
@@ -316,7 +404,7 @@ describe('link field suggestions', () => {
     await vi.advanceTimersByTimeAsync(150)
     expect(suggest).toHaveBeenCalledTimes(1)
     expect(t.options()).toHaveLength(0)
-    key(t.input(), { key: 'Enter' }) // typed text still commits
+    enter(t.input()) // typed text still commits
     expect(t.instance.getContent()).toBe('[[old|alpha]] one\nbeta two\ngamma three')
   })
 
@@ -352,7 +440,7 @@ describe('link field suggestions', () => {
     type(t.input(), 'bad')
     await vi.advanceTimersByTimeAsync(150)
     key(t.input(), { key: 'ArrowDown' })
-    key(t.input(), { key: 'Enter' })
+    enter(t.input())
     expect(t.msg()).toBe('A page name cannot contain ] or |')
     expect(t.instance.getContent()).toBe(DOC)
   })

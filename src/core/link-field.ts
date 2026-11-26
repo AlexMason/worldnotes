@@ -156,8 +156,9 @@ function createSuggestionSearch(
 export function openLinkField(host: HTMLElement, options: LinkFieldOptions): LinkField {
   const id = `wn-link-field-${++fieldCounter}`
 
-  const field = document.createElement('div')
+  const field = document.createElement('form')
   field.className = 'wn-link-field'
+  field.noValidate = true
 
   const input = document.createElement('input')
   input.className = 'wn-link-field-input'
@@ -169,6 +170,7 @@ export function openLinkField(host: HTMLElement, options: LinkFieldOptions): Lin
   input.spellcheck = false
   input.autocomplete = 'off'
   input.setAttribute('autocapitalize', 'off')
+  input.setAttribute('enterkeyhint', 'go')
   input.setAttribute('aria-label', 'Link to a page or URL')
   input.setAttribute('role', 'combobox')
   input.setAttribute('aria-autocomplete', 'list')
@@ -179,6 +181,23 @@ export function openLinkField(host: HTMLElement, options: LinkFieldOptions): Lin
   msg.className = 'wn-link-field-msg'
   msg.setAttribute('role', 'status')
   msg.setAttribute('aria-live', 'polite')
+
+  // Visible controls: a touch user must be able to complete or abandon the
+  // field without relying on the soft keyboard's Enter key.
+  const submit = document.createElement('button')
+  submit.type = 'submit'
+  submit.className = 'wn-link-field-btn wn-link-field-submit'
+  submit.textContent = 'Link'
+  const cancel = document.createElement('button')
+  cancel.type = 'button'
+  cancel.className = 'wn-link-field-btn wn-link-field-cancel'
+  cancel.textContent = '\u2715'
+  cancel.setAttribute('aria-label', 'Cancel')
+  // Pressing a control must not blur the input first (blur can cancel).
+  for (const control of [submit, cancel]) {
+    control.addEventListener('mousedown', (e) => e.preventDefault())
+  }
+  cancel.addEventListener('click', () => finish('cancel'))
 
   let closed = false
 
@@ -230,9 +249,19 @@ export function openLinkField(host: HTMLElement, options: LinkFieldOptions): Lin
     else list.clear()
   }
 
+  // The form owns submission: soft-keyboard Go/Enter, desktop Enter (never
+  // fired mid-IME-composition) and the Link button all arrive here, so no
+  // keydown sniffing is needed.
+  field.addEventListener('submit', (e) => {
+    e.preventDefault()
+    if (list.pickHighlighted()) return
+    const result = classifyLinkInput(input.value, options.linkBase)
+    if (result.kind === 'error') show(result.message, true)
+    else commit(result)
+  })
   input.addEventListener('input', refresh)
   input.addEventListener('keydown', (e) => {
-    // Enter/arrows during IME composition belong to the IME, not to us.
+    // Escape/arrows during IME composition belong to the IME, not to us.
     if (e.isComposing) return
     if (e.key === 'Escape') {
       e.preventDefault()
@@ -241,17 +270,19 @@ export function openLinkField(host: HTMLElement, options: LinkFieldOptions): Lin
     } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && list.hasItems()) {
       e.preventDefault()
       list.move(e.key === 'ArrowDown' ? 1 : -1)
-    } else if (e.key === 'Enter') {
-      e.preventDefault()
-      if (list.pickHighlighted()) return
-      const result = classifyLinkInput(input.value, options.linkBase)
-      if (result.kind === 'error') show(result.message, true)
-      else commit(result)
     }
   })
-  input.addEventListener('blur', () => finish('blur'))
+  input.addEventListener('blur', (e) => {
+    // Focus moving to our own controls is not leaving. On touch devices the
+    // soft keyboard dismissing (or a suggestion tap) also blurs the input;
+    // there the field closes only via Link, ✕, Escape or a page change.
+    const next = e.relatedTarget as Element | null
+    if (next?.closest?.('.wn-link-field')) return // only one field exists at a time
+    if (window.matchMedia?.('(pointer: coarse)').matches === true) return
+    finish('blur')
+  })
 
-  field.append(input, msg, list.element)
+  field.append(input, submit, cancel, msg, list.element)
   host.appendChild(field)
   input.focus()
   input.select()

@@ -99,6 +99,21 @@ const EDITOR_CHROME_CSS = `
   color: var(--wn-color-fg-muted, #6f6a61);
 }
 .wn-link-field-msg--error { color: var(--wn-move-error-color, #b3261e); }
+.wn-link-field-btn {
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 .7rem;
+  font: inherit;
+  line-height: 1;
+  color: var(--wn-color-fg-muted, #6f6a61);
+  background: transparent;
+  border: 1px solid var(--wn-color-toolbar-border, var(--wn-color-border, #e3ded4));
+  border-radius: var(--wn-radius-control, 6px);
+  cursor: pointer;
+}
+.wn-link-field-submit { color: var(--wn-color-accent, #1a5fb4); }
+.wn-link-field-btn:hover { background: var(--wn-color-toolbar-button-hover-bg, var(--wn-color-code-bg, #f0ede6)); }
+.wn-link-field-btn:focus-visible { outline: 2px solid var(--wn-color-focus-ring, #1a5fb4); outline-offset: 1px; }
 .wn-link-field-list {
   position: absolute; top: 100%; left: 1.2rem; z-index: 30;
   width: min(32rem, calc(100% - 2.4rem)); max-height: 50vh; overflow-y: auto;
@@ -476,6 +491,11 @@ const EDITOR_CHROME_CSS = `
   .wn-actions a { display: block; padding: .45em .35em; min-height: var(--wn-touch-target, 44px); }
   .wn-toolbar { flex-wrap: wrap; row-gap: 4px; padding: .4rem .9rem; }
   .wn-toolbar-btn { min-width: var(--wn-touch-target, 44px); height: var(--wn-touch-target, 44px); }
+  /* the link field wraps so its buttons and (unclipped) message stay on screen */
+  .wn-link-field { flex-wrap: wrap; row-gap: 4px; }
+  .wn-link-field-input { flex: 1 1 10ch; }
+  .wn-link-field-msg { flex: 1 1 100%; white-space: normal; overflow: visible; }
+  .wn-link-field-btn { min-width: var(--wn-touch-target, 44px); height: var(--wn-touch-target, 44px); }
   .wn-editor-wrap { padding: 1.2rem .9rem 4rem; }
   .wn-body { flex-direction: column; }
   .wn-left-sidepanel:not(:empty),
