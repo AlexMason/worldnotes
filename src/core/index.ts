@@ -28,6 +28,7 @@ export type {
   UIPlugin,
   PageStore,
   PageSuggestion,
+  ImageUploader,
   PageExistenceResolver,
   PageTitleResolver,
   EditorContext,
