@@ -20,8 +20,8 @@ import { cacheControlFor, requireLoginJson } from '../auth/login-gate'
 import type { MediaRepository } from '../db/media-repository'
 import type { SettingsService } from '../settings'
 import { probeMedia } from '../media-types'
-import { sanitizePng } from '../png-sanitize'
-import { sanitizeGif } from '../../shared/gif'
+import { sanitizePng, type PngSanitizeResult } from '../png-sanitize'
+import { sanitizeGif, type GifFailure } from '../../shared/gif'
 import { PHOTO_MAX_SIDE } from '../../shared/media-policy'
 
 export interface MediaDeps {
@@ -42,6 +42,38 @@ const SECURITY_HEADERS: Record<string, string> = {
 const BUNDLED_FILES: Record<string, { file: string; contentType: string }> = {
   '/favicon.ico': { file: 'favicon.ico', contentType: 'image/vnd.microsoft.icon' },
   '/apple-touch-icon.png': { file: 'apple-touch-icon.png', contentType: 'image/png' },
+}
+
+type PhotoFailure = Exclude<PngSanitizeResult, { ok: true }>['reason'] | GifFailure
+
+/** Every way a photo can be refused, keyed so a new sanitizer reason is a
+ *  compile error here instead of silently falling into another branch. */
+const PHOTO_REJECTIONS: Record<PhotoFailure, { code: 415 | 422; error: string }> = {
+  'not-png': { code: 415, error: 'expected a PNG or GIF image' },
+  'not-gif': { code: 415, error: 'expected a PNG or GIF image' },
+  'invalid-png': { code: 422, error: 'invalid PNG' },
+  'invalid-gif': { code: 422, error: 'invalid GIF' },
+  'over-dimension': { code: 422, error: `image is larger than ${PHOTO_MAX_SIDE} px on a side` },
+  'too-many-frames': { code: 422, error: 'GIF has too many frames' },
+}
+
+type PhotoResult =
+  | { ok: true; mediaType: 'image/png' | 'image/gif'; data: Buffer; width: number; height: number }
+  | { ok: false; reason: PhotoFailure }
+
+/** Magic-byte dispatch: a PNG signature -> sanitizePng, GIF87a/GIF89a ->
+ *  sanitizeGif, anything else is refused. The declared type is never used. */
+function sanitizePhoto(buf: Buffer): PhotoResult {
+  const png = sanitizePng(buf)
+  if (png.ok) {
+    return { ok: true, mediaType: 'image/png', data: png.png, width: png.width, height: png.height }
+  }
+  if (png.reason !== 'not-png') return { ok: false, reason: png.reason }
+
+  const gif = sanitizeGif(buf)
+  if (!gif.ok) return { ok: false, reason: gif.reason }
+  const data = Buffer.from(gif.gif.buffer, gif.gif.byteOffset, gif.gif.byteLength)
+  return { ok: true, mediaType: 'image/gif', data, width: gif.width, height: gif.height }
 }
 
 /** 413 text; a per-request ceiling is named so the browser can show it. */
@@ -190,8 +222,6 @@ export async function registerMediaRoutes(app: FastifyInstance, deps: MediaDeps)
   // route keeps its 2 MiB cap. The type comes from magic bytes only: a PNG
   // signature -> sanitizePng, GIF87a/GIF89a -> sanitizeGif, else 415.
 
-  const tooLarge = `image is larger than ${PHOTO_MAX_SIDE} px on a side`
-
   app.post(
     '/api/media/photos',
     { onRequest: [requireSameOrigin, requireRole('editor', 'admin')] },
@@ -199,38 +229,12 @@ export async function registerMediaRoutes(app: FastifyInstance, deps: MediaDeps)
       const buf = await readUpload(req, reply, photoMaxBytes)
       if (!buf) return reply
 
-      let mediaType: 'image/png' | 'image/gif'
-      let data: Buffer
-      let width: number
-      let height: number
-
-      const png = sanitizePng(buf)
-      if (png.ok) {
-        mediaType = 'image/png'
-        data = png.png
-        ;({ width, height } = png)
-      } else if (png.reason === 'over-dimension') {
-        return reply.code(422).send({ error: tooLarge })
-      } else if (png.reason === 'invalid-png') {
-        return reply.code(422).send({ error: 'invalid PNG' })
-      } else {
-        const gif = sanitizeGif(buf)
-        if (!gif.ok) {
-          switch (gif.reason) {
-            case 'not-gif':
-              return reply.code(415).send({ error: 'expected a PNG or GIF image' })
-            case 'over-dimension':
-              return reply.code(422).send({ error: tooLarge })
-            case 'too-many-frames':
-              return reply.code(422).send({ error: 'GIF has too many frames' })
-            case 'invalid-gif':
-              return reply.code(422).send({ error: 'invalid GIF' })
-          }
-        }
-        mediaType = 'image/gif'
-        data = Buffer.from(gif.gif.buffer, gif.gif.byteOffset, gif.gif.byteLength)
-        ;({ width, height } = gif)
+      const photo = sanitizePhoto(buf)
+      if (!photo.ok) {
+        const { code, error } = PHOTO_REJECTIONS[photo.reason]
+        return reply.code(code).send({ error })
       }
+      const { mediaType, data, width, height } = photo
 
       const { id } = await media.insert({
         mediaType,
