@@ -80,6 +80,36 @@ function lineStartOffsets(lines: readonly string[]): number[] {
   return starts
 }
 
+interface ListTarget {
+  index: number
+  /** LIST_ITEM_RE match, or null for a plain line. */
+  match: RegExpExecArray | null
+}
+
+/**
+ * The lines a list toggle acts on: non-blank, outside `skip` (block-region
+ * lines — a selection straddling a fence must never get `- ` spliced into
+ * code). toggleList and the toolbar's pressed state both read THIS, so the
+ * button can never light up for a state its press would not remove.
+ */
+function listTargets(
+  lines: readonly string[],
+  firstLine: number,
+  lastLine: number,
+  skip: ReadonlySet<number>,
+): ListTarget[] {
+  const targets: ListTarget[] = []
+  for (let i = firstLine; i <= lastLine; i++) {
+    if (!skip.has(i) && lines[i]!.trim() !== '') {
+      targets.push({ index: i, match: LIST_ITEM_RE.exec(lines[i]!) })
+    }
+  }
+  return targets
+}
+
+const allBullets = (targets: readonly ListTarget[]): boolean =>
+  targets.length > 0 && targets.every((t) => t.match !== null && isBulletMarker(t.match[2]!))
+
 /**
  * Bullet-list toggle over the lines the selection touches.
  *
@@ -104,27 +134,21 @@ export function toggleList(
   const { firstLine, lastLine } = selectedLineRange(text, s, e)
   const lines = text.split('\n')
 
-  const targets: number[] = []
-  for (let i = firstLine; i <= lastLine; i++) {
-    if (!skip.has(i) && lines[i]!.trim() !== '') targets.push(i)
-  }
+  const targets = listTargets(lines, firstLine, lastLine, skip)
   if (targets.length === 0) return null
 
-  const parsed = targets.map((i) => LIST_ITEM_RE.exec(lines[i]!))
-  const allBullets = parsed.every((m) => m !== null && isBulletMarker(m[2]!))
-
+  const remove = allBullets(targets)
   const next = lines.slice()
-  targets.forEach((i, k) => {
-    const m = parsed[k] ?? null
+  for (const { index: i, match: m } of targets) {
     if (m === null) {
       const indent = /^\s*/.exec(lines[i]!)![0]
       next[i] = indent + '- ' + lines[i]!.slice(indent.length)
-    } else if (allBullets) {
+    } else if (remove) {
       next[i] = m[1]! + m[3]!
     } else if (!isBulletMarker(m[2]!)) {
       next[i] = m[1]! + '- ' + m[3]!
     }
-  })
+  }
 
   const out = next.join('\n')
   if (out === text) return null
@@ -179,12 +203,21 @@ export function coveringTokens(
   end: number,
   defs: readonly TokenDef[],
 ): CoveringToken[] {
+  return coveringOnLine(text.split('\n'), text, start, end, defs)
+}
+
+function coveringOnLine(
+  lines: readonly string[],
+  text: string,
+  start: number,
+  end: number,
+  defs: readonly TokenDef[],
+): CoveringToken[] {
   const s = Math.max(0, Math.min(start, text.length))
   const e = Math.max(s, Math.min(end, text.length))
   const { firstLine, lastLine } = selectedLineRange(text, s, e)
   if (firstLine !== lastLine) return []
 
-  const lines = text.split('\n')
   const line = lines[firstLine]!
   const lineStart = lineStartOffsets(lines)[firstLine]!
   const cs = s - lineStart
@@ -208,36 +241,28 @@ export function coveringTokens(
 
 /**
  * Which formats the selection sits in (see coveringTokens for the token
- * rule). `list` is true when every non-blank selected line is a bullet item
- * (the exact condition under which toggleList would remove). Multi-line
- * selections report only `list`.
+ * rule). `list` is true exactly when toggleList (given the same `skip`) would
+ * REMOVE bullets. Multi-line selections report only `list`.
  */
 export function activeFormats(
   text: string,
   start: number,
   end: number,
   defs: readonly TokenDef[],
+  skip: ReadonlySet<number> = new Set(),
 ): ActiveFormats {
   const s = Math.max(0, Math.min(start, text.length))
   const e = Math.max(s, Math.min(end, text.length))
+  const lines = text.split('\n')
   const { firstLine, lastLine } = selectedLineRange(text, s, e)
-  const nonBlank = text
-    .split('\n')
-    .slice(firstLine, lastLine + 1)
-    .filter((l) => l.trim() !== '')
   const result: ActiveFormats = {
     bold: false,
     italic: false,
     underline: false,
     link: false,
-    list:
-      nonBlank.length > 0 &&
-      nonBlank.every((l) => {
-        const m = LIST_ITEM_RE.exec(l)
-        return m !== null && isBulletMarker(m[2]!)
-      }),
+    list: allBullets(listTargets(lines, firstLine, lastLine, skip)),
   }
-  for (const token of coveringTokens(text, s, e, defs)) {
+  for (const token of coveringOnLine(lines, text, s, e, defs)) {
     if (token.type === 'bold') result.bold = true
     else if (token.type === 'italic') result.italic = true
     else if (token.type === 'underline') result.underline = true

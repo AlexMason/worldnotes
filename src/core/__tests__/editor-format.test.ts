@@ -191,3 +191,14 @@ describe('activeFormats', () => {
     expect(at('**a**\nplain', 8).bold).toBe(false)
   })
 })
+
+describe('activeFormats list state with block lines', () => {
+  it('agrees with toggleList: fenced lines are not part of the decision', () => {
+    const text = '- a\n```\ncode\n```'
+    const skip = new Set([1, 2, 3])
+    expect(activeFormats(text, 0, text.length, defs).list).toBe(false) // fence counted
+    expect(activeFormats(text, 0, text.length, defs, skip).list).toBe(true)
+    // …and pressing the button therefore REMOVES the bullet, as the state says
+    expect(toggleList(text, 0, text.length, skip)!.text).toBe('a\n```\ncode\n```')
+  })
+})

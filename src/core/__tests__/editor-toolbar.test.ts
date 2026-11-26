@@ -141,4 +141,28 @@ describe('editor toolbar', () => {
     instance.destroy()
     expect(container.querySelector('.wn-toolbar-group')).toBeNull()
   })
+
+  it('the list button is pressed only when its press would remove (fenced lines ignored)', async () => {
+    const text = '- one\n- two\n```\ncode\n```'
+    const { editorDiv, button } = await mount(text)
+    await select(editorDiv, 0, text.length)
+    expect(button('list').getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('does no work for selection changes while hidden, and catches up when shown again', async () => {
+    const { instance, editorDiv, button } = await mount(DOC)
+    await select(editorDiv, 0, 5)
+    expect(button('bold').disabled).toBe(false)
+    const toolbarEl = button('bold').closest('.wn-toolbar-group') as HTMLElement
+    toolbarEl.hidden = true
+    window.getSelection()!.removeAllRanges()
+    document.dispatchEvent(new Event('selectionchange'))
+    await vi.advanceTimersByTimeAsync(40)
+    expect(button('bold').disabled).toBe(false) // not recomputed while hidden
+    toolbarEl.hidden = false
+    document.dispatchEvent(new Event('selectionchange'))
+    await vi.advanceTimersByTimeAsync(40)
+    expect(button('bold').disabled).toBe(true)
+    expect(instance.getContent()).toBe(DOC)
+  })
 })

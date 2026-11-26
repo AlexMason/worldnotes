@@ -12,8 +12,9 @@
 // activation refocuses the editor before running the action.
 //
 // State is derived from the markdown SOURCE (`activeFormats`), recomputed on
-// `selectionchange` (rAF-coalesced). Buttons disable when the selection is
-// unmappable (outside the editor, no page loaded) or inside a block region.
+// `selectionchange` (rAF-coalesced; skipped while hidden or when nothing it
+// reads changed). Buttons disable when the selection is unmappable (outside
+// the editor, no page loaded) or inside a block region.
 
 import type { TokenDef } from './types'
 import { activeFormats, type ActiveFormats } from './editor-format'
@@ -28,6 +29,9 @@ export interface EditorToolbarDeps {
   getCurrentPage(): string
   pageExists(page: string): boolean
   getPageText(page: string): string
+  /** Line indices of `text` inside block regions (the list button's pressed
+   *  state must agree with what the list action would do). */
+  blockLines(text: string): ReadonlySet<number>
   format(action: FormatAction): boolean
   /** Open the link field (the Link button; same as Ctrl+K). */
   openLink(): boolean
@@ -41,26 +45,21 @@ export interface EditorToolbar {
   destroy(): void
 }
 
+/** `action` doubles as the ActiveFormats key: a button is pressed when the
+ *  selection sits in the format it applies. */
 interface ButtonSpec {
   action: FormatAction | 'link'
-  flag: keyof ActiveFormats
   label: string
-  title: string
-  cls: string
+  name: string
+  chord?: string
 }
 
 const BUTTONS: ButtonSpec[] = [
-  { action: 'bold', flag: 'bold', label: 'B', title: 'Bold (Ctrl+B)', cls: 'bold' },
-  { action: 'italic', flag: 'italic', label: 'I', title: 'Italic (Ctrl+I)', cls: 'italic' },
-  {
-    action: 'underline',
-    flag: 'underline',
-    label: 'U',
-    title: 'Underline (Ctrl+U)',
-    cls: 'underline',
-  },
-  { action: 'list', flag: 'list', label: '\u2022', title: 'Bullet list', cls: 'list' },
-  { action: 'link', flag: 'link', label: 'Link', title: 'Link (Ctrl+K)', cls: 'link' },
+  { action: 'bold', label: 'B', name: 'Bold', chord: 'Ctrl+B' },
+  { action: 'italic', label: 'I', name: 'Italic', chord: 'Ctrl+I' },
+  { action: 'underline', label: 'U', name: 'Underline', chord: 'Ctrl+U' },
+  { action: 'list', label: '\u2022', name: 'Bullet list' },
+  { action: 'link', label: 'Link', name: 'Link', chord: 'Ctrl+K' },
 ]
 
 export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
@@ -73,11 +72,11 @@ export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
   for (const spec of BUTTONS) {
     const button = document.createElement('button')
     button.type = 'button'
-    button.className = `wn-toolbar-btn wn-toolbar-btn--${spec.cls}`
+    button.className = `wn-toolbar-btn wn-toolbar-btn--${spec.action}`
     button.dataset.action = spec.action
     button.textContent = spec.label
-    button.title = spec.title
-    button.setAttribute('aria-label', spec.title.replace(/ \(.*\)$/, ''))
+    button.title = spec.chord ? `${spec.name} (${spec.chord})` : spec.name
+    button.setAttribute('aria-label', spec.name)
     button.setAttribute('aria-pressed', 'false')
     button.disabled = true
     buttons.set(spec, button)
@@ -100,21 +99,38 @@ export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
     refresh()
   })
 
+  // What the last refresh read; an identical read cannot change the buttons.
+  let seen: { page: string; start: number; end: number; text: string } | null = null
+
   function refresh(): void {
     const page = deps.getCurrentPage()
     const sel = deps.pageExists(page) ? getSelectionOffsets(deps.editorEl) : null
     const usable = sel !== null && !selectionInBlock(deps.editorEl)
-    const active =
-      usable && sel ? activeFormats(deps.getPageText(page), sel.start, sel.end, deps.defs) : null
+    const text = usable ? deps.getPageText(page) : ''
+    const now = usable && sel ? { page, start: sel.start, end: sel.end, text } : null
+    const unchanged =
+      now === seen ||
+      (now !== null &&
+        seen !== null &&
+        now.page === seen.page &&
+        now.start === seen.start &&
+        now.end === seen.end &&
+        now.text === seen.text)
+    if (unchanged) return
+    seen = now
+
+    const active: ActiveFormats | null = now
+      ? activeFormats(text, now.start, now.end, deps.defs, deps.blockLines(text))
+      : null
     for (const [spec, button] of buttons) {
       button.disabled = !usable
-      button.setAttribute('aria-pressed', active?.[spec.flag] ? 'true' : 'false')
+      button.setAttribute('aria-pressed', active?.[spec.action] ? 'true' : 'false')
     }
   }
 
   let frame = 0
   const schedule = (): void => {
-    if (frame) return
+    if (frame || group.hidden) return
     frame = requestAnimationFrame(() => {
       frame = 0
       refresh()
@@ -126,6 +142,7 @@ export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
     refresh,
     setHidden(hidden) {
       group.hidden = hidden
+      seen = null // whatever happened while hidden is unseen
       if (!hidden) refresh()
     },
     destroy() {
