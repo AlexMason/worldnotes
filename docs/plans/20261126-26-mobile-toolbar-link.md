@@ -99,6 +99,7 @@ Suspected causes, ranked (all **[INFERENCE]** — the soft-keyboard behaviour ca
 - The branch was rebased onto `origin/main` (also picks up #25).
 - 2026-11-26 (review) — The press-state design changed from the plan's "`pointerup`/`pointercancel`/1 s timeout clear the press" to: freeze lasts until `click`, `pointercancel`, **300 ms after `pointerup`** if no click follows, or 5 s for a press never released; keyboard activation (`keydown` on the group) drops the snapshot. Reason: a 1 s expiry would drop the snapshot for a slow tap or long-press (review finding), and `pointerup` itself must not clear it because the `click` follows it.
 - Escape now listens on the whole form and focus-out replaces the input's `blur` (see Review): Tab can land on the new buttons.
+- 2026-11-26 (user, after phone testing) — **Prefill:** opening the link field with text selected fills the input with that text (trimmed, single line, ≤ 200 chars) and selects it, so the user can type over it or just press **Link** (which links the selection to the page it names, or as a URL if it is one). An existing link's target still takes precedence. Implemented in `editor-link.ts` (`initial`); the field already selects its content on open and runs the hint and suggestions for it. Small scope extension agreed in conversation; docs and tests updated.
 
 ## Review
 

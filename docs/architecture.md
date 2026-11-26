@@ -282,7 +282,10 @@ Input classification and link construction are the pure `link-input.ts`
 base, `findLinkAt` for editing an existing link). Page-name suggestions come
 from the optional `PageStore.suggest`, which `ApiPageStore` serves from
 `GET /api/pages?scope=name` (slug/title only, so body matches cannot crowd
-out pages named like the query).
+out pages named like the query). The field opens prefilled — with an existing
+link's target, else the single-line selected text (≤ 200 chars) — and fully
+selected, so typing replaces it and **Link** alone links the selection to the
+page it names.
 
 The field is a native `<form>` (`enterkeyhint="go"`): its `submit` event is
 the single commit path, so desktop Enter, a soft keyboard's Go/Enter key (which

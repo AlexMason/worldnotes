@@ -489,3 +489,79 @@ describe('Link button on touch (selection lost before the click)', () => {
     expect(t.instance.getContent()).toBe('[[page|alpha]] one\nbeta two\ngamma three')
   })
 })
+
+describe('link field prefill from the selection', () => {
+  const open = async (t: Awaited<ReturnType<typeof mount>>, start: number, end: number) => {
+    await select(t.editorDiv, start, end)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+  }
+
+  it('is filled with the selected text, fully selected so typing replaces it', async () => {
+    const t = await mount(DOC)
+    await open(t, 0, 5)
+    expect(t.input().value).toBe('alpha')
+    expect(t.input().selectionStart).toBe(0)
+    expect(t.input().selectionEnd).toBe(5)
+    expect(t.msg()).toBe('Wiki link → /home/alpha')
+  })
+
+  it('pressing Link right away links the selection to the page it names', async () => {
+    const t = await mount(DOC)
+    await open(t, 0, 5)
+    submit(t.input())
+    expect(t.instance.getContent()).toBe('[[alpha]] one\nbeta two\ngamma three')
+  })
+
+  it('a selection that is a URL becomes a URL link', async () => {
+    const t = await mount('see example.com now')
+    await open(t, 4, 15)
+    expect(t.input().value).toBe('example.com')
+    expect(t.msg()).toBe('URL')
+    submit(t.input())
+    expect(t.instance.getContent()).toBe('see [example.com](https://example.com) now')
+  })
+
+  it('typing over the prefill links the selection as the label of what was typed', async () => {
+    const t = await mount(DOC)
+    await open(t, 0, 5)
+    type(t.input(), 'lore/old-gods')
+    submit(t.input())
+    expect(t.instance.getContent()).toBe('[[lore/old-gods|alpha]] one\nbeta two\ngamma three')
+  })
+
+  it('surrounding whitespace in the selection is not prefilled', async () => {
+    const t = await mount('a  alpha  b')
+    await open(t, 1, 10)
+    expect(t.input().value).toBe('alpha')
+  })
+
+  it.each([
+    ['a collapsed caret', 2, 2],
+    ['a multi-line selection', 0, 15],
+  ])('%s leaves the field empty', async (_name, start, end) => {
+    const t = await mount(DOC)
+    await open(t, start, end)
+    expect(t.input().value).toBe('')
+  })
+
+  it('a long selection (prose, not a name) leaves the field empty', async () => {
+    const prose = 'word '.repeat(60).trim() // 299 chars
+    const t = await mount(prose)
+    await open(t, 0, prose.length)
+    expect(t.input().value).toBe('')
+  })
+
+  it('an existing link still prefills its target, not the selected text', async () => {
+    const t = await mount('see [the docs](https://x.test) now')
+    await open(t, 6, 14)
+    expect(t.input().value).toBe('https://x.test')
+  })
+
+  it('searches for suggestions matching the prefilled text straight away', async () => {
+    const suggest = vi.fn(async () => [])
+    const t = await mount(DOC, { store: { ...createMemoryPageStore({ home: DOC }), suggest } })
+    await open(t, 0, 5)
+    await vi.advanceTimersByTimeAsync(150)
+    expect(suggest).toHaveBeenCalledWith('alpha', 30)
+  })
+})
