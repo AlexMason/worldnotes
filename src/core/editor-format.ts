@@ -182,14 +182,61 @@ export interface ActiveFormats {
   list: boolean
 }
 
+export interface CoveringToken {
+  type: string
+  raw: string
+  groups: string[]
+  /** Raw document offsets of the token's source span. */
+  from: number
+  to: number
+}
+
 /**
- * Which formats the selection sits in, derived from the markdown SOURCE (never
- * from DOM styling). A collapsed caret is "in" a token when it is strictly
- * inside its raw span (markers included, outer edges excluded); a range when
- * it lies within it. `list` is true when every non-blank selected line is a
- * bullet item (the exact condition under which toggleList would remove).
- * Multi-line selections report only `list`. A list line's content is
- * re-scanned with the inline defs, mirroring how the list plugin renders it.
+ * The inline tokens a SINGLE-LINE selection sits in, derived from the markdown
+ * source (never from DOM styling). A collapsed caret is "in" a token when it
+ * is strictly inside its raw span (markers included, outer edges excluded); a
+ * range when it lies within it. A list line's content is re-scanned with the
+ * inline defs, mirroring how the list plugin renders it. Multi-line
+ * selections cover nothing.
+ */
+export function coveringTokens(
+  text: string,
+  start: number,
+  end: number,
+  defs: readonly TokenDef[],
+): CoveringToken[] {
+  const s = Math.max(0, Math.min(start, text.length))
+  const e = Math.max(s, Math.min(end, text.length))
+  const { firstLine, lastLine } = selectedLineRange(text, s, e)
+  if (firstLine !== lastLine) return []
+
+  const lines = text.split('\n')
+  const line = lines[firstLine]!
+  const lineStart = lineStartOffsets(lines)[firstLine]!
+  const cs = s - lineStart
+  const ce = e - lineStart
+  const item = LIST_ITEM_RE.exec(line)
+  const content = item ? item[3]! : line
+  let pos = item ? line.length - content.length : 0
+
+  const covering: CoveringToken[] = []
+  const inlineDefs = defs.filter((d) => !d.pattern.source.startsWith('^'))
+  for (const token of scanInline(content, inlineDefs)) {
+    const len = token.raw.length
+    const inside = cs === ce ? pos < cs && cs < pos + len : pos <= cs && ce <= pos + len
+    if (inside) {
+      covering.push({ ...token, from: lineStart + pos, to: lineStart + pos + len })
+    }
+    pos += len
+  }
+  return covering
+}
+
+/**
+ * Which formats the selection sits in (see coveringTokens for the token
+ * rule). `list` is true when every non-blank selected line is a bullet item
+ * (the exact condition under which toggleList would remove). Multi-line
+ * selections report only `list`.
  */
 export function activeFormats(
   text: string,
@@ -200,42 +247,27 @@ export function activeFormats(
   const s = Math.max(0, Math.min(start, text.length))
   const e = Math.max(s, Math.min(end, text.length))
   const { firstLine, lastLine } = selectedLineRange(text, s, e)
-  const lines = text.split('\n')
+  const nonBlank = text
+    .split('\n')
+    .slice(firstLine, lastLine + 1)
+    .filter((l) => l.trim() !== '')
   const result: ActiveFormats = {
     bold: false,
     italic: false,
     underline: false,
     link: false,
-    list: false,
+    list:
+      nonBlank.length > 0 &&
+      nonBlank.every((l) => {
+        const m = LIST_ITEM_RE.exec(l)
+        return m !== null && isBulletMarker(m[2]!)
+      }),
   }
-
-  const nonBlank = lines.slice(firstLine, lastLine + 1).filter((l) => l.trim() !== '')
-  result.list =
-    nonBlank.length > 0 &&
-    nonBlank.every((l) => {
-      const m = LIST_ITEM_RE.exec(l)
-      return m !== null && isBulletMarker(m[2]!)
-    })
-  if (firstLine !== lastLine) return result
-
-  const line = lines[firstLine]!
-  const cs = s - lineStartOffsets(lines)[firstLine]!
-  const ce = e - lineStartOffsets(lines)[firstLine]!
-  const item = LIST_ITEM_RE.exec(line)
-  const content = item ? item[3]! : line
-  let pos = item ? line.length - content.length : 0
-
-  const inlineDefs = defs.filter((d) => !d.pattern.source.startsWith('^'))
-  for (const token of scanInline(content, inlineDefs)) {
-    const len = token.raw.length
-    const inside = cs === ce ? pos < cs && cs < pos + len : pos <= cs && ce <= pos + len
-    if (inside) {
-      if (token.type === 'bold') result.bold = true
-      else if (token.type === 'italic') result.italic = true
-      else if (token.type === 'underline') result.underline = true
-      else if (token.type === 'link' || token.type === 'wiki-link') result.link = true
-    }
-    pos += len
+  for (const token of coveringTokens(text, s, e, defs)) {
+    if (token.type === 'bold') result.bold = true
+    else if (token.type === 'italic') result.italic = true
+    else if (token.type === 'underline') result.underline = true
+    else if (token.type === 'link' || token.type === 'wiki-link') result.link = true
   }
   return result
 }
