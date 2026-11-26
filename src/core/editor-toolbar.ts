@@ -11,6 +11,13 @@
 // `mousedown` is cancelled (clicks and touch taps still fire), and keyboard
 // activation refocuses the editor before running the action.
 //
+// Touch: the compatibility `mousedown` arrives AFTER the tap, so it can be too
+// late — the browser may already have collapsed the selection, and a
+// `selectionchange` in between would disable the button under the finger (a
+// disabled button swallows its click). So `pointerdown` snapshots the editor
+// selection and freezes the state refresh; `click` restores the snapshot
+// when the live selection no longer matches it (text unchanged meanwhile).
+//
 // State is derived from the markdown SOURCE (`activeFormats`), recomputed on
 // `selectionchange` (rAF-coalesced; skipped while hidden or when nothing it
 // reads changed). Buttons disable when the selection is unmappable (outside
@@ -19,7 +26,7 @@
 import type { TokenDef } from './types'
 import { activeFormats, type ActiveFormats } from './editor-format'
 import type { FormatAction } from './editor-keymap'
-import { getSelectionOffsets, selectionInBlock } from './caret-offset'
+import { getSelectionOffsets, selectionInBlock, setSelectionOffsets } from './caret-offset'
 
 export interface EditorToolbarDeps {
   /** The `.wn-toolbar` row. */
@@ -116,21 +123,72 @@ export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
     if (e.target instanceof Element && e.target.closest('button')) e.preventDefault()
   })
 
+  /** A press in progress: undefined = none; null = pressing, nothing to restore. */
+  interface Press {
+    page: string
+    start: number
+    end: number
+    text: string
+  }
+  let press: Press | null | undefined
+  let pressTimer: ReturnType<typeof setTimeout> | undefined
+  const PRESS_TIMEOUT_MS = 1000
+
+  const endPress = (): void => {
+    press = undefined
+    clearTimeout(pressTimer)
+  }
+
+  group.addEventListener(
+    'pointerdown',
+    (e) => {
+      if (!(e.target instanceof Element) || !e.target.closest('button')) return
+      const page = deps.getCurrentPage()
+      const sel = deps.pageExists(page) ? getSelectionOffsets(deps.editorEl) : null
+      press = sel ? { page, ...sel, text: deps.getPageText(page) } : null
+      // A press that never produces a click (finger slides off) must not freeze the state.
+      clearTimeout(pressTimer)
+      pressTimer = setTimeout(() => {
+        endPress()
+        refresh()
+      }, PRESS_TIMEOUT_MS)
+    },
+    true,
+  )
+  // A scroll/drag took over the gesture: no click will follow.
+  group.addEventListener('pointercancel', () => {
+    endPress()
+    refresh()
+  })
+
   group.addEventListener('click', (e) => {
     const button = e.target instanceof Element ? e.target.closest('button') : null
     const action = button?.dataset.action as ButtonSpec['action'] | undefined
+    const snapshot = press
+    endPress()
     if (!button || button.disabled || !action) return
     if (document.activeElement !== deps.editorEl) deps.editorEl.focus({ preventScroll: true })
+    if (snapshot) restoreSelection(snapshot)
     if (action === 'link') deps.openLink()
     else if (action === 'image') fileInput?.click()
     else deps.format(action)
     refresh()
   })
 
+  /** Put the pointerdown selection back if the touch browser dropped it. */
+  function restoreSelection(snapshot: Press): void {
+    const live = getSelectionOffsets(deps.editorEl)
+    if (live && live.start === snapshot.start && live.end === snapshot.end) return
+    if (deps.getCurrentPage() !== snapshot.page) return
+    if (deps.getPageText(snapshot.page) !== snapshot.text) return
+    setSelectionOffsets(deps.editorEl, snapshot.start, snapshot.end)
+  }
+
   // What the last refresh read; an identical read cannot change the buttons.
   let seen: { page: string; start: number; end: number; text: string } | null = null
 
   function refresh(): void {
+    if (press !== undefined) return // frozen: a finger is on a button
     const page = deps.getCurrentPage()
     const sel = deps.pageExists(page) ? getSelectionOffsets(deps.editorEl) : null
     const usable = sel !== null && !selectionInBlock(deps.editorEl)
@@ -178,6 +236,7 @@ export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
     destroy() {
       document.removeEventListener('selectionchange', schedule)
       if (frame) cancelAnimationFrame(frame)
+      clearTimeout(pressTimer)
       group.remove()
     },
   }

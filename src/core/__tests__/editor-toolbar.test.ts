@@ -245,3 +245,69 @@ describe('editor toolbar — Image button', () => {
     expect(button('image').disabled).toBe(true)
   })
 })
+
+describe('editor toolbar — touch press (selection lost before the click)', () => {
+  const down = (el: HTMLElement): void => {
+    el.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+  }
+  /** What a touch browser may do between the tap and the click. */
+  async function loseSelection(): Promise<void> {
+    window.getSelection()!.removeAllRanges()
+    document.dispatchEvent(new Event('selectionchange'))
+    await vi.advanceTimersByTimeAsync(40)
+  }
+
+  it.each([
+    ['bold', '**alpha** one'],
+    ['underline', '<u>alpha</u> one'],
+    ['list', '- alpha one'],
+  ])('%s still applies to the selection the finger went down on', async (action, firstLine) => {
+    const { instance, editorDiv, button } = await mount(DOC)
+    await select(editorDiv, 0, 5)
+    down(button(action))
+    await loseSelection()
+    expect(button(action).disabled).toBe(false) // never disabled under the finger
+    button(action).click()
+    expect(instance.getContent()).toBe(`${firstLine}\nbeta two\ngamma three`)
+    expect(getSelectionOffsets(editorDiv)).not.toBeNull()
+  })
+
+  it('does not restore a stale selection when the text changed meanwhile', async () => {
+    const { instance, editorDiv, button } = await mount(DOC)
+    await select(editorDiv, 0, 5)
+    down(button('bold'))
+    instance.setContent('something else entirely')
+    await loseSelection()
+    button('bold').click()
+    expect(instance.getContent()).toBe('something else entirely')
+  })
+
+  it('leaves a selection that is still intact alone (the desktop path)', async () => {
+    const { instance, editorDiv, button } = await mount(DOC)
+    await select(editorDiv, 0, 5)
+    down(button('italic'))
+    button('italic').click()
+    expect(instance.getContent()).toBe('*alpha* one\nbeta two\ngamma three')
+    const sel = getSelectionOffsets(editorDiv)!
+    expect(instance.getContent().slice(sel.start, sel.end)).toBe('alpha')
+  })
+
+  it('the refresh freeze ends when the press never becomes a click', async () => {
+    const { editorDiv, button } = await mount(DOC)
+    await select(editorDiv, 0, 5)
+    down(button('bold'))
+    await loseSelection()
+    expect(button('bold').disabled).toBe(false) // frozen
+    await vi.advanceTimersByTimeAsync(1100)
+    expect(button('bold').disabled).toBe(true) // caught up with the lost selection
+  })
+
+  it('pointercancel (a scroll took the gesture) ends the freeze at once', async () => {
+    const { editorDiv, button } = await mount(DOC)
+    await select(editorDiv, 0, 5)
+    down(button('bold'))
+    await loseSelection()
+    button('bold').dispatchEvent(new Event('pointercancel', { bubbles: true }))
+    expect(button('bold').disabled).toBe(true)
+  })
+})

@@ -445,3 +445,20 @@ describe('link field suggestions', () => {
     expect(t.instance.getContent()).toBe(DOC)
   })
 })
+
+describe('Link button on touch (selection lost before the click)', () => {
+  it('opens the field for the selection the finger went down on, and links around it', async () => {
+    const t = await mount(DOC)
+    await select(t.editorDiv, 0, 5)
+    const link = t.container.querySelector('[data-action="link"]') as HTMLButtonElement
+    link.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    window.getSelection()!.removeAllRanges()
+    document.dispatchEvent(new Event('selectionchange'))
+    await vi.advanceTimersByTimeAsync(40)
+    link.click()
+    expect(t.field()).not.toBeNull()
+    type(t.input(), 'page')
+    submit(t.input())
+    expect(t.instance.getContent()).toBe('[[page|alpha]] one\nbeta two\ngamma three')
+  })
+})

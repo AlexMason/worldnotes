@@ -262,6 +262,14 @@ its selection. Enabled/pressed state is derived from the markdown source
 (`activeFormats` in `editor-format.ts`) on `selectionchange`, never from DOM
 styling.
 
+On touch the compatibility `mousedown` comes after the tap, too late to stop
+the browser collapsing the selection, and a `selectionchange` in between would
+disable the button under the finger (a disabled button swallows its click). So
+`pointerdown` on a button snapshots the editor selection (page, offsets, text)
+and freezes the state refresh until the `click`, `pointercancel` or a 1 s
+timeout; `click` restores the snapshot when the live selection differs and the
+text is unchanged, then runs the action.
+
 **Link field.** The toolbar's **Link** button and `Ctrl+K` both call
 `editor-link.ts` `open()`: it captures the selection offsets AND the page text,
 opens `link-field.ts` in the toolbar row (a combobox like the page-move field),
