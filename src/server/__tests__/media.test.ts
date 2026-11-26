@@ -24,6 +24,16 @@ import {
   ICO_BYTES,
   SVG_BYTES,
 } from './helpers/media-fixtures'
+import {
+  GIF_TRAILER,
+  animatedGif,
+  bytes as gifBytes,
+  gifComment,
+  gifFrame,
+  gifHeader,
+  GIF_GCE,
+  GIF_NETSCAPE,
+} from '../../shared/__tests__/gif-fixtures'
 
 const baseEnv = {
   NODE_ENV: 'test',
@@ -527,15 +537,114 @@ describe('POST /api/media/photos', () => {
     await app.close()
   })
 
-  it('rejects non-PNG bytes with 415 regardless of declared type', async () => {
+  it('rejects non-PNG/GIF bytes with 415 regardless of declared type', async () => {
     const { app, mediaRepo, post } = await setup()
-    for (const bytes of [JPEG_BYTES, GIF_BYTES, ICO_BYTES, SVG_BYTES]) {
+    for (const bytes of [JPEG_BYTES, ICO_BYTES, SVG_BYTES, Buffer.from('plain text')]) {
       const res = await post(multipartBuf(bytes, 'photo.png'))
       expect(res.statusCode).toBe(415)
-      expect(res.json()).toEqual({ error: 'expected a PNG image' })
+      expect(res.json()).toEqual({ error: 'expected a PNG or GIF image' })
     }
     expect(mediaRepo.dump()).toEqual([])
     await app.close()
+  })
+
+  describe('GIF', () => {
+    const asBuffer = (u: Uint8Array) => Buffer.from(u)
+
+    it('stores an animated GIF as image/gif and serves it back', async () => {
+      const { app, mediaRepo, post } = await setup()
+      const gif = asBuffer(animatedGif(3, 40, 30))
+      const res = await post(multipartBuf(gif, 'giphy.gif'))
+      expect(res.statusCode).toBe(201)
+      expect(res.json()).toEqual({
+        id: 1,
+        url: '/media/1',
+        mediaType: 'image/gif',
+        sizeBytes: gif.byteLength,
+        width: 40,
+        height: 30,
+      })
+      expect(await mediaRepo.get(1)).toMatchObject({
+        mediaType: 'image/gif',
+        width: 40,
+        height: 30,
+      })
+
+      const served = await app.inject({ method: 'GET', url: '/media/1' })
+      expect(served.statusCode).toBe(200)
+      expect(served.headers['content-type']).toContain('image/gif')
+      expect(served.headers['cache-control']).toContain('immutable')
+      expect(Buffer.compare(served.rawPayload, gif)).toBe(0)
+      await app.close()
+    })
+
+    it('strips comments, XMP-style blocks and trailing bytes before storing', async () => {
+      const { app, mediaRepo, post } = await setup()
+      const dirty = Buffer.from(
+        gifBytes(
+          gifHeader(4, 4),
+          gifComment('private-note'),
+          GIF_NETSCAPE,
+          GIF_GCE,
+          gifFrame(4, 4),
+          GIF_GCE,
+          gifFrame(4, 4),
+          GIF_TRAILER,
+          Array.from(Buffer.from('trailing-payload')),
+        ),
+      )
+      const res = await post(multipartBuf(dirty))
+      expect(res.statusCode).toBe(201)
+      const stored = (await mediaRepo.get(1))!.data
+      expect(stored.includes(Buffer.from('private-note'))).toBe(false)
+      expect(stored.includes(Buffer.from('trailing-payload'))).toBe(false)
+      expect(stored.equals(asBuffer(animatedGif(2, 4, 4)))).toBe(true)
+      expect(res.json().sizeBytes).toBe(stored.byteLength)
+      await app.close()
+    })
+
+    it('applies PHOTO_MAX_BYTES to GIFs with the limit in the message', async () => {
+      const { app, mediaRepo, post } = await setup({ PHOTO_MAX_BYTES: '1048576' })
+      // Valid structure, padded past 1 MiB with comment blocks before the trailer.
+      const pad = gifBytes(...Array.from({ length: 5000 }, () => gifComment('x'.repeat(250))))
+      const big = Buffer.from(
+        gifBytes(Array.from(animatedGif(1)).slice(0, -1), Array.from(pad), GIF_TRAILER),
+      )
+      expect(big.byteLength).toBeGreaterThan(1024 * 1024)
+      const res = await post(multipartBuf(big))
+      expect(res.statusCode).toBe(413)
+      expect(res.json().error).toBe('file exceeds the upload size limit (1 MiB)')
+      expect(mediaRepo.dump()).toEqual([])
+      await app.close()
+    })
+
+    it('rejects invalid, oversized and over-long GIFs with 422', async () => {
+      const { app, mediaRepo, post } = await setup()
+      const truncated = asBuffer(animatedGif(2)).subarray(0, 30)
+      const bad = await post(multipartBuf(truncated))
+      expect(bad.statusCode).toBe(422)
+      expect(bad.json()).toEqual({ error: 'invalid GIF' })
+
+      const wide = await post(multipartBuf(asBuffer(animatedGif(1, 2049, 10))))
+      expect(wide.statusCode).toBe(422)
+      expect(wide.json()).toEqual({ error: 'image is larger than 2048 px on a side' })
+
+      const long = await post(multipartBuf(asBuffer(animatedGif(501))))
+      expect(long.statusCode).toBe(422)
+      expect(long.json()).toEqual({ error: 'GIF has too many frames' })
+      expect(mediaRepo.dump()).toEqual([])
+      await app.close()
+    })
+
+    it('keeps requiring auth and same-origin for GIFs', async () => {
+      const { app, mediaRepo, post } = await setup()
+      const res = await post(multipartBuf(asBuffer(animatedGif(2))), {
+        origin: 'https://evil.test',
+      })
+      expect(res.statusCode).toBe(403)
+      expect(mediaRepo.dump()).toEqual([])
+      await app.close()
+    })
   })
 
   it('rejects malformed PNGs and oversized dimensions with 422', async () => {

@@ -1,8 +1,9 @@
 // ─── Media upload & serving ──────────────────────────────────────────────────
 // POST /api/media stores uploaded images as received (favicon overrides);
 // POST /api/media/photos stores editor photos: the browser has already
-// downscaled and converted them to PNG, and the server structurally validates
-// and metadata-strips that PNG (png-sanitize.ts) instead of trusting it. Rows
+// downscaled and converted them to PNG (or kept an animated GIF as is), and
+// the server structurally validates and metadata-strips either one
+// (png-sanitize.ts, shared/gif.ts) instead of trusting it. Rows
 // are immutable and addressed by id — /media/{id} is cacheable forever;
 // replacing an image is a new upload. The two blind-request routes
 // (/favicon.ico, /apple-touch-icon.png) resolve the current favicon at
@@ -19,7 +20,8 @@ import { cacheControlFor, requireLoginJson } from '../auth/login-gate'
 import type { MediaRepository } from '../db/media-repository'
 import type { SettingsService } from '../settings'
 import { probeMedia } from '../media-types'
-import { sanitizePng } from '../png-sanitize'
+import { sanitizePng, type PngSanitizeResult } from '../png-sanitize'
+import { sanitizeGif, type GifFailure } from '../../shared/gif'
 import { PHOTO_MAX_SIDE } from '../../shared/media-policy'
 
 export interface MediaDeps {
@@ -27,7 +29,7 @@ export interface MediaDeps {
   settings: SettingsService
   /** Directory holding the bundled default icon set; null = not present. */
   iconsDir: string | null
-  /** Raw-upload ceiling for POST /api/media/photos (the converted PNG). */
+  /** Raw-upload ceiling for POST /api/media/photos (the converted PNG/GIF). */
   photoMaxBytes: number
 }
 
@@ -40,6 +42,38 @@ const SECURITY_HEADERS: Record<string, string> = {
 const BUNDLED_FILES: Record<string, { file: string; contentType: string }> = {
   '/favicon.ico': { file: 'favicon.ico', contentType: 'image/vnd.microsoft.icon' },
   '/apple-touch-icon.png': { file: 'apple-touch-icon.png', contentType: 'image/png' },
+}
+
+type PhotoFailure = Exclude<PngSanitizeResult, { ok: true }>['reason'] | GifFailure
+
+/** Every way a photo can be refused, keyed so a new sanitizer reason is a
+ *  compile error here instead of silently falling into another branch. */
+const PHOTO_REJECTIONS: Record<PhotoFailure, { code: 415 | 422; error: string }> = {
+  'not-png': { code: 415, error: 'expected a PNG or GIF image' },
+  'not-gif': { code: 415, error: 'expected a PNG or GIF image' },
+  'invalid-png': { code: 422, error: 'invalid PNG' },
+  'invalid-gif': { code: 422, error: 'invalid GIF' },
+  'over-dimension': { code: 422, error: `image is larger than ${PHOTO_MAX_SIDE} px on a side` },
+  'too-many-frames': { code: 422, error: 'GIF has too many frames' },
+}
+
+type PhotoResult =
+  | { ok: true; mediaType: 'image/png' | 'image/gif'; data: Buffer; width: number; height: number }
+  | { ok: false; reason: PhotoFailure }
+
+/** Magic-byte dispatch: a PNG signature -> sanitizePng, GIF87a/GIF89a ->
+ *  sanitizeGif, anything else is refused. The declared type is never used. */
+function sanitizePhoto(buf: Buffer): PhotoResult {
+  const png = sanitizePng(buf)
+  if (png.ok) {
+    return { ok: true, mediaType: 'image/png', data: png.png, width: png.width, height: png.height }
+  }
+  if (png.reason !== 'not-png') return { ok: false, reason: png.reason }
+
+  const gif = sanitizeGif(buf)
+  if (!gif.ok) return { ok: false, reason: gif.reason }
+  const data = Buffer.from(gif.gif.buffer, gif.gif.byteOffset, gif.gif.byteLength)
+  return { ok: true, mediaType: 'image/gif', data, width: gif.width, height: gif.height }
 }
 
 /** 413 text; a per-request ceiling is named so the browser can show it. */
@@ -182,10 +216,11 @@ export async function registerMediaRoutes(app: FastifyInstance, deps: MediaDeps)
     },
   )
 
-  // ── Photo upload: PNG only, sanitized, capped by PHOTO_MAX_BYTES ─────────
+  // ── Photo upload: PNG or GIF, sanitized, capped by PHOTO_MAX_BYTES ───────
   // Same guards as /api/media (auth + same-origin run at onRequest, before
   // the multipart parser). The size ceiling is per request, so the favicon
-  // route keeps its 2 MiB cap.
+  // route keeps its 2 MiB cap. The type comes from magic bytes only: a PNG
+  // signature -> sanitizePng, GIF87a/GIF89a -> sanitizeGif, else 415.
 
   app.post(
     '/api/media/photos',
@@ -194,34 +229,27 @@ export async function registerMediaRoutes(app: FastifyInstance, deps: MediaDeps)
       const buf = await readUpload(req, reply, photoMaxBytes)
       if (!buf) return reply
 
-      const sanitized = sanitizePng(buf)
-      if (!sanitized.ok) {
-        switch (sanitized.reason) {
-          case 'not-png':
-            return reply.code(415).send({ error: 'expected a PNG image' })
-          case 'over-dimension':
-            return reply
-              .code(422)
-              .send({ error: `image is larger than ${PHOTO_MAX_SIDE} px on a side` })
-          case 'invalid-png':
-            return reply.code(422).send({ error: 'invalid PNG' })
-        }
+      const photo = sanitizePhoto(buf)
+      if (!photo.ok) {
+        const { code, error } = PHOTO_REJECTIONS[photo.reason]
+        return reply.code(code).send({ error })
       }
+      const { mediaType, data, width, height } = photo
 
       const { id } = await media.insert({
-        mediaType: 'image/png',
-        width: sanitized.width,
-        height: sanitized.height,
-        data: sanitized.png,
+        mediaType,
+        width,
+        height,
+        data,
         by: req.user?.sub ?? null,
       })
       return reply.code(201).send({
         id,
         url: `/media/${id}`,
-        mediaType: 'image/png',
-        sizeBytes: sanitized.png.byteLength,
-        width: sanitized.width,
-        height: sanitized.height,
+        mediaType,
+        sizeBytes: data.byteLength,
+        width,
+        height,
       })
     },
   )

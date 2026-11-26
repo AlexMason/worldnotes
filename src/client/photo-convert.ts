@@ -13,6 +13,7 @@
 // no real implementations; the browser defaults are exercised manually.
 
 import { PHOTO_MAX_SIDE } from '../shared/media-policy'
+import { parseGif } from '../shared/gif'
 
 /** The slice of ImageBitmap the converter needs (ImageBitmap satisfies it). */
 export interface DecodedImage {
@@ -84,16 +85,63 @@ const browserEnv: ConvertEnv = {
   },
 }
 
+/** What to upload for a picked/pasted/dropped file. */
+export interface PreparedPhoto {
+  blob: Blob
+  /** Multipart filename (the server ignores it; it keeps the type obvious). */
+  filename: 'photo.png' | 'photo.gif'
+  /** Shown to the user after a successful upload (something was lost). */
+  notice?: string
+}
+
+const GIF_STILL_NOTICE =
+  'Only the first frame was kept: animated GIFs larger than 2048 px cannot stay animated.'
+
 /**
- * Produce the PNG to upload for `file`. Throws `PhotoConvertError` (message is
- * user-presentable) for non-images, SVG and undecodable input.
+ * Decide how `file` is uploaded. An animated GIF (more than one frame) within
+ * the server's caps is sent byte-for-byte so it stays animated; an animated
+ * GIF over PHOTO_MAX_SIDE cannot be downscaled without an encoder, so it falls
+ * back to a still PNG with a notice; everything else (single-frame GIFs
+ * included) takes the PNG conversion path. A GIF the server will refuse
+ * (too many frames) is still sent as-is so the user sees the server's reason
+ * instead of silently getting a still.
  */
-export async function convertToPng(file: File, env: ConvertEnv = browserEnv): Promise<Blob> {
+export async function preparePhoto(
+  file: File,
+  env: ConvertEnv = browserEnv,
+): Promise<PreparedPhoto> {
+  assertImageFile(file)
+
+  const sig = new TextDecoder('latin1').decode(await file.slice(0, 6).arrayBuffer())
+  if (sig === 'GIF87a' || sig === 'GIF89a') {
+    const gif = parseGif(new Uint8Array(await file.arrayBuffer()))
+    if (gif.ok && gif.frames > 1) return { blob: file, filename: 'photo.gif' }
+    if (!gif.ok && gif.reason === 'too-many-frames') return { blob: file, filename: 'photo.gif' }
+    if (!gif.ok && gif.reason === 'over-dimension' && gif.frames > 1) {
+      return {
+        blob: await convertToPng(file, env),
+        filename: 'photo.png',
+        notice: GIF_STILL_NOTICE,
+      }
+    }
+  }
+  return { blob: await convertToPng(file, env), filename: 'photo.png' }
+}
+
+function assertImageFile(file: File): void {
   if (file.type === 'image/svg+xml') throw new PhotoConvertError('SVG images are not supported')
   // Some clipboards hand over files with an empty type; the decoder decides.
   if (file.type !== '' && !file.type.startsWith('image/')) {
     throw new PhotoConvertError('This file is not an image')
   }
+}
+
+/**
+ * Produce the PNG to upload for `file`. Throws `PhotoConvertError` (message is
+ * user-presentable) for non-images, SVG and undecodable input.
+ */
+export async function convertToPng(file: File, env: ConvertEnv = browserEnv): Promise<Blob> {
+  assertImageFile(file)
 
   const head = new Uint8Array(await file.slice(0, 24).arrayBuffer())
   const png = pngDimensions(head)

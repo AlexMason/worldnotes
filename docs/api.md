@@ -334,7 +334,7 @@ keeps using `POST /api/media`.
 | Verb              | Path     | Auth                                                                                                                        | Notes                                                                                                                                                                     |
 | ----------------- | -------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `POST /api/media` | editor   | `requireSameOrigin` + `requireRole('editor','admin')` at `onRequest` (auth runs before the multipart parser touches a byte) | `multipart/form-data`, one `file` part; returns `{id, url, mediaType, sizeBytes, width, height}` (201)                                                                    |
-| `POST /api/media/photos` | editor | same guards as `POST /api/media` | `multipart/form-data`, one `file` part that must be a **PNG** (the browser downscales to ≤ 2048 px and converts before upload); sanitized server-side; returns `{id, url, mediaType: "image/png", sizeBytes, width, height}` (201). Errors: `413` over `PHOTO_MAX_BYTES` (message names the limit), `415` not a PNG, `422` invalid PNG or a side over 2048 px, `400` no/extra parts |
+| `POST /api/media/photos` | editor | same guards as `POST /api/media` | `multipart/form-data`, one `file` part that must be a **PNG** (the browser downscales to ≤ 2048 px and converts before upload) or an **animated GIF** (kept as is); the type comes from magic bytes only; sanitized server-side; returns `{id, url, mediaType: "image/png" \| "image/gif", sizeBytes, width, height}` (201). Errors: `413` over `PHOTO_MAX_BYTES` (message names the limit), `415` neither a PNG nor a GIF, `422` invalid PNG/GIF, a side over 2048 px, or a GIF with too many frames, `400` no/extra parts |
 | `GET /media/{id}` | anon ok¹ | `403 {error:"login required"}` for anonymous while `requireLogin` is on; authed responses become `private` + `Vary: Cookie` | serves the stored bytes; `public, max-age=31536000, immutable`, strong ETag `"m{id}"` (304 revalidation), `nosniff` + `CSP: default-src 'none'` + `X-Frame-Options: DENY` |
 
 **Content sniffing, not declared types:** the stored `media_type` comes from
@@ -359,6 +359,25 @@ request to the converted PNG; `MEDIA_MAX_BYTES` still governs only
 `POST /api/media`. The IDAT zlib stream is not inflated, so a structurally
 valid PNG with corrupt pixel data is stored and renders broken (harmless:
 served `nosniff` under `CSP default-src 'none'`).
+
+**GIFs** take the same route, validated by `src/shared/gif.ts` (the browser
+uses the same module to decide whether a GIF is animated). The walker follows
+the block structure without decoding LZW data and **rewrites** the file
+keeping only the header, screen descriptor, global color table, graphic
+control extensions, the `NETSCAPE2.0` loop-count extension and the image
+blocks (with local color tables), followed by one trailer. Comments,
+plain-text and other application extensions (XMP, ICC), unknown extensions and
+any bytes after the trailer are never stored. A missing trailer is accepted
+only at a clean block boundary. Caps: each side of the screen **and of every
+frame** ≤ `PHOTO_MAX_SIDE` (2048), at most 500 frames, and the summed area of
+all frames ≤ 400 million pixels (LZW compresses blank frames ~1000:1, so file
+size alone would not bound the decoder work every reader's browser pays for an
+immutably cached image). Output is bounded too: at most one `NETSCAPE2.0`
+block and one graphic control extension (block size 4) per image are kept, so
+junk extensions cannot be amplified;
+the byte ceiling is `PHOTO_MAX_BYTES` as for PNGs. Animated GIFs are not
+re-encoded or downscaled: the browser sends a still PNG instead when an
+animated GIF is larger than 2048 px.
 
 **Public & enumerable:** `GET /media/{id}` needs no auth (anonymous readers
 fetch the favicon), and ids are sequential bigserials — a media row is

@@ -29,6 +29,7 @@ export type {
   PageStore,
   PageSuggestion,
   ImageUploader,
+  ImageFetcher,
   PageExistenceResolver,
   PageTitleResolver,
   EditorContext,

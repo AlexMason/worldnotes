@@ -1,13 +1,15 @@
 // ─── Photo insertion (paste / drop / picker) ─────────────────────────────────
 // Core never touches the network: the host supplies an `ImageUploader`
-// (client: convert to PNG + POST). This module decides WHEN a gesture is an
-// image upload (clipboard rule), guards where an image may land, and commits
-// `![alt](url)` through the model commit path (one undo step per image,
-// autosave scheduled) once the upload settles.
+// (client: prepare + POST) and, for "Copy image" pastes, an `ImageFetcher`
+// that retrieves the original animated GIF the clipboard only references.
+// This module decides WHEN a gesture is an image upload (clipboard rule),
+// guards where an image may land, and commits `![alt](url)` through the model
+// commit path (one undo step per image, autosave scheduled) once the upload
+// settles.
 
 import { getSelectionOffsets, selectionInBlock } from './caret-offset'
 import { commitModelEdit, type ModelCommitDeps } from './editor-commit'
-import type { ImageUploader, ToastOptions } from './types'
+import type { ImageFetcher, ImageUploader, ToastOptions } from './types'
 
 /** Images accepted per paste/drop/pick gesture; extras are skipped with a notice. */
 export const MAX_IMAGES_PER_GESTURE = 10
@@ -41,6 +43,7 @@ export interface ClipboardLike {
   types: readonly string[]
   files: ArrayLike<File>
   items?: ArrayLike<{ kind: string; type: string; getAsFile(): File | null }>
+  getData?(type: string): string
 }
 
 /**
@@ -69,6 +72,59 @@ export function clipboardImageFiles(data: ClipboardLike | null | undefined): Fil
   return fromItems
 }
 
+/**
+ * The animated original behind a browser "Copy image": Chrome/Brave put only a
+ * decoded still PNG in `files` plus `text/html` naming the source, e.g.
+ * `<img src="https://media.giphy.com/…/giphy.gif?cid=…">`. Returns the first
+ * `<img>` whose absolute `https:` URL has a path ending in `.gif`, else null.
+ * (DOMParser documents are inert: no script runs and no image loads.)
+ */
+export function gifUrlFromClipboardHtml(html: string): string | null {
+  if (!html) return null
+  const src = new DOMParser().parseFromString(html, 'text/html').querySelector('img[src]')
+  const raw = src?.getAttribute('src')
+  if (!raw) return null
+  try {
+    const url = new URL(raw)
+    if (url.protocol !== 'https:') return null
+    return url.pathname.toLowerCase().endsWith('.gif') ? url.href : null
+  } catch {
+    return null
+  }
+}
+
+/** One image to insert: the file to upload, an original to fetch first, or both
+ *  (the file is then only the still the browser put on the clipboard). */
+export interface ImageSource {
+  file?: File
+  originalUrl?: string
+}
+
+export type ImageInput = File | ImageSource
+
+/**
+ * Images a paste should insert ([] for a text paste; same rule as
+ * `clipboardImageFiles`). With `withOriginals` (the host can fetch), a single
+ * pasted image whose HTML names a `.gif` source carries that URL so the
+ * animated original is used instead of the clipboard's still; with no still at
+ * all the URL alone is enough.
+ */
+export function clipboardImages(
+  data: ClipboardLike | null | undefined,
+  withOriginals = false,
+): ImageInput[] {
+  if (!data) return []
+  if (data.types.includes('text/plain') && data.types.includes('text/html')) return []
+
+  const files = clipboardImageFiles(data)
+  const originalUrl =
+    withOriginals && files.length <= 1 && data.types.includes('text/html')
+      ? gifUrlFromClipboardHtml(data.getData?.('text/html') ?? '')
+      : null
+  if (originalUrl) return [{ file: files[0], originalUrl }]
+  return files
+}
+
 /** Best-effort: put the caret where a file was dropped. False when the
  *  browser cannot resolve the point or it is outside the editor. */
 export function placeCaretAtPoint(editorEl: HTMLElement, x: number, y: number): boolean {
@@ -94,6 +150,9 @@ export function placeCaretAtPoint(editorEl: HTMLElement, x: number, y: number): 
 
 export interface ImageInsertContext {
   upload: ImageUploader
+  /** Retrieves an original image by URL (Copy image of a GIF); without it
+   *  `originalUrl` is ignored and the pasted still is uploaded. */
+  fetchOriginal?: ImageFetcher
   commit: ModelCommitDeps
   notify(options: ToastOptions): string
   dismiss(toastId: string): void
@@ -109,8 +168,11 @@ const SAFE_URL = /^[^)\s]+$/
  * changes or the caret enters a block while uploads are in flight (the
  * uploaded row stays in storage; the toast names its URL).
  */
-export async function insertImages(files: readonly File[], ctx: ImageInsertContext): Promise<void> {
-  if (files.length === 0) return
+export async function insertImages(
+  inputs: readonly ImageInput[],
+  ctx: ImageInsertContext,
+): Promise<void> {
+  if (inputs.length === 0) return
   const { commit, notify, dismiss } = ctx
   const page = commit.getCurrentPage()
   if (!commit.pageExists(page)) return
@@ -120,8 +182,8 @@ export async function insertImages(files: readonly File[], ctx: ImageInsertConte
     return
   }
 
-  const batch = files.slice(0, MAX_IMAGES_PER_GESTURE)
-  if (files.length > batch.length) {
+  const batch = inputs.slice(0, MAX_IMAGES_PER_GESTURE)
+  if (inputs.length > batch.length) {
     notify({
       message: `Only the first ${MAX_IMAGES_PER_GESTURE} images were uploaded`,
       type: 'warning',
@@ -139,7 +201,7 @@ export async function insertImages(files: readonly File[], ctx: ImageInsertConte
     !selectionInBlock(commit.editorEl)
 
   let inserted = 0
-  for (const file of batch) {
+  for (const input of batch) {
     if (inserted > 0 && !canInsert()) {
       notify({
         message: 'Stopped uploading: the caret moved somewhere images cannot go',
@@ -148,10 +210,31 @@ export async function insertImages(files: readonly File[], ctx: ImageInsertConte
       return
     }
 
+    const source: ImageSource = input instanceof File ? { file: input } : input
+    let file = source.file
+    if (source.originalUrl && ctx.fetchOriginal) {
+      const fetching = notify({ message: 'Fetching GIF...', duration: 0 })
+      try {
+        file = await ctx.fetchOriginal(source.originalUrl)
+      } catch (e) {
+        dismiss(fetching)
+        notify({
+          message: e instanceof Error ? e.message : 'Could not fetch the original image',
+          type: 'error',
+        })
+        continue
+      }
+      dismiss(fetching)
+    }
+    if (!file) continue
+
     const progress = notify({ message: `Uploading ${file.name || 'photo'}...`, duration: 0 })
     let url: string
+    let notice: string | undefined
     try {
-      url = (await ctx.upload(file)).url
+      const uploaded = await ctx.upload(file)
+      url = uploaded.url
+      notice = uploaded.notice
       if (!SAFE_URL.test(url)) throw new Error('Upload failed: unexpected response')
     } catch (e) {
       dismiss(progress)
@@ -177,5 +260,6 @@ export async function insertImages(files: readonly File[], ctx: ImageInsertConte
     })
     fallback = caret
     inserted++
+    if (notice) notify({ message: notice, type: 'warning' })
   }
 }

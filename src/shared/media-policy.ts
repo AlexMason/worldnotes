@@ -4,3 +4,12 @@
 // never more than this many pixels on its longest side.
 
 export const PHOTO_MAX_SIDE = 2048
+
+/** Animated GIFs are stored as received (after sanitizing), so their decode
+ *  cost is bounded here instead: frame count, and the SUM OF EACH FRAME'S OWN
+ *  declared area ("pixel-frames"; every frame side is also ≤ PHOTO_MAX_SIDE,
+ *  whatever the logical screen says). LZW compresses blank frames ~1000:1, so
+ *  file size alone does not bound what every reader's browser must decode. A
+ *  typical 480×270 × 200-frame GIF is ~26 M pixel-frames. */
+export const GIF_MAX_FRAMES = 500
+export const GIF_MAX_PIXEL_FRAMES = 400_000_000
