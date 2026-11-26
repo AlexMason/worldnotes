@@ -234,7 +234,9 @@ overlay + `docs/shortcuts.md`) exported from `editor-keymap.ts`:
 
 1. **Undo/redo** chords (`Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`).
 2. **Editing keymap** (`editor-keymap.ts`): line move/duplicate/delete,
-   word delete/motion, bold/italic/link wrapping, `Ctrl+A` (page body
+   word delete/motion, bold/italic/underline/link wrapping (also exposed as
+   `format(action)`, the one path the toolbar buttons share with the
+   chords), `Ctrl+A` (page body
    only, never the chrome), `Ctrl+S` save flush.
    Selections map DOM ↔ raw offsets through the direction-biased
    two-ended mapping in `caret-offset.ts` (`getSelectionOffsets` /
@@ -250,6 +252,15 @@ overlay + `docs/shortcuts.md`) exported from `editor-keymap.ts`:
    Backspace) — all modifier-guarded, so `Ctrl+Backspace` etc. can never
    leak into the naive path, and all model commits (an un-mappable
    selection changes nothing).
+
+**Formatting toolbar.** `editor-toolbar.ts` fills the `wn-toolbar` row
+(created by `editor-lifecycle.ts`, not a UIPlugin: buttons need the model-commit
+path). Each button calls `EditingKeymap.format(action)` — the same code as its
+chord — so toggling, the single undo step, autosave and inert-in-blocks can't
+drift. `mousedown` is cancelled so a press never blurs the editor or collapses
+its selection. Enabled/pressed state is derived from the markdown source
+(`activeFormats` in `editor-format.ts`) on `selectionchange`, never from DOM
+styling.
 
 **Model commits.** `editor-commit.ts` is the ONE path for edits the editor
 defines itself: `commitModelEdit` = `setPageText` (one undo step) → forced

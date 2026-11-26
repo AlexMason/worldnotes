@@ -22,6 +22,7 @@ import type { NotificationSystem } from './notifications'
 import type { ToastOptions } from './types'
 import { syncLinkExistence } from './link-existence-sync'
 import { createPageMover } from './editor-page-move'
+import { createEditorToolbar } from './editor-toolbar'
 import { classifyLinkTarget, isSafeHref } from '../shared/url-policy'
 
 export interface EditorLifecycleAPI {
@@ -593,6 +594,18 @@ export function createEditorLifecycle(
       }
     }
 
+    // ── Formatting toolbar (first in the wn-toolbar row) ───────────────────
+
+    const toolbar = createEditorToolbar({
+      host: dom.toolbar,
+      editorEl: dom.editorDiv,
+      defs: contentPlugins.flatMap((p) => p.tokens),
+      getCurrentPage: () => state.getCurrentPage(),
+      pageExists: (page) => buffers.hasPage(page),
+      getPageText: (page) => buffers.getPageText(page),
+      format: (action) => keymap.format(action),
+    })
+
     // ── Link state: re-class links in place when existence answers arrive ──
 
     const existence = options.pageExists
@@ -605,6 +618,7 @@ export function createEditorLifecycle(
     return {
       destroy() {
         stopExistenceSync?.()
+        toolbar.destroy()
         stopTitleSync?.()
         state.clearSaveTimer()
         notifications.destroy()

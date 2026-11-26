@@ -52,6 +52,33 @@ const EDITOR_CHROME_CSS = `
   border-bottom: 1px solid var(--wn-color-toolbar-border, var(--wn-color-border, #e3ded4));
 }
 .wn-toolbar:empty { display: none; }
+.wn-toolbar-group { display: flex; align-items: center; gap: var(--wn-gap-toolbar, 6px); }
+.wn-toolbar-btn {
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 .55rem;
+  font: inherit;
+  line-height: 1;
+  color: var(--wn-color-fg-muted, #6f6a61);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--wn-radius-control, 6px);
+  cursor: pointer;
+}
+.wn-toolbar-btn:hover:not(:disabled) {
+  color: var(--wn-color-fg, #23211d);
+  background: var(--wn-color-toolbar-button-hover-bg, var(--wn-color-code-bg, #f0ede6));
+}
+.wn-toolbar-btn[aria-pressed='true'] {
+  color: var(--wn-color-accent, #1a5fb4);
+  background: var(--wn-color-toolbar-button-active-bg, var(--wn-color-code-bg, #f0ede6));
+  border-color: var(--wn-color-toolbar-border, var(--wn-color-border, #e3ded4));
+}
+.wn-toolbar-btn:disabled { opacity: .4; cursor: default; }
+.wn-toolbar-btn:focus-visible { outline: 2px solid var(--wn-color-focus-ring, #1a5fb4); outline-offset: 1px; }
+.wn-toolbar-btn--bold { font-weight: 700; }
+.wn-toolbar-btn--italic { font-style: italic; }
+.wn-toolbar-btn--underline { text-decoration: underline; }
 
 .wn-body { display: flex; flex: 1; min-height: 0; }
 
@@ -409,6 +436,7 @@ const EDITOR_CHROME_CSS = `
   }
   .wn-actions a { display: block; padding: .45em .35em; min-height: var(--wn-touch-target, 44px); }
   .wn-toolbar { flex-wrap: wrap; row-gap: 4px; padding: .4rem .9rem; }
+  .wn-toolbar-btn { min-width: var(--wn-touch-target, 44px); height: var(--wn-touch-target, 44px); }
   .wn-editor-wrap { padding: 1.2rem .9rem 4rem; }
   .wn-body { flex-direction: column; }
   .wn-left-sidepanel:not(:empty),
