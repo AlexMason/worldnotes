@@ -3,7 +3,7 @@ issue: 20
 title: Add an editor formatting toolbar (bold, italic, underline, list, link)
 type: feature
 branch: feature/20-editor-toolbar
-status: approved
+status: implementing
 created: 2026-11-25
 pr: ""
 ---
