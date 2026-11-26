@@ -94,9 +94,12 @@ export async function registerPageApiRoutes(
     })
     const gated = deps.getSettings().requireLogin
     if (gated) reply.header('vary', 'Cookie')
+    // `scope=name` feeds a typing aid: a just-created page must show up at once.
     reply.header(
       'cache-control',
-      cacheControlFor(gated, 'public, max-age=30, stale-while-revalidate=60'),
+      query.scope === 'name'
+        ? 'no-store'
+        : cacheControlFor(gated, 'public, max-age=30, stale-while-revalidate=60'),
     )
     return { pages: items }
   })
