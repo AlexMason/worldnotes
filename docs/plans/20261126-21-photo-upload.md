@@ -5,7 +5,7 @@ type: feature
 branch: feature/21-photo-upload
 status: filed
 created: 2026-11-26
-pr: ""
+pr: https://github.com/AlexMason/worldnotes/pull/24
 ---
 
 # Allow editors to upload user photos (converted to PNG, stored in Postgres)
