@@ -35,6 +35,9 @@ export interface EditorToolbarDeps {
   format(action: FormatAction): boolean
   /** Open the link field (the Link button; same as Ctrl+K). */
   openLink(): boolean
+  /** Upload + insert picked image files (the Image button). Omitted when the
+   *  editor has no image uploader: the button is then not rendered at all. */
+  insertImages?(files: readonly File[]): Promise<void>
 }
 
 export interface EditorToolbar {
@@ -48,7 +51,7 @@ export interface EditorToolbar {
 /** `action` doubles as the ActiveFormats key: a button is pressed when the
  *  selection sits in the format it applies. */
 interface ButtonSpec {
-  action: FormatAction | 'link'
+  action: FormatAction | 'link' | 'image'
   label: string
   name: string
   chord?: string
@@ -62,6 +65,9 @@ const BUTTONS: ButtonSpec[] = [
   { action: 'link', label: 'Link', name: 'Link', chord: 'Ctrl+K' },
 ]
 
+/** Opens the file picker; not a toggle, so it never carries a pressed state. */
+const IMAGE_BUTTON: ButtonSpec = { action: 'image', label: 'Image', name: 'Insert image' }
+
 export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
   const group = document.createElement('div')
   group.className = 'wn-toolbar-group'
@@ -69,7 +75,7 @@ export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
   group.setAttribute('aria-label', 'Formatting')
 
   const buttons = new Map<ButtonSpec, HTMLButtonElement>()
-  for (const spec of BUTTONS) {
+  for (const spec of deps.insertImages ? [...BUTTONS, IMAGE_BUTTON] : BUTTONS) {
     const button = document.createElement('button')
     button.type = 'button'
     button.className = `wn-toolbar-btn wn-toolbar-btn--${spec.action}`
@@ -77,10 +83,31 @@ export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
     button.textContent = spec.label
     button.title = spec.chord ? `${spec.name} (${spec.chord})` : spec.name
     button.setAttribute('aria-label', spec.name)
-    button.setAttribute('aria-pressed', 'false')
+    if (spec.action !== 'image') button.setAttribute('aria-pressed', 'false')
     button.disabled = true
     buttons.set(spec, button)
     group.appendChild(button)
+  }
+
+  // The picker lives inside the group (hidden with it while the link field is
+  // open). `value` is cleared after every pick so choosing the same file
+  // again still fires `change`.
+  let fileInput: HTMLInputElement | null = null
+  if (deps.insertImages) {
+    const insertImages = deps.insertImages
+    fileInput = document.createElement('input')
+    fileInput.type = 'file'
+    fileInput.accept = 'image/*'
+    fileInput.multiple = true
+    fileInput.hidden = true
+    fileInput.tabIndex = -1
+    fileInput.className = 'wn-toolbar-file'
+    fileInput.addEventListener('change', () => {
+      const files = Array.from(fileInput?.files ?? [])
+      if (fileInput) fileInput.value = ''
+      if (files.length > 0) void insertImages(files)
+    })
+    group.appendChild(fileInput)
   }
   // First in the row: UI plugins that mount into the slot follow it.
   deps.host.prepend(group)
@@ -95,6 +122,7 @@ export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
     if (!button || button.disabled || !action) return
     if (document.activeElement !== deps.editorEl) deps.editorEl.focus({ preventScroll: true })
     if (action === 'link') deps.openLink()
+    else if (action === 'image') fileInput?.click()
     else deps.format(action)
     refresh()
   })
@@ -124,7 +152,9 @@ export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
       : null
     for (const [spec, button] of buttons) {
       button.disabled = !usable
-      button.setAttribute('aria-pressed', active?.[spec.action] ? 'true' : 'false')
+      if (spec.action !== 'image') {
+        button.setAttribute('aria-pressed', active?.[spec.action] ? 'true' : 'false')
+      }
     }
   }
 

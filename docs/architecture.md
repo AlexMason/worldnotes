@@ -21,7 +21,7 @@ Browser (anonymous)                  Browser (authenticated)
 │ login-only gate ── settings.requireLogin (HTML 403 / JSON 403)  │
 │ /api/settings ── SettingsRepository ── key/value table          │
 │ /api/users/role ── UsersRepository (advisory-locked guard)      │
-│ /api/media upload ── MediaRepository (pg bytea) ── /media/{id}  │
+│ /api/media[/photos] ── MediaRepository (pg bytea) ── /media/{id}│
 │ /api/themes CRUD ── ThemeService/ThemesRepository ── requireRole(admin) │
 │ @fastify/static /assets/* (dist/client) · /icons/* (public)     │
 └──────────────────────────────────────────────────────────────────┘
@@ -309,6 +309,36 @@ exact text back with a collapsed caret inserts it as a line above
 span would be swallowed by extraction). Selections reaching outside the
 editor are left to the browser. No `text/html` flavor is written yet.
 
+**Photos: convert in the browser, validate on the server.** When
+`EditorOptions.imageUploader` is set (the client passes
+`createMediaUploader()`), `editor-lifecycle.ts` routes image pastes, file
+drops and `instance.insertImages(files)` (the toolbar picker's entry point)
+through `core/editor-image.ts`. Core never touches the network: the
+uploader (`client/media-upload.ts`) first runs `client/photo-convert.ts`
+(`createImageBitmap` with EXIF orientation → canvas downscale to
+`PHOTO_MAX_SIDE` = 2048 px → PNG; a PNG that already fits is sent as-is), then
+POSTs it to `POST /api/media/photos`. The paste rule: an image on the
+clipboard wins unless the clipboard also carries both `text/plain` and
+`text/html` (Word/Excel attach a rendered PNG next to real text). Images are
+inserted as `![name](/media/N)` at the start of the selection through
+`commitModelEdit` (one undo step each), refused inside fences/tables, and
+never inserted into a different page than the one the upload started on.
+The server never trusts the client's conversion: `png-sanitize.ts` verifies
+the PNG chunk structure and CRCs, enforces the same `PHOTO_MAX_SIDE`
+(`shared/media-policy.ts`), and rewrites the file with an allowlist of
+chunks (EXIF/text/animation chunks and trailing bytes never reach
+Postgres). There is no server-side image decoding and no native
+dependency.
+
+**Extension seam for other attachment types (not built).** `media` is a
+generic `(media_type, bytes)` store and `GET /media/{id}` serves whatever
+type is stored. A new type (PDF, BMP, …) adds a migration widening the
+`media_type` CHECK (and a `filename` column if downloads need names), a
+server validator in the style of `png-sanitize.ts`, a client converter where
+conversion is wanted, and its route. The serve headers will need revisiting
+for PDFs (`CSP default-src 'none'` blocks in-browser viewing;
+`Content-Disposition`).
+
 `Ctrl+/` + `Escape` are owned by the shortcuts-help overlay UIPlugin
 (document capture + stopPropagation), NOT the keymap — single owner, no
 double-toggle. See `docs/shortcuts.md` for the user-facing table and
@@ -335,6 +365,7 @@ Public, no query strings anywhere:
 | `GET/POST /api/themes`, `GET/PUT/DELETE /api/themes/{id}` | theme gallery CRUD (409 deleting the active theme); `requireRole(admin)` (+ `requireSameOrigin` on writes) | admins                          |
 | `PUT /api/users/role`                                     | guarded role change; **strict** Origin (no Origin-less pass)                                               | admins                          |
 | `POST /api/media`                                         | multipart upload; sniff + size/dimension caps                                                              | editors (`onRequest`)           |
+| `POST /api/media/photos`                                  | PNG-only upload (browser-converted); chunk validation + metadata strip, ≤ 2048 px, `PHOTO_MAX_BYTES`      | editors (`onRequest`)           |
 | `GET /media/{id}`                                         | stored bytes, immutable cache + hardening headers                                                          | anon ok (gated when login-only) |
 | `GET /favicon.ico`, `GET /apple-touch-icon.png`           | blind-request favicon (override row or bundled `public/icons/`)                                            | anon ok                         |
 | `GET /oidc/login                                          | callback                                                                                                   | logout`, `GET /api/me`          | auth | mixed |

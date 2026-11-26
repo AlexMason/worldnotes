@@ -1,12 +1,14 @@
 // ─── Media upload & serving ──────────────────────────────────────────────────
-// POST /api/media stores uploaded images (favicon overrides today; editor-
-// inserted images are the planned next consumer). Rows are immutable and
-// addressed by id — /media/{id} is cacheable forever; replacing an image is
-// a new upload. The two blind-request routes (/favicon.ico,
-// /apple-touch-icon.png) resolve the current favicon at request time:
-// override row when set and healthy, bundled file from disk otherwise
-// (deliberately not reply.sendFile: that decorator only exists when the
-// /assets/ static mount registered, and tests run without a built bundle).
+// POST /api/media stores uploaded images as received (favicon overrides);
+// POST /api/media/photos stores editor photos: the browser has already
+// downscaled and converted them to PNG, and the server structurally validates
+// and metadata-strips that PNG (png-sanitize.ts) instead of trusting it. Rows
+// are immutable and addressed by id — /media/{id} is cacheable forever;
+// replacing an image is a new upload. The two blind-request routes
+// (/favicon.ico, /apple-touch-icon.png) resolve the current favicon at
+// request time: override row when set and healthy, bundled file from disk
+// otherwise (deliberately not reply.sendFile: that decorator only exists when
+// the /assets/ static mount registered, and tests run without a built bundle).
 
 import { readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
@@ -17,12 +19,16 @@ import { cacheControlFor, requireLoginJson } from '../auth/login-gate'
 import type { MediaRepository } from '../db/media-repository'
 import type { SettingsService } from '../settings'
 import { probeMedia } from '../media-types'
+import { sanitizePng } from '../png-sanitize'
+import { PHOTO_MAX_SIDE } from '../../shared/media-policy'
 
 export interface MediaDeps {
   media: MediaRepository
   settings: SettingsService
   /** Directory holding the bundled default icon set; null = not present. */
   iconsDir: string | null
+  /** Raw-upload ceiling for POST /api/media/photos (the converted PNG). */
+  photoMaxBytes: number
 }
 
 const SECURITY_HEADERS: Record<string, string> = {
@@ -34,6 +40,12 @@ const SECURITY_HEADERS: Record<string, string> = {
 const BUNDLED_FILES: Record<string, { file: string; contentType: string }> = {
   '/favicon.ico': { file: 'favicon.ico', contentType: 'image/vnd.microsoft.icon' },
   '/apple-touch-icon.png': { file: 'apple-touch-icon.png', contentType: 'image/png' },
+}
+
+/** 413 text; a per-request ceiling is named so the browser can show it. */
+function tooLargeMessage(limit?: number): string {
+  if (limit === undefined) return 'file exceeds the upload size limit'
+  return `file exceeds the upload size limit (${Number((limit / 1_048_576).toFixed(1))} MiB)`
 }
 
 function sendBytes(
@@ -54,7 +66,7 @@ function sendBytes(
 }
 
 export async function registerMediaRoutes(app: FastifyInstance, deps: MediaDeps): Promise<void> {
-  const { media, settings, iconsDir } = deps
+  const { media, settings, iconsDir, photoMaxBytes } = deps
   const {
     RequestFileTooLargeError,
     FilesLimitError,
@@ -63,10 +75,12 @@ export async function registerMediaRoutes(app: FastifyInstance, deps: MediaDeps)
     InvalidMultipartContentTypeError,
   } = app.multipartErrors
 
-  /** Map multipart limit/format errors to 4xx; returns null when not one. */
-  function limitError(e: unknown): { code: number; message: string } | null {
-    if (e instanceof RequestFileTooLargeError)
-      return { code: 413, message: 'file exceeds the upload size limit' }
+  /** Map multipart limit/format errors to 4xx; returns null when not one.
+   *  `limit` (a per-request ceiling) is named in the 413 message. */
+  function limitError(e: unknown, limit?: number): { code: number; message: string } | null {
+    if (e instanceof RequestFileTooLargeError) {
+      return { code: 413, message: tooLargeMessage(limit) }
+    }
     if (e instanceof InvalidMultipartContentTypeError)
       return { code: 415, message: 'expected multipart/form-data' }
     if (e instanceof FilesLimitError)
@@ -77,6 +91,64 @@ export async function registerMediaRoutes(app: FastifyInstance, deps: MediaDeps)
     return null
   }
 
+  /**
+   * Read exactly one multipart file part into memory. On any limit/format
+   * problem the error reply is already sent and null is returned.
+   * `fileSizeLimit` overrides the global multipart ceiling for THIS request
+   * only (@fastify/multipart deep-merges per-call limits over the registered
+   * ones, so files/parts/fields stay capped).
+   */
+  async function readUpload(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    fileSizeLimit?: number,
+  ): Promise<Buffer | null> {
+    const fail = (code: number, error: string): null => {
+      void reply.code(code).send({ error })
+      return null
+    }
+
+    let part
+    try {
+      part = await req.file(
+        fileSizeLimit === undefined ? undefined : { limits: { fileSize: fileSizeLimit } },
+      )
+    } catch (e) {
+      const mapped = limitError(e, fileSizeLimit) ?? {
+        code: 400,
+        message: 'malformed multipart request',
+      }
+      if (mapped.code === 400 && !(e instanceof Error && /malformed/i.test(e.message))) {
+        req.log.warn({ err: e }, 'media upload rejected')
+      }
+      return fail(mapped.code, mapped.message)
+    }
+    if (!part) return fail(400, 'a file part is required')
+
+    let buf: Buffer
+    try {
+      buf = await part.toBuffer()
+    } catch (e) {
+      const mapped = limitError(e, fileSizeLimit) ?? {
+        code: 400,
+        message: 'could not read upload',
+      }
+      return fail(mapped.code, mapped.message)
+    }
+    if (part.file.truncated) return fail(413, tooLargeMessage(fileSizeLimit))
+    // Drain any extra parts so busboy can finish the request cleanly.
+    try {
+      while (true) {
+        const extra = await req.file()
+        if (!extra) break
+        await extra.toBuffer().catch(() => undefined)
+      }
+    } catch {
+      /* limit errors on extras are fine — the single-part rule below wins */
+    }
+    return buf
+  }
+
   // ── Upload (auth + same-origin BEFORE parsing: onRequest, not preHandler —
   //    an anonymous caller must not be able to drive busboy at all) ─────────
 
@@ -84,38 +156,8 @@ export async function registerMediaRoutes(app: FastifyInstance, deps: MediaDeps)
     '/api/media',
     { onRequest: [requireSameOrigin, requireRole('editor', 'admin')] },
     async (req, reply) => {
-      let part
-      try {
-        part = await req.file()
-      } catch (e) {
-        const mapped = limitError(e) ?? { code: 400, message: 'malformed multipart request' }
-        if (mapped.code === 400 && !(e instanceof Error && /malformed/i.test(e.message))) {
-          req.log.warn({ err: e }, 'media upload rejected')
-        }
-        return reply.code(mapped.code).send({ error: mapped.message })
-      }
-      if (!part) return reply.code(400).send({ error: 'a file part is required' })
-
-      let buf: Buffer
-      try {
-        buf = await part.toBuffer()
-      } catch (e) {
-        const mapped = limitError(e) ?? { code: 400, message: 'could not read upload' }
-        return reply.code(mapped.code).send({ error: mapped.message })
-      }
-      if (part.file.truncated) {
-        return reply.code(413).send({ error: 'file exceeds the upload size limit' })
-      }
-      // Drain any extra parts so busboy can finish the request cleanly.
-      try {
-        while (true) {
-          const extra = await req.file()
-          if (!extra) break
-          await extra.toBuffer().catch(() => undefined)
-        }
-      } catch {
-        /* limit errors on extras are fine — the single-part rule below wins */
-      }
+      const buf = await readUpload(req, reply)
+      if (!buf) return reply
 
       const probed = probeMedia(buf)
       if (!probed.ok) {
@@ -136,6 +178,50 @@ export async function registerMediaRoutes(app: FastifyInstance, deps: MediaDeps)
         sizeBytes: buf.byteLength,
         width: probed.media.width,
         height: probed.media.height,
+      })
+    },
+  )
+
+  // ── Photo upload: PNG only, sanitized, capped by PHOTO_MAX_BYTES ─────────
+  // Same guards as /api/media (auth + same-origin run at onRequest, before
+  // the multipart parser). The size ceiling is per request, so the favicon
+  // route keeps its 2 MiB cap.
+
+  app.post(
+    '/api/media/photos',
+    { onRequest: [requireSameOrigin, requireRole('editor', 'admin')] },
+    async (req, reply) => {
+      const buf = await readUpload(req, reply, photoMaxBytes)
+      if (!buf) return reply
+
+      const sanitized = sanitizePng(buf)
+      if (!sanitized.ok) {
+        switch (sanitized.reason) {
+          case 'not-png':
+            return reply.code(415).send({ error: 'expected a PNG image' })
+          case 'over-dimension':
+            return reply
+              .code(422)
+              .send({ error: `image is larger than ${PHOTO_MAX_SIDE} px on a side` })
+          case 'invalid-png':
+            return reply.code(422).send({ error: 'invalid PNG' })
+        }
+      }
+
+      const { id } = await media.insert({
+        mediaType: 'image/png',
+        width: sanitized.width,
+        height: sanitized.height,
+        data: sanitized.png,
+        by: req.user?.sub ?? null,
+      })
+      return reply.code(201).send({
+        id,
+        url: `/media/${id}`,
+        mediaType: 'image/png',
+        sizeBytes: sanitized.png.byteLength,
+        width: sanitized.width,
+        height: sanitized.height,
       })
     },
   )

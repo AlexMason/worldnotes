@@ -328,11 +328,13 @@ parameter. The `/admin` gallery's Preview links use it.
 Uploaded images live in Postgres (`media` table), not on disk — the Docker
 image stays disposable and `pg_dump` covers them. Rows are **immutable**: a
 new upload gets a new id, which is what lets `/media/{id}` cache forever.
-Reusing the store for editor-inserted images is the planned next consumer.
+Editor photos use `POST /api/media/photos` (below); the favicon override flow
+keeps using `POST /api/media`.
 
 | Verb              | Path     | Auth                                                                                                                        | Notes                                                                                                                                                                     |
 | ----------------- | -------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `POST /api/media` | editor   | `requireSameOrigin` + `requireRole('editor','admin')` at `onRequest` (auth runs before the multipart parser touches a byte) | `multipart/form-data`, one `file` part; returns `{id, url, mediaType, sizeBytes, width, height}` (201)                                                                    |
+| `POST /api/media/photos` | editor | same guards as `POST /api/media` | `multipart/form-data`, one `file` part that must be a **PNG** (the browser downscales to ≤ 2048 px and converts before upload); sanitized server-side; returns `{id, url, mediaType: "image/png", sizeBytes, width, height}` (201). Errors: `413` over `PHOTO_MAX_BYTES` (message names the limit), `415` not a PNG, `422` invalid PNG or a side over 2048 px, `400` no/extra parts |
 | `GET /media/{id}` | anon ok¹ | `403 {error:"login required"}` for anonymous while `requireLogin` is on; authed responses become `private` + `Vary: Cookie` | serves the stored bytes; `public, max-age=31536000, immutable`, strong ETag `"m{id}"` (304 revalidation), `nosniff` + `CSP: default-src 'none'` + `X-Frame-Options: DENY` |
 
 **Content sniffing, not declared types:** the stored `media_type` comes from
@@ -344,6 +346,19 @@ cannot become a permanently cached decoder-DoS. Size is capped by
 `MEDIA_MAX_BYTES` (default 2 MiB); over-cap is a 413. `limits.fileSize` is
 the only effective multipart body ceiling (Fastify's JSON `bodyLimit` does
 not apply to streamed uploads).
+
+**Photo uploads are validated, not decoded:** `POST /api/media/photos` walks
+the PNG chunk structure (signature, every chunk CRC, `IHDR` first, one
+contiguous `IDAT` run, `IEND` last) and **rewrites** the file keeping only
+`IHDR PLTE IDAT IEND tRNS gAMA cHRM sRGB iCCP`. EXIF/GPS (`eXIf`), text
+chunks, timestamps, APNG animation chunks, unknown chunks and any bytes after
+`IEND` are never stored, so metadata is stripped even for direct API callers.
+Width and height must be ≤ `PHOTO_MAX_SIDE` (2048, shared with the browser's
+resizer). The size ceiling is `PHOTO_MAX_BYTES` (default 15 MiB), applied per
+request to the converted PNG; `MEDIA_MAX_BYTES` still governs only
+`POST /api/media`. The IDAT zlib stream is not inflated, so a structurally
+valid PNG with corrupt pixel data is stored and renders broken (harmless:
+served `nosniff` under `CSP default-src 'none'`).
 
 **Public & enumerable:** `GET /media/{id}` needs no auth (anonymous readers
 fetch the favicon), and ids are sequential bigserials — a media row is
@@ -478,6 +493,7 @@ See `.env.example`; every knob is parsed and validated in
 OIDC_CLIENT_ID OIDC_CLIENT_SECRET OIDC_REDIRECT_URL
 OIDC_CLOCK_TOLERANCE_SECONDS SESSION_SECRETS SESSION_MAX_AGE_SECONDS
 CACHE_MAX_ENTRIES CACHE_TTL_SECONDS AUTOSAVE_DEBOUNCE_MS MEDIA_MAX_BYTES
+PHOTO_MAX_BYTES
 AUTH_DISABLED DEFAULT_ROLE BOOTSTRAP_ADMIN_SUBS`. `DEFAULT_ROLE` and
 `BOOTSTRAP_ADMIN_SUBS` shape account provisioning (see Roles); the
 `requireLogin` toggle is NOT env — it is an admin setting.

@@ -8,6 +8,7 @@ import { insertSiteBands } from '../core/editor-dom'
 import { createApiPageStore } from './api-page-store'
 import { createLinkExistence } from './link-existence'
 import { createPageTitles } from './page-titles'
+import { createMediaUploader } from './media-upload'
 import { mountHeaderActions, bindPopstate, createStoreEvents } from './chrome'
 import { slugFromPath, pageUrlPath } from '../shared/url-helpers'
 import { navTargetToSlug } from '../shared/slug'
@@ -111,6 +112,7 @@ async function main(): Promise<void> {
 
   const editor = createEditor(container, {
     pageStore: store,
+    imageUploader: createMediaUploader(),
     pageExists: linkExistence,
     pageTitles,
     initialPage: cfg.slug,

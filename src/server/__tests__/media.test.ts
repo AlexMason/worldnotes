@@ -15,6 +15,10 @@ import { seal } from '../auth/session'
 import {
   pngBytes,
   pngBombBytes,
+  pngChunk,
+  ihdrData,
+  buildPng,
+  IDAT_DATA,
   JPEG_BYTES,
   GIF_BYTES,
   ICO_BYTES,
@@ -405,6 +409,162 @@ describe('media roles & login-only gate', () => {
       headers: { cookie: cookieFor(config, 'boss') },
     })
     expect(Buffer.compare(authedIcon.rawPayload, pngBytes())).toBe(0)
+    await app.close()
+  })
+})
+
+describe('POST /api/media/photos', () => {
+  const iend = () => pngChunk('IEND', Buffer.alloc(0))
+  const pngWithIdat = (idat: Buffer, extra: Buffer[] = [], w = 4, h = 3) =>
+    buildPng([pngChunk('IHDR', ihdrData(w, h)), ...extra, pngChunk('IDAT', idat), iend()])
+
+  async function setup(env: Record<string, string> = {}) {
+    const config = loadConfig({ ...baseEnv, ...env })
+    const mediaRepo = createMemoryMediaRepository()
+    const app = await buildApp({
+      config,
+      pages: createMemoryPagesRepository(),
+      settings: createMemorySettingsRepository(),
+      media: mediaRepo,
+      users: usersFixture(),
+      relyingParty: null,
+    })
+    const cookie =
+      'wn_session=' +
+      seal({ exp: Math.floor(Date.now() / 1000) + 300, sub: 'user-1' }, config.sessionSecrets)
+    const post = (payload: Buffer, headers: Record<string, string> = {}) =>
+      app.inject({
+        method: 'POST',
+        url: '/api/media/photos',
+        headers: { ...multipartHeaders(), cookie, ...headers },
+        payload,
+      })
+    return { app, mediaRepo, post, cookie }
+  }
+
+  it('stores a PNG as image/png and serves it back from /media/{id}', async () => {
+    const { app, mediaRepo, post } = await setup()
+    const png = pngBytes(64, 32)
+    const res = await post(multipartBuf(png, 'photo.png'))
+    expect(res.statusCode).toBe(201)
+    expect(res.json()).toEqual({
+      id: 1,
+      url: '/media/1',
+      mediaType: 'image/png',
+      sizeBytes: png.byteLength,
+      width: 64,
+      height: 32,
+    })
+    const row = await mediaRepo.get(1)
+    expect(row).toMatchObject({ mediaType: 'image/png', width: 64, height: 32 })
+    expect(row!.data.equals(png)).toBe(true)
+
+    const served = await app.inject({ method: 'GET', url: '/media/1' })
+    expect(served.statusCode).toBe(200)
+    expect(served.headers['content-type']).toContain('image/png')
+    expect(served.headers['cache-control']).toContain('immutable')
+    await app.close()
+  })
+
+  it('strips metadata and trailing bytes before storing', async () => {
+    const { app, mediaRepo, post } = await setup()
+    const dirty = Buffer.concat([
+      pngWithIdat(IDAT_DATA, [
+        pngChunk('eXIf', Buffer.from('GPS-COORDS')),
+        pngChunk('tEXt', Buffer.from('Comment\0private')),
+      ]),
+      Buffer.from('trailing-payload'),
+    ])
+    const res = await post(multipartBuf(dirty))
+    expect(res.statusCode).toBe(201)
+    const stored = (await mediaRepo.get(1))!.data
+    expect(stored.includes(Buffer.from('GPS-COORDS'))).toBe(false)
+    expect(stored.includes(Buffer.from('private'))).toBe(false)
+    expect(stored.includes(Buffer.from('trailing-payload'))).toBe(false)
+    expect(stored.equals(pngWithIdat(IDAT_DATA))).toBe(true)
+    expect(res.json().sizeBytes).toBe(stored.byteLength)
+    await app.close()
+  })
+
+  it('accepts a 3 MiB PNG although MEDIA_MAX_BYTES is 2 MiB (favicon route stays capped)', async () => {
+    const { app, mediaRepo, post, cookie } = await setup()
+    const big = pngWithIdat(Buffer.alloc(3 * 1024 * 1024, 7))
+    const res = await post(multipartBuf(big))
+    expect(res.statusCode).toBe(201)
+    expect((await mediaRepo.get(1))!.data.byteLength).toBe(big.byteLength)
+
+    const viaMedia = await app.inject({
+      method: 'POST',
+      url: '/api/media',
+      headers: { ...multipartHeaders(), cookie },
+      payload: multipartBuf(big),
+    })
+    expect(viaMedia.statusCode).toBe(413)
+    await app.close()
+  })
+
+  it('rejects a PNG over PHOTO_MAX_BYTES with 413 naming the limit', async () => {
+    const { app, mediaRepo, post } = await setup({ PHOTO_MAX_BYTES: '1048576' })
+    const res = await post(multipartBuf(pngWithIdat(Buffer.alloc(1024 * 1024 + 1024, 7))))
+    expect(res.statusCode).toBe(413)
+    expect(res.json().error).toBe('file exceeds the upload size limit (1 MiB)')
+    expect(mediaRepo.dump()).toEqual([])
+    await app.close()
+  })
+
+  it('requires auth and same-origin before the parser runs (no row created)', async () => {
+    const { app, mediaRepo, post } = await setup()
+    const crossOrigin = await post(multipartBuf(pngBytes()), { origin: 'https://evil.test' })
+    expect(crossOrigin.statusCode).toBe(403)
+    const anon = await app.inject({
+      method: 'POST',
+      url: '/api/media/photos',
+      headers: multipartHeaders(),
+      payload: multipartBuf(pngBytes()),
+    })
+    expect(anon.statusCode).toBe(401)
+    expect(mediaRepo.dump()).toEqual([])
+    await app.close()
+  })
+
+  it('rejects non-PNG bytes with 415 regardless of declared type', async () => {
+    const { app, mediaRepo, post } = await setup()
+    for (const bytes of [JPEG_BYTES, GIF_BYTES, ICO_BYTES, SVG_BYTES]) {
+      const res = await post(multipartBuf(bytes, 'photo.png'))
+      expect(res.statusCode).toBe(415)
+      expect(res.json()).toEqual({ error: 'expected a PNG image' })
+    }
+    expect(mediaRepo.dump()).toEqual([])
+    await app.close()
+  })
+
+  it('rejects malformed PNGs and oversized dimensions with 422', async () => {
+    const { app, mediaRepo, post } = await setup()
+    const corrupt = Buffer.from(pngBytes(4, 3))
+    corrupt[corrupt.length - 20] ^= 0xff
+    const bad = await post(multipartBuf(corrupt))
+    expect(bad.statusCode).toBe(422)
+    expect(bad.json()).toEqual({ error: 'invalid PNG' })
+
+    for (const png of [pngBytes(2049, 10), pngBytes(10, 2049), pngBombBytes()]) {
+      const res = await post(multipartBuf(png))
+      expect(res.statusCode).toBe(422)
+      expect(res.json()).toEqual({ error: 'image is larger than 2048 px on a side' })
+    }
+    expect(mediaRepo.dump()).toEqual([])
+    await app.close()
+  })
+
+  it('rejects requests without a file part (400) and extra text fields', async () => {
+    const { app, post } = await setup()
+    const none = await post(Buffer.from(`--${BOUNDARY}--\r\n`))
+    expect(none.statusCode).toBe(400)
+    const field = await post(
+      Buffer.from(
+        `--${BOUNDARY}\r\nContent-Disposition: form-data; name="x"\r\n\r\nhi\r\n--${BOUNDARY}--\r\n`,
+      ),
+    )
+    expect(field.statusCode).toBe(400)
     await app.close()
   })
 })

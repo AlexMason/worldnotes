@@ -354,7 +354,7 @@ the stable hooks are the `.wn-*` classes:
   `.wn-table` / `-row` / `-head` / `-sep` / `-cells` / `-cell` / `-edge`,
   `.wn-align-left|center|right`, `.wn-image` / `-img` / `-alt` / `-src`.
 - **Editor chrome:** `.wn-root`, `.wn-toolbar`, `.wn-toolbar-group`,
-  `.wn-toolbar-btn` (`--bold|italic|underline|list|link`), `.wn-link-field`,
+  `.wn-toolbar-btn` (`--bold|italic|underline|list|link|image`), `.wn-link-field`,
   `.wn-link-field-input`, `.wn-link-field-msg` (`--error`),
   `.wn-link-field-list`, `.wn-link-field-option` (`-title`, `-slug`), `.wn-body`,
   `.wn-left-sidepanel`, `.wn-right-sidepanel`, `.wn-footer`, `.wn-placeholder`,

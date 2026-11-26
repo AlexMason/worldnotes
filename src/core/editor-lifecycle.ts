@@ -15,6 +15,13 @@ import type { EditorNavigationAPI } from './editor-navigation'
 import { getSelectionOffsets } from './caret-offset'
 import { createEditingKeymap } from './editor-keymap'
 import { commitModelEdit, replaceSelection, type ModelCommitDeps } from './editor-commit'
+import {
+  clipboardImageFiles,
+  insertImages,
+  isImageFile,
+  placeCaretAtPoint,
+  type ImageInsertContext,
+} from './editor-image'
 import { extractContentText } from './content-text'
 import { buildDocument } from './document'
 import { renderInlineContent } from './renderer'
@@ -213,6 +220,18 @@ export function createEditorLifecycle(
       openLink: () => linkController.open(),
     })
 
+    // Photo upload context (paste/drop below, and the toolbar's Image
+    // button). Only built when the host supplied an uploader; without one
+    // every image handler falls through to the text behavior.
+    const imageCtx: ImageInsertContext | null = options.imageUploader
+      ? {
+          upload: options.imageUploader,
+          commit: commitDeps,
+          notify: (opts) => notifications.notify(opts),
+          dismiss: (id) => notifications.dismiss(id),
+        }
+      : null
+
     const toolbar = createEditorToolbar({
       host: dom.toolbar,
       editorEl: dom.editorDiv,
@@ -223,6 +242,7 @@ export function createEditorLifecycle(
       blockLines,
       format: (action) => keymap.format(action),
       openLink: () => linkController.open(),
+      insertImages: imageCtx ? (files) => insertImages(files, imageCtx) : undefined,
     })
 
     // ── Input handler ──────────────────────────────────────────────────────
@@ -352,7 +372,37 @@ export function createEditorLifecycle(
       })
     })
 
+    // ── Photos: paste / drop → upload → `![name](url)` ─────────────────
+    // (imageCtx is built above, next to the toolbar that shares it.)
+
+    dom.editorDiv.addEventListener('dragover', (e: DragEvent) => {
+      // A drop only fires when dragover is cancelled; files only (text drags
+      // keep the browser's behavior).
+      if (imageCtx && e.dataTransfer?.types.includes('Files')) e.preventDefault()
+    })
+
+    dom.editorDiv.addEventListener('drop', (e: DragEvent) => {
+      if (!imageCtx || !e.dataTransfer) return
+      const files = Array.from(e.dataTransfer.files)
+      const images = files.filter(isImageFile)
+      if (images.length === 0) return // not ours: the browser decides
+      e.preventDefault()
+      placeCaretAtPoint(dom.editorDiv, e.clientX, e.clientY)
+      if (images.length < files.length) {
+        notifications.notify({ message: 'Skipped files that are not images', type: 'warning' })
+      }
+      void insertImages(images, imageCtx)
+    })
+
     dom.editorDiv.addEventListener('paste', (e: ClipboardEvent) => {
+      if (imageCtx) {
+        const images = clipboardImageFiles(e.clipboardData)
+        if (images.length > 0) {
+          e.preventDefault()
+          void insertImages(images, imageCtx)
+          return
+        }
+      }
       e.preventDefault()
       const data = e.clipboardData
       // text/plain, else a uri-list (file managers): one URI per line, `#`
@@ -745,6 +795,14 @@ export function createEditorLifecycle(
 
       beginMovePage(): void {
         render.openMoveField()
+      },
+
+      async insertImages(files: readonly File[]): Promise<void> {
+        if (!imageCtx) {
+          notifications.notify({ message: 'Image upload is not available', type: 'error' })
+          return
+        }
+        await insertImages(files, imageCtx)
       },
     }
   }

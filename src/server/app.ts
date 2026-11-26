@@ -218,6 +218,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     media: mediaRepo,
     settings: settingsService,
     iconsDir: iconsMounted ? iconsDir : null,
+    photoMaxBytes: deps.config.env.PHOTO_MAX_BYTES,
   })
   await registerPwaRoutes(app, { settings: settingsService })
 

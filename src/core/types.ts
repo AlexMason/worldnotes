@@ -153,6 +153,14 @@ export type PageMoveResult =
   | { ok: true; moved: { from: string; to: string }[]; rewritten: string[] }
   | { ok: false; error: string }
 
+/**
+ * Optional transport for photos the user pastes, drops or picks. Receives the
+ * raw file; the implementation (client: convert to PNG + POST) returns the
+ * stored image's URL. Rejects with an `Error` whose message is shown to the
+ * user. Without one the editor offers no image upload.
+ */
+export type ImageUploader = (file: File) => Promise<{ url: string }>
+
 // ─── Page Existence ──────────────────────────────────────────────────────────
 
 /**
@@ -372,6 +380,13 @@ export type PluginManifest = ContentPlugin | UIPlugin
  */
 export interface EditorOptions {
   pageStore?: PageStore
+  /**
+   * Photo upload transport. When present, pasting/dropping image files into
+   * the editor (and the toolbar's Image button) uploads them through this and
+   * inserts `![name](url)` at the caret. Omitted = paste/drop behave as plain
+   * text editing and no image affordance is offered. See {@link ImageUploader}.
+   */
+  imageUploader?: ImageUploader
   initialPage?: string
   /**
    * Raw markdown for the initial page, already known to the client (SSR-embedded
@@ -558,4 +573,10 @@ export interface EditorInstance {
    * active crumb opens). No-op when the page store cannot move pages.
    */
   beginMovePage(): void
+  /**
+   * Upload `files` (images) through the configured `imageUploader` and insert
+   * each as `![name](url)` at the caret. Same path as paste/drop. Shows an
+   * error toast and does nothing when no uploader is configured.
+   */
+  insertImages(files: readonly File[]): Promise<void>
 }

@@ -8,7 +8,14 @@ import { dirname, resolve } from 'node:path'
 import { createPool } from '../db/pool'
 import { createPgMediaRepository } from '../db/media-pg'
 import { migrateWithRetry } from './helpers/migrate'
-import { pngBytes, GIF_BYTES, ICO_BYTES } from './helpers/media-fixtures'
+import {
+  pngBytes,
+  buildPng,
+  pngChunk,
+  ihdrData,
+  GIF_BYTES,
+  ICO_BYTES,
+} from './helpers/media-fixtures'
 
 const url = process.env.WN_TEST_PG_URL
 const here = dirname(fileURLToPath(import.meta.url))
@@ -73,6 +80,23 @@ describe.skipIf(!url)('MediaRepository on Postgres', () => {
     const gif = await repo.insert({ mediaType: 'image/gif', width: 1, height: 1, data: GIF_BYTES })
     expect((await repo.get(ico.id))!.mediaType).toBe('image/vnd.microsoft.icon')
     expect((await repo.get(gif.id))!.mediaType).toBe('image/gif')
+  })
+
+  it('round-trips a multi-MB PNG blob byte-for-byte', async () => {
+    const big = buildPng([
+      pngChunk('IHDR', ihdrData(2048, 2048)),
+      pngChunk('IDAT', Buffer.alloc(6 * 1024 * 1024, 0xab)),
+      pngChunk('IEND', Buffer.alloc(0)),
+    ])
+    const { id } = await repo.insert({
+      mediaType: 'image/png',
+      width: 2048,
+      height: 2048,
+      data: big,
+    })
+    const row = await repo.get(id)
+    expect(row!.sizeBytes).toBe(big.byteLength)
+    expect(Buffer.compare(row!.data, big)).toBe(0)
   })
 
   it('delete removes rows and reports misses', async () => {

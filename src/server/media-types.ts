@@ -8,8 +8,9 @@
 
 import type { StoredMediaType } from './db/media-repository'
 
-/** Hard ceiling per side and total pixels; 8192² ≈ 67 MP headroom for the
- *  future editor-image iteration while still rejecting any bomb. */
+/** Hard ceiling per side and total pixels for POST /api/media (as-received
+ *  uploads such as favicons). Editor photos are held to the much smaller
+ *  PHOTO_MAX_SIDE (src/shared/media-policy.ts) by png-sanitize.ts. */
 export const MAX_MEDIA_SIDE = 8192
 export const MAX_MEDIA_PIXELS = 40_000_000
 
