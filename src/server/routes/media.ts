@@ -1,12 +1,14 @@
 // ─── Media upload & serving ──────────────────────────────────────────────────
-// POST /api/media stores uploaded images (favicon overrides today; editor-
-// inserted images are the planned next consumer). Rows are immutable and
-// addressed by id — /media/{id} is cacheable forever; replacing an image is
-// a new upload. The two blind-request routes (/favicon.ico,
-// /apple-touch-icon.png) resolve the current favicon at request time:
-// override row when set and healthy, bundled file from disk otherwise
-// (deliberately not reply.sendFile: that decorator only exists when the
-// /assets/ static mount registered, and tests run without a built bundle).
+// POST /api/media stores uploaded images as received (favicon overrides);
+// POST /api/media/photos stores editor photos: the browser has already
+// downscaled and converted them to PNG, and the server structurally validates
+// and metadata-strips that PNG (png-sanitize.ts) instead of trusting it. Rows
+// are immutable and addressed by id — /media/{id} is cacheable forever;
+// replacing an image is a new upload. The two blind-request routes
+// (/favicon.ico, /apple-touch-icon.png) resolve the current favicon at
+// request time: override row when set and healthy, bundled file from disk
+// otherwise (deliberately not reply.sendFile: that decorator only exists when
+// the /assets/ static mount registered, and tests run without a built bundle).
 
 import { readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
@@ -17,6 +19,8 @@ import { cacheControlFor, requireLoginJson } from '../auth/login-gate'
 import type { MediaRepository } from '../db/media-repository'
 import type { SettingsService } from '../settings'
 import { probeMedia } from '../media-types'
+import { sanitizePng } from '../png-sanitize'
+import { PHOTO_MAX_SIDE } from '../../shared/media-policy'
 
 export interface MediaDeps {
   media: MediaRepository
@@ -62,7 +66,7 @@ function sendBytes(
 }
 
 export async function registerMediaRoutes(app: FastifyInstance, deps: MediaDeps): Promise<void> {
-  const { media, settings, iconsDir } = deps
+  const { media, settings, iconsDir, photoMaxBytes } = deps
   const {
     RequestFileTooLargeError,
     FilesLimitError,
@@ -174,6 +178,50 @@ export async function registerMediaRoutes(app: FastifyInstance, deps: MediaDeps)
         sizeBytes: buf.byteLength,
         width: probed.media.width,
         height: probed.media.height,
+      })
+    },
+  )
+
+  // ── Photo upload: PNG only, sanitized, capped by PHOTO_MAX_BYTES ─────────
+  // Same guards as /api/media (auth + same-origin run at onRequest, before
+  // the multipart parser). The size ceiling is per request, so the favicon
+  // route keeps its 2 MiB cap.
+
+  app.post(
+    '/api/media/photos',
+    { onRequest: [requireSameOrigin, requireRole('editor', 'admin')] },
+    async (req, reply) => {
+      const buf = await readUpload(req, reply, photoMaxBytes)
+      if (!buf) return reply
+
+      const sanitized = sanitizePng(buf)
+      if (!sanitized.ok) {
+        switch (sanitized.reason) {
+          case 'not-png':
+            return reply.code(415).send({ error: 'expected a PNG image' })
+          case 'over-dimension':
+            return reply
+              .code(422)
+              .send({ error: `image is larger than ${PHOTO_MAX_SIDE} px on a side` })
+          case 'invalid-png':
+            return reply.code(422).send({ error: 'invalid PNG' })
+        }
+      }
+
+      const { id } = await media.insert({
+        mediaType: 'image/png',
+        width: sanitized.width,
+        height: sanitized.height,
+        data: sanitized.png,
+        by: req.user?.sub ?? null,
+      })
+      return reply.code(201).send({
+        id,
+        url: `/media/${id}`,
+        mediaType: 'image/png',
+        sizeBytes: sanitized.png.byteLength,
+        width: sanitized.width,
+        height: sanitized.height,
       })
     },
   )
