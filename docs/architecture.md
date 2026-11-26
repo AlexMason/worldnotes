@@ -330,6 +330,27 @@ chunks (EXIF/text/animation chunks and trailing bytes never reach
 Postgres). There is no server-side image decoding and no native
 dependency.
 
+**Animated GIFs stay GIFs.** `preparePhoto` (`client/photo-convert.ts`) sends
+a GIF with more than one frame byte-for-byte (frame count from the shared,
+DOM-free `shared/gif.ts`); a single-frame GIF converts to PNG like any photo,
+and an animated GIF over 2048 px falls back to a still PNG with a warning
+toast (frames cannot be downscaled without an encoder). The server
+(`POST /api/media/photos` dispatches on magic bytes) validates GIFs with the
+same `shared/gif.ts` walker — no LZW decoding — and rewrites them keeping only
+graphic-control/loop/image blocks, with caps on dimensions, frame count and
+frames × width × height; they are stored as `image/gif`. A browser's "Copy
+image" puts only a still PNG on the clipboard plus the source URL in
+`text/html`, so when that HTML names an absolute `https:` `.gif`
+(`gifUrlFromClipboardHtml`) and the host supplied
+`EditorOptions.imageFetcher` (`client/media-fetch.ts`), `insertImages`
+fetches the original instead of uploading the still. The fetch is bare (CORS
+mode, `credentials: 'omit'`, no referrer, 15 s timeout, GIF magic bytes
+required, 64 MiB cap); if it fails the user gets an error and nothing is
+inserted. The server never fetches URLs (no SSRF surface); the cost is that
+the GIF's host sees the editor's IP once, as when viewing the page that hosted
+it, and hosts without CORS headers cannot be fetched (save the file and drop
+it in).
+
 **Extension seam for other attachment types (not built).** `media` is a
 generic `(media_type, bytes)` store and `GET /media/{id}` serves whatever
 type is stored. A new type (PDF, BMP, …) adds a migration widening the

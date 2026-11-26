@@ -7,11 +7,13 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
 import { createEditor } from '../editor'
 import { createMemoryPageStore } from '../memory-page-store'
 import { setSelectionOffsets } from '../caret-offset'
-import type { ImageUploader } from '../types'
+import type { ImageFetcher, ImageUploader } from '../types'
 
 const png = (name = 'shot.png') => new File(['x'], name, { type: 'image/png' })
 
-async function mount(opts: { content?: string; uploader?: ImageUploader | null } = {}) {
+async function mount(
+  opts: { content?: string; uploader?: ImageUploader | null; fetcher?: ImageFetcher } = {},
+) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const store = createMemoryPageStore({ home: opts.content ?? 'hello world', other: 'elsewhere' })
@@ -23,6 +25,7 @@ async function mount(opts: { content?: string; uploader?: ImageUploader | null }
     saveDebounceMs: 20,
     initialPage: 'home',
     imageUploader: uploader,
+    imageFetcher: opts.fetcher,
   }).mount()
   const editorDiv = container.querySelector('.wn-editor') as HTMLElement
   return { instance, editorDiv, uploader, save }
@@ -279,5 +282,81 @@ describe('instance.insertImages (picker path)', () => {
     await instance.insertImages([png()])
     expect(toasts()).toContain('Image upload is not available')
     expect(instance.getContent()).toBe('hello world')
+  })
+})
+
+describe('Copy image of a GIF (original behind the clipboard still)', () => {
+  const GIF_URL = 'https://media.giphy.com/media/abc/giphy.gif?cid=1'
+  const COPY_IMAGE_HTML = `<meta charset='utf-8'><img src="${GIF_URL}">`
+  const copyImage = (el: HTMLElement, files: File[] = [png('image.png')]) =>
+    pasteFiles(el, files, ['text/html', 'Files'], { 'text/html': COPY_IMAGE_HTML })
+  const gif = new File(['GIF89a'], 'giphy.gif', { type: 'image/gif' })
+
+  it('uploads the fetched animated original instead of the clipboard still', async () => {
+    const fetcher = vi.fn<ImageFetcher>(async () => gif)
+    const uploader = vi.fn(async () => ({ url: '/media/9' }))
+    const { instance, editorDiv } = await mount({ fetcher, uploader })
+    setSelectionOffsets(editorDiv, 5, 5)
+    copyImage(editorDiv)
+    await vi.waitFor(() => expect(instance.getContent()).toBe('hello![giphy](/media/9) world'))
+    expect(fetcher).toHaveBeenCalledWith(GIF_URL)
+    expect(uploader).toHaveBeenCalledTimes(1)
+    expect(uploader).toHaveBeenCalledWith(gif)
+  })
+
+  it('works when the clipboard has the URL but no still at all', async () => {
+    const fetcher = vi.fn<ImageFetcher>(async () => gif)
+    const { instance, editorDiv } = await mount({ fetcher })
+    setSelectionOffsets(editorDiv, 0, 0)
+    const event = copyImage(editorDiv, [])
+    expect(event.defaultPrevented).toBe(true)
+    await vi.waitFor(() => expect(instance.getContent()).toBe('![giphy](/media/9)hello world'))
+  })
+
+  it('shows the fetcher error and inserts nothing (no silent still)', async () => {
+    const fetcher: ImageFetcher = async () => {
+      throw new Error("Couldn't fetch the original GIF (the site may block it).")
+    }
+    const { instance, editorDiv, uploader } = await mount({ fetcher })
+    setSelectionOffsets(editorDiv, 5, 5)
+    copyImage(editorDiv)
+    await vi.waitFor(() =>
+      expect(toasts()).toContain("Couldn't fetch the original GIF (the site may block it)."),
+    )
+    expect(uploader).not.toHaveBeenCalled()
+    expect(instance.getContent()).toBe('hello world')
+    await vi.waitFor(() => expect(toasts().some((t) => t?.startsWith('Fetching'))).toBe(false))
+  })
+
+  it('uploads the clipboard still as before when no fetcher is configured', async () => {
+    const { instance, editorDiv, uploader } = await mount()
+    setSelectionOffsets(editorDiv, 5, 5)
+    copyImage(editorDiv)
+    await vi.waitFor(() => expect(instance.getContent()).toBe('hello![photo](/media/9) world'))
+    expect(uploader).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves a Word/Excel-style paste (plain + html + image) to the text path, fetching nothing', async () => {
+    const fetcher = vi.fn<ImageFetcher>(async () => gif)
+    const { instance, editorDiv, uploader } = await mount({ fetcher })
+    setSelectionOffsets(editorDiv, 5, 5)
+    pasteFiles(editorDiv, [png()], ['text/plain', 'text/html', 'Files'], {
+      'text/plain': ' TEXT',
+      'text/html': COPY_IMAGE_HTML,
+    })
+    expect(instance.getContent()).toBe('hello TEXT world')
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(uploader).not.toHaveBeenCalled()
+  })
+
+  it('does not fetch for a non-GIF source: the still is uploaded', async () => {
+    const fetcher = vi.fn<ImageFetcher>(async () => gif)
+    const { instance, editorDiv } = await mount({ fetcher })
+    setSelectionOffsets(editorDiv, 5, 5)
+    pasteFiles(editorDiv, [png('image.png')], ['text/html', 'Files'], {
+      'text/html': '<img src="https://example.com/photo.png">',
+    })
+    await vi.waitFor(() => expect(instance.getContent()).toBe('hello![photo](/media/9) world'))
+    expect(fetcher).not.toHaveBeenCalled()
   })
 })

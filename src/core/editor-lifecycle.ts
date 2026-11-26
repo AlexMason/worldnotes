@@ -16,7 +16,7 @@ import { getSelectionOffsets } from './caret-offset'
 import { createEditingKeymap } from './editor-keymap'
 import { commitModelEdit, replaceSelection, type ModelCommitDeps } from './editor-commit'
 import {
-  clipboardImageFiles,
+  clipboardImages,
   insertImages,
   isImageFile,
   placeCaretAtPoint,
@@ -226,6 +226,7 @@ export function createEditorLifecycle(
     const imageCtx: ImageInsertContext | null = options.imageUploader
       ? {
           upload: options.imageUploader,
+          fetchOriginal: options.imageFetcher,
           commit: commitDeps,
           notify: (opts) => notifications.notify(opts),
           dismiss: (id) => notifications.dismiss(id),
@@ -396,7 +397,7 @@ export function createEditorLifecycle(
 
     dom.editorDiv.addEventListener('paste', (e: ClipboardEvent) => {
       if (imageCtx) {
-        const images = clipboardImageFiles(e.clipboardData)
+        const images = clipboardImages(e.clipboardData, !!imageCtx.fetchOriginal)
         if (images.length > 0) {
           e.preventDefault()
           void insertImages(images, imageCtx)

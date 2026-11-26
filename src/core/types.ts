@@ -163,6 +163,16 @@ export type PageMoveResult =
  */
 export type ImageUploader = (file: File) => Promise<{ url: string; notice?: string }>
 
+/**
+ * Optional retriever for the ORIGINAL behind a pasted image: a browser's
+ * "Copy image" puts only a still PNG on the clipboard plus the source URL in
+ * `text/html`, so an animated GIF's frames are never on the clipboard. Given
+ * that URL the host returns the original `File`, or rejects with an `Error`
+ * whose message is shown to the user (the paste then inserts nothing). Without
+ * one the pasted still is uploaded as is.
+ */
+export type ImageFetcher = (url: string) => Promise<File>
+
 // ─── Page Existence ──────────────────────────────────────────────────────────
 
 /**
@@ -389,6 +399,11 @@ export interface EditorOptions {
    * text editing and no image affordance is offered. See {@link ImageUploader}.
    */
   imageUploader?: ImageUploader
+  /**
+   * Original-image retriever for "Copy image" pastes (see {@link ImageFetcher}).
+   * Only consulted when `imageUploader` is also set.
+   */
+  imageFetcher?: ImageFetcher
   initialPage?: string
   /**
    * Raw markdown for the initial page, already known to the client (SSR-embedded
