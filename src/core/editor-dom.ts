@@ -495,6 +495,7 @@ const EDITOR_CHROME_CSS = `
   .wn-link-field { flex-wrap: wrap; row-gap: 4px; }
   .wn-link-field-input { flex: 1 1 10ch; }
   .wn-link-field-msg { flex: 1 1 100%; white-space: normal; overflow: visible; }
+  .wn-link-field-msg:empty { display: none; }
   .wn-link-field-btn { min-width: var(--wn-touch-target, 44px); height: var(--wn-touch-target, 44px); }
   .wn-editor-wrap { padding: 1.2rem .9rem 4rem; }
   .wn-body { flex-direction: column; }

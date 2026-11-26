@@ -2,10 +2,13 @@
 // What the Link button and Ctrl+K open: a single input that takes a page name
 // OR a URL (classified by link-input.ts, with a live "Wiki link → /a/b" /
 // "URL" hint), plus an ARIA combobox of matching page names for wiki targets.
-// Modeled on page-move-field.ts: Enter applies, Escape cancels, leaving the
-// field cancels, errors stay inline and nothing is written until the input is
-// valid. The field owns only its DOM and the typing/suggestion UX — the
-// selection capture and the actual edit live in editor-link.ts.
+// Modeled on page-move-field.ts: the form's `submit` applies (desktop Enter,
+// a soft keyboard's Go key and the Link button all arrive there), Escape or
+// the ✕ button cancels, errors stay inline and nothing is written until the
+// input is valid. Focus leaving the field cancels it on fine-pointer devices
+// only — on touch the soft keyboard closing must not abandon it. The field
+// owns only its DOM and the typing/suggestion UX; the selection capture and
+// the actual edit live in editor-link.ts.
 
 import type { PageSuggestion } from './types'
 import {
@@ -153,6 +156,11 @@ function createSuggestionSearch(
   }
 }
 
+/** Touch-primary device: the soft keyboard closing must not cancel the field. */
+function isCoarsePointer(): boolean {
+  return window.matchMedia?.('(pointer: coarse)').matches === true
+}
+
 export function openLinkField(host: HTMLElement, options: LinkFieldOptions): LinkField {
   const id = `wn-link-field-${++fieldCounter}`
 
@@ -260,25 +268,28 @@ export function openLinkField(host: HTMLElement, options: LinkFieldOptions): Lin
     else commit(result)
   })
   input.addEventListener('input', refresh)
+  // Escape works from any control in the field (Tab can land on the buttons).
+  field.addEventListener('keydown', (e) => {
+    // Escape during IME composition belongs to the IME, not to us.
+    if (e.isComposing || e.key !== 'Escape') return
+    e.preventDefault()
+    e.stopPropagation()
+    finish('cancel')
+  })
   input.addEventListener('keydown', (e) => {
-    // Escape/arrows during IME composition belong to the IME, not to us.
     if (e.isComposing) return
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      e.stopPropagation()
-      finish('cancel')
-    } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && list.hasItems()) {
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && list.hasItems()) {
       e.preventDefault()
       list.move(e.key === 'ArrowDown' ? 1 : -1)
     }
   })
-  input.addEventListener('blur', (e) => {
-    // Focus moving to our own controls is not leaving. On touch devices the
-    // soft keyboard dismissing (or a suggestion tap) also blurs the input;
+  field.addEventListener('focusout', (e) => {
+    // Focus moving between our own controls is not leaving. On touch devices
+    // the soft keyboard dismissing (or a suggestion tap) also blurs the input;
     // there the field closes only via Link, ✕, Escape or a page change.
     const next = e.relatedTarget as Element | null
     if (next?.closest?.('.wn-link-field')) return // only one field exists at a time
-    if (window.matchMedia?.('(pointer: coarse)').matches === true) return
+    if (isCoarsePointer()) return
     finish('blur')
   })
 

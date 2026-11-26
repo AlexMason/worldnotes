@@ -55,6 +55,19 @@ export interface EditorToolbar {
   destroy(): void
 }
 
+/** The editor selection a button press started on. */
+interface SelectionSnapshot {
+  page: string
+  start: number
+  end: number
+  text: string
+}
+
+/** A press with no click or cancel is abandoned after this long (finger slid off, a very long press). */
+const PRESS_MAX_MS = 5000
+/** After pointerup the click follows within a frame or two; if it doesn't, stop waiting. */
+const RELEASE_GRACE_MS = 300
+
 /** `action` doubles as the ActiveFormats key: a button is pressed when the
  *  selection sits in the format it applies. */
 interface ButtonSpec {
@@ -123,20 +136,18 @@ export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
     if (e.target instanceof Element && e.target.closest('button')) e.preventDefault()
   })
 
-  /** A press in progress: undefined = none; null = pressing, nothing to restore. */
-  interface Press {
-    page: string
-    start: number
-    end: number
-    text: string
-  }
-  let press: Press | null | undefined
+  /** The press in progress, or null. `snapshot` is null when the press began
+   *  without a usable editor selection (nothing to restore). */
+  let press: { snapshot: SelectionSnapshot | null } | null = null
   let pressTimer: ReturnType<typeof setTimeout> | undefined
-  const PRESS_TIMEOUT_MS = 1000
 
   const endPress = (): void => {
-    press = undefined
+    press = null
     clearTimeout(pressTimer)
+  }
+  const abandonPress = (): void => {
+    endPress()
+    refresh()
   }
 
   group.addEventListener(
@@ -145,26 +156,27 @@ export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
       if (!(e.target instanceof Element) || !e.target.closest('button')) return
       const page = deps.getCurrentPage()
       const sel = deps.pageExists(page) ? getSelectionOffsets(deps.editorEl) : null
-      press = sel ? { page, ...sel, text: deps.getPageText(page) } : null
-      // A press that never produces a click (finger slides off) must not freeze the state.
+      press = { snapshot: sel ? { page, ...sel, text: deps.getPageText(page) } : null }
       clearTimeout(pressTimer)
-      pressTimer = setTimeout(() => {
-        endPress()
-        refresh()
-      }, PRESS_TIMEOUT_MS)
+      pressTimer = setTimeout(abandonPress, PRESS_MAX_MS)
     },
     true,
   )
-  // A scroll/drag took over the gesture: no click will follow.
-  group.addEventListener('pointercancel', () => {
-    endPress()
-    refresh()
+  // The click follows the release at once; do not wait for it forever (a release off the button).
+  group.addEventListener('pointerup', () => {
+    if (!press) return
+    clearTimeout(pressTimer)
+    pressTimer = setTimeout(abandonPress, RELEASE_GRACE_MS)
   })
+  // A scroll/drag took over the gesture: no click will follow.
+  group.addEventListener('pointercancel', abandonPress)
+  // Keyboard activation never involved a pointer: the editor kept its selection.
+  group.addEventListener('keydown', endPress)
 
   group.addEventListener('click', (e) => {
     const button = e.target instanceof Element ? e.target.closest('button') : null
     const action = button?.dataset.action as ButtonSpec['action'] | undefined
-    const snapshot = press
+    const snapshot = press?.snapshot ?? null
     endPress()
     if (!button || button.disabled || !action) return
     if (document.activeElement !== deps.editorEl) deps.editorEl.focus({ preventScroll: true })
@@ -176,7 +188,7 @@ export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
   })
 
   /** Put the pointerdown selection back if the touch browser dropped it. */
-  function restoreSelection(snapshot: Press): void {
+  function restoreSelection(snapshot: SelectionSnapshot): void {
     const live = getSelectionOffsets(deps.editorEl)
     if (live && live.start === snapshot.start && live.end === snapshot.end) return
     if (deps.getCurrentPage() !== snapshot.page) return
@@ -185,10 +197,10 @@ export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
   }
 
   // What the last refresh read; an identical read cannot change the buttons.
-  let seen: { page: string; start: number; end: number; text: string } | null = null
+  let seen: SelectionSnapshot | null = null
 
   function refresh(): void {
-    if (press !== undefined) return // frozen: a finger is on a button
+    if (press) return // frozen: a finger is on a button
     const page = deps.getCurrentPage()
     const sel = deps.pageExists(page) ? getSelectionOffsets(deps.editorEl) : null
     const usable = sel !== null && !selectionInBlock(deps.editorEl)

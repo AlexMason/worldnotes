@@ -50,6 +50,13 @@ function submit(input: HTMLInputElement): void {
   input.form!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
 }
 
+/** Focus leaving `from` for `to` (null = nowhere, e.g. the soft keyboard closing). */
+function focusOut(from: HTMLElement, to: HTMLElement | null = null): void {
+  const event = new FocusEvent('focusout', { bubbles: true })
+  Object.defineProperty(event, 'relatedTarget', { value: to })
+  from.dispatchEvent(event)
+}
+
 function type(input: HTMLInputElement, value: string): void {
   input.value = value
   input.dispatchEvent(new Event('input', { bubbles: true }))
@@ -146,13 +153,35 @@ describe('link field', () => {
     expect(getSelectionOffsets(t.editorDiv)).toEqual({ start: 0, end: 5 })
   })
 
-  it('leaving the field cancels it', async () => {
+  it('on a fine pointer, focus leaving the field cancels it', async () => {
     const t = await mount(DOC)
     await select(t.editorDiv, 0, 5)
     key(t.editorDiv, { key: 'k', ctrlKey: true })
-    t.input().dispatchEvent(new FocusEvent('blur'))
+    focusOut(t.input())
     expect(t.field()).toBeNull()
     expect(t.instance.getContent()).toBe(DOC)
+  })
+
+  it('Tab onto the field’s buttons keeps it open; Escape there still cancels', async () => {
+    const t = await mount(DOC)
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    const submitButton = t.container.querySelector('.wn-link-field-submit') as HTMLButtonElement
+    focusOut(t.input(), submitButton)
+    expect(t.field()).not.toBeNull()
+    const esc = key(submitButton, { key: 'Escape' })
+    expect(esc.defaultPrevented).toBe(true)
+    expect(t.field()).toBeNull()
+    expect(getSelectionOffsets(t.editorDiv)).toEqual({ start: 0, end: 5 })
+  })
+
+  it('Tab out of the field entirely (from a button) cancels it on a fine pointer', async () => {
+    const t = await mount(DOC)
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    const cancelButton = t.container.querySelector('.wn-link-field-cancel') as HTMLButtonElement
+    focusOut(cancelButton, t.editorDiv)
+    expect(t.field()).toBeNull()
   })
 
   it('inside an existing link it is prefilled and rewrites the target, keeping the text', async () => {
@@ -287,14 +316,12 @@ describe('link field', () => {
     }
   })
 
-  it('blur to one of the field’s own controls does not cancel it', async () => {
+  it('focus moving between the field’s own controls does not cancel it', async () => {
     const t = await mount(DOC)
     await select(t.editorDiv, 0, 5)
     key(t.editorDiv, { key: 'k', ctrlKey: true })
     const submitButton = t.container.querySelector('.wn-link-field-submit') as HTMLButtonElement
-    const blur = new FocusEvent('blur')
-    Object.defineProperty(blur, 'relatedTarget', { value: submitButton })
-    t.input().dispatchEvent(blur)
+    focusOut(t.input(), submitButton)
     expect(t.field()).not.toBeNull()
   })
 
@@ -307,7 +334,7 @@ describe('link field', () => {
       await select(t.editorDiv, 0, 5)
       key(t.editorDiv, { key: 'k', ctrlKey: true })
       type(t.input(), 'page')
-      t.input().dispatchEvent(new FocusEvent('blur'))
+      focusOut(t.input())
       expect(t.field()).not.toBeNull()
       submit(t.input()) // still completes afterwards
       expect(t.instance.getContent()).toBe('[[page|alpha]] one\nbeta two\ngamma three')

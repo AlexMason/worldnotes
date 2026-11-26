@@ -97,6 +97,29 @@ Suspected causes, ranked (all **[INFERENCE]** — the soft-keyboard behaviour ca
 
 - 2026-11-26 — `main` gained an **Image** toolbar button (#21) after the plan was written. It rides the same press path (snapshot, freeze, restore, then `fileInput.click()` inside the click handler, so the picker still has its user activation); no design change.
 - The branch was rebased onto `origin/main` (also picks up #25).
+- 2026-11-26 (review) — The press-state design changed from the plan's "`pointerup`/`pointercancel`/1 s timeout clear the press" to: freeze lasts until `click`, `pointercancel`, **300 ms after `pointerup`** if no click follows, or 5 s for a press never released; keyboard activation (`keydown` on the group) drops the snapshot. Reason: a 1 s expiry would drop the snapshot for a slow tap or long-press (review finding), and `pointerup` itself must not clear it because the `click` follows it.
+- Escape now listens on the whole form and focus-out replaces the input's `blur` (see Review): Tab can land on the new buttons.
+
 ## Review
 
 Mode: sub-agents
+
+Three fresh-context reviewers (conformance & correctness, quality, security & scalability).
+
+**Related — fixed:**
+
+- *major* (A, B, C): the new Link/✕ buttons are tab stops, but Escape and blur-cancel were wired to the input only: Tab onto a button left the field open (toolbar hidden) with Escape and click-away dead — a desktop regression of the plan's "desktop unchanged" non-goal. Escape is now handled on the form and `focusout` on the form replaces the input `blur` (ignoring focus moves between the field's own controls, and keeping the coarse-pointer exemption). Tests: Tab to a button then Escape; focus leaving from a button cancels on a fine pointer.
+- *minor* (A, B, C): the 1 s press expiry dropped the snapshot for a slow tap/long-press, and there was no `pointerup` handling (release-off-button kept the freeze up to 1 s). Redesigned as above; tests for long-press, release-without-click, safety timeout, keyboard activation, destroy mid-press.
+- *minor* (B): stale `link-field.ts` header comment; inline coarse-pointer check; press state machine (three-state variable, mid-function interface/constant). Header reworded, `isCoarsePointer()` extracted, `SelectionSnapshot` shared with `seen`, constants at module scope, single `press` object.
+- *minor* (B): theming table lacked the new button tokens and the mobile wrap. Added.
+- *minor* (A, B): test gaps — Image button through the press path, press with no selection, page changed between press and click, pointerdown on a non-button target, destroy mid-press, fine-pointer blur made explicit. Added.
+- *nit* (A): the always-present empty message span added a gap on narrow screens. `:empty { display: none }`.
+
+**Dismissed:**
+
+- *nit* (C, B): `submit` picks a highlighted suggestion before typed text, so tapping the Link button after an arrow-key highlight commits the suggestion. Same as Enter; the highlight only exists after an explicit ArrowUp/Down.
+- *nit* (B): the `enter()` test helper "just calls submit". It documents what a browser does (implicit submission); happy-dom has none.
+- *nit* (C): coarse-pointer devices never close the field on blur and a navigation without `selectionchange` leaves it open. Accepted in the plan; the submit-time stale check bounds it.
+- *nit* (B): a silently ignored restore (text/page changed) gives no feedback. Consistent with the stale-text policy elsewhere; the user's tap then acts on whatever is current.
+
+**Unrelated but important:** none found.
