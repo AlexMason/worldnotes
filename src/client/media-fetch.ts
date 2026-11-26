@@ -16,7 +16,15 @@ const FETCH_FAILED =
 const TOO_LARGE =
   'The original GIF is too large (64 MiB maximum). Save a smaller copy and drop it in.'
 
-class FetchRefusal extends Error {}
+/** A refusal with a user-presentable message and an optional log-only reason. */
+class FetchRefusal extends Error {
+  constructor(
+    message: string,
+    readonly reason?: string,
+  ) {
+    super(message)
+  }
+}
 
 export interface ImageFetcherDeps {
   fetchImpl?: typeof fetch
@@ -48,17 +56,26 @@ export function createImageFetcher(deps: ImageFetcherDeps = {}): ImageFetcher {
         referrerPolicy: 'no-referrer',
         signal: controller.signal,
       })
-      if (!res.ok) throw new FetchRefusal(FETCH_FAILED)
+      if (!res.ok) throw new FetchRefusal(FETCH_FAILED, `HTTP ${res.status}`)
       if (Number(res.headers.get('content-length')) > MAX_REMOTE_GIF_BYTES) {
         throw new FetchRefusal(TOO_LARGE)
       }
       const blob = await res.blob()
       if (blob.size > MAX_REMOTE_GIF_BYTES) throw new FetchRefusal(TOO_LARGE)
       const sig = new TextDecoder('latin1').decode(await blob.slice(0, 6).arrayBuffer())
-      if (sig !== 'GIF87a' && sig !== 'GIF89a') throw new FetchRefusal(FETCH_FAILED)
+      if (sig !== 'GIF87a' && sig !== 'GIF89a') {
+        throw new FetchRefusal(FETCH_FAILED, 'response is not a GIF')
+      }
       return new File([blob], nameFromUrl(url), { type: 'image/gif' })
     } catch (e) {
-      // Network/CORS/abort failures all look alike to the user.
+      // The user sees one message; the console keeps the cause (CORS blocks,
+      // timeouts and DNS failures are indistinguishable to fetch). Only the
+      // origin is logged: GIF URLs often carry tracking/session parameters.
+      console.warn(
+        'worldnotes: original GIF fetch failed',
+        new URL(url).origin,
+        e instanceof FetchRefusal ? (e.reason ?? e.message) : e,
+      )
       throw e instanceof FetchRefusal ? e : new Error(FETCH_FAILED)
     } finally {
       clearTimeout(timer)

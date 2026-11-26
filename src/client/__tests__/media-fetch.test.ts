@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest'
 import { FETCH_TIMEOUT_MS, MAX_REMOTE_GIF_BYTES, createImageFetcher } from '../media-fetch'
 
 const URL_OK = 'https://media.giphy.com/media/abc/giphy.gif?cid=1'
@@ -17,7 +17,15 @@ function fetcherFor(respond: (url: string, init: RequestInit) => Response | Prom
 
 const FAILED = /Couldn't fetch the original GIF/
 
-afterEach(() => vi.useRealTimers())
+// Failures are logged (console.warn); keep test output clean and inspectable.
+let warn: MockInstance
+beforeEach(() => {
+  warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+})
+afterEach(() => {
+  vi.useRealTimers()
+  warn.mockRestore()
+})
 
 describe('createImageFetcher', () => {
   it('returns the GIF as a File named from the URL path, forced to image/gif', async () => {
@@ -66,6 +74,25 @@ describe('createImageFetcher', () => {
       throw new TypeError('Failed to fetch')
     })
     await expect(fetch(URL_OK)).rejects.toThrow(/Save the file and drop it into the editor/)
+  })
+
+  it('logs the cause with the ORIGIN only (URLs often carry tracking parameters)', async () => {
+    const { fetch } = fetcherFor(() => new Response('nope', { status: 403 }))
+    await expect(fetch(URL_OK)).rejects.toThrow(FAILED)
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith(
+      'worldnotes: original GIF fetch failed',
+      'https://media.giphy.com',
+      'HTTP 403',
+    )
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('cid=1')
+
+    warn.mockClear()
+    const net = fetcherFor(() => {
+      throw new TypeError('Failed to fetch')
+    })
+    await expect(net.fetch(URL_OK)).rejects.toThrow(FAILED)
+    expect(warn.mock.calls[0][2]).toBeInstanceOf(TypeError)
   })
 
   it('rejects an oversized Content-Length before reading the body', async () => {
