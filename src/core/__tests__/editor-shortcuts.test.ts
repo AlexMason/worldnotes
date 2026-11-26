@@ -226,7 +226,7 @@ describe('Ctrl/Alt+arrows — word motion & selection', () => {
   })
 })
 
-describe('Ctrl+B / Ctrl+I / Ctrl+K — markdown wrapping', () => {
+describe('Ctrl+B / Ctrl+I — markdown wrapping', () => {
   it('wraps a selection and keeps the content selected', async () => {
     const { instance, editorDiv } = await mount({ home: DOC })
     select(editorDiv, 0, 5) // 'alpha'
@@ -252,16 +252,6 @@ describe('Ctrl+B / Ctrl+I / Ctrl+K — markdown wrapping', () => {
     key(editorDiv, { key: 'i', ctrlKey: true })
     expect(instance.getContent()).toBe('alpha **one\nbeta two\ngamma three')
     expect(getSelectionOffsets(editorDiv)).toEqual({ start: 7, end: 7 })
-  })
-
-  it('Ctrl+K creates a link with the URL slot selected', async () => {
-    const { instance, editorDiv } = await mount({ home: DOC })
-    select(editorDiv, 0, 5)
-    key(editorDiv, { key: 'k', ctrlKey: true })
-    const after = instance.getContent()
-    expect(after).toBe('[alpha]() one\nbeta two\ngamma three')
-    const sel = getSelectionOffsets(editorDiv)!
-    expect(sel).toEqual({ start: 8, end: 8 }) // just after the '('
   })
 
   it('formatting is a consumed no-op inside fenced code', async () => {
@@ -308,5 +298,37 @@ describe('autosave after shortcut ops', () => {
     await new Promise((r) => setTimeout(r, 60))
     expect(saves).toHaveLength(1)
     expect(saves[0]!.content).toContain('beta two\nbeta two')
+  })
+})
+
+describe('Ctrl+U — underline', () => {
+  it('wraps with <u>…</u>, keeps the content selected, second press unwraps', async () => {
+    const { instance, editorDiv } = await mount({ home: DOC })
+    select(editorDiv, 0, 5)
+    const e = key(editorDiv, { key: 'u', ctrlKey: true })
+    expect(e.defaultPrevented).toBe(true)
+    expect(instance.getContent()).toBe('<u>alpha</u> one\nbeta two\ngamma three')
+    const sel = getSelectionOffsets(editorDiv)!
+    expect(instance.getContent().slice(sel.start, sel.end)).toBe('alpha')
+
+    key(editorDiv, { key: 'u', ctrlKey: true })
+    expect(instance.getContent()).toBe(DOC)
+    expect(getSelectionOffsets(editorDiv)).toEqual({ start: 0, end: 5 })
+  })
+
+  it('is one undo step', async () => {
+    const { instance, editorDiv } = await mount({ home: DOC })
+    select(editorDiv, 0, 5)
+    key(editorDiv, { key: 'u', ctrlKey: true })
+    expect(instance.undo()).toBe(true)
+    expect(instance.getContent()).toBe(DOC)
+  })
+
+  it('is a consumed no-op inside fenced code', async () => {
+    const { instance, editorDiv } = await mount({ home: '```\ncode line here\n```' })
+    select(editorDiv, 10)
+    const e = key(editorDiv, { key: 'u', ctrlKey: true })
+    expect(e.defaultPrevented).toBe(true)
+    expect(instance.getContent()).toBe('```\ncode line here\n```')
   })
 })

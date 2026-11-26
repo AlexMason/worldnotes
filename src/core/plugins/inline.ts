@@ -6,10 +6,16 @@ import { escapeHTML } from '../escape'
  * Helper: wrap inner text with dimmed punctuation markers on either side.
  *
  * @param cls    - CSS class for the outer wrapper span
- * @param marker - The punctuation character(s) to show on each side
+ * @param marker - The punctuation character(s) shown before the text (and after it, unless `close` is given)
  * @param inner  - The text content between the markers
+ * @param close  - Closing marker when it differs from the opening one (`<u>` … `</u>`)
  */
-export function withPunct(cls: string, marker: string, inner: string): HTMLElement {
+export function withPunct(
+  cls: string,
+  marker: string,
+  inner: string,
+  close: string = marker,
+): HTMLElement {
   const wrap = document.createElement('span')
   wrap.className = cls
 
@@ -22,7 +28,7 @@ export function withPunct(cls: string, marker: string, inner: string): HTMLEleme
 
   wrap.appendChild(p(marker))
   wrap.appendChild(document.createTextNode(inner))
-  wrap.appendChild(p(marker))
+  wrap.appendChild(p(close))
   return wrap
 }
 

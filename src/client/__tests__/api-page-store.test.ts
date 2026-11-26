@@ -422,3 +422,32 @@ describe('createApiPageStore — move edge cases', () => {
     expect(onForbidden).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('createApiPageStore — suggest', () => {
+  beforeEach(() => vi.unstubAllGlobals())
+
+  it('asks for name-scoped matches and returns slug/title pairs', async () => {
+    const fn = stubFetch({
+      status: 200,
+      body: { pages: [{ slug: 'lore/old-gods', title: 'The Old Gods', updatedAt: 1 }] },
+    })
+    const store = createApiPageStore({ onConflict: vi.fn() })
+    await expect(store.suggest!('old gods', 8)).resolves.toEqual([
+      { slug: 'lore/old-gods', title: 'The Old Gods' },
+    ])
+    expect(recordedCalls(fn)[0]!.url).toBe('/api/pages?q=old+gods&scope=name&limit=8')
+  })
+
+  it('failures are just "no suggestions" — never thrown', async () => {
+    stubFetch({ status: 403, body: { error: 'login required' } })
+    const store = createApiPageStore({ onConflict: vi.fn() })
+    await expect(store.suggest!('x', 8)).resolves.toEqual([])
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('offline')
+      }),
+    )
+    await expect(store.suggest!('x', 8)).resolves.toEqual([])
+  })
+})

@@ -63,6 +63,26 @@ describe('pages API', () => {
       expect(hit.json().pages.map((p: { slug: string }) => p.slug)).toEqual(['two'])
     })
 
+    it('scope=name searches names only (not bodies); unknown scopes are 400', async () => {
+      await repo.put('lore/old-gods', { title: 'The Old Gods', content: 'plain' })
+      await repo.put('diary', { title: 'Diary', content: 'about the old gods' })
+
+      const all = await app.inject({ method: 'GET', url: '/api/pages?q=old%20gods' })
+      expect(all.json().pages).toHaveLength(2)
+      const named = await app.inject({ method: 'GET', url: '/api/pages?q=old%20gods&scope=name' })
+      expect(named.json().pages.map((p: { slug: string }) => p.slug)).toEqual(['lore/old-gods'])
+
+      const bad = await app.inject({ method: 'GET', url: '/api/pages?q=x&scope=content' })
+      expect(bad.statusCode).toBe(400)
+    })
+
+    it('scope=name responses are never cached (a typing aid must see new pages at once)', async () => {
+      const named = await app.inject({ method: 'GET', url: '/api/pages?q=x&scope=name' })
+      expect(named.headers['cache-control']).toBe('no-store')
+      const plain = await app.inject({ method: 'GET', url: '/api/pages?q=x' })
+      expect(plain.headers['cache-control']).not.toBe('no-store')
+    })
+
     it('fetches a page with an ETag', async () => {
       await repo.put('blog/post', { title: 'Post', content: 'hello' })
       const res = await app.inject({ method: 'GET', url: '/api/pages/blog/post' })

@@ -16,12 +16,16 @@ import { getSelectionOffsets } from './caret-offset'
 import { createEditingKeymap } from './editor-keymap'
 import { commitModelEdit, replaceSelection, type ModelCommitDeps } from './editor-commit'
 import { extractContentText } from './content-text'
+import { buildDocument } from './document'
 import { renderInlineContent } from './renderer'
 import type { NotificationSystem } from './notifications'
 import type { ToastOptions } from './types'
 import { syncLinkExistence } from './link-existence-sync'
 import { createPageMover } from './editor-page-move'
+import { createEditorToolbar } from './editor-toolbar'
+import { createLinkController } from './editor-link'
 import { classifyLinkTarget, isSafeHref } from '../shared/url-policy'
+import { wikiLinkBase } from '../shared/slug'
 
 export interface EditorLifecycleAPI {
   mount(): Promise<EditorInstance>
@@ -176,9 +180,50 @@ export function createEditorLifecycle(
       })
     }
 
-    // ── Editing keymap (line ops, word ops, formatting, Ctrl+S) ────────
+    // ── Link field, editing keymap, formatting toolbar ─────────────────
+    // Declared together, before any listener exists: the controller hides the
+    // toolbar's buttons while its field is open, the keymap and the toolbar
+    // both call the controller (Ctrl+K / Link button), and the toolbar's
+    // buttons run the keymap's format actions.
 
-    const keymap = createEditingKeymap({ ...commitDeps, saveNow: () => void saveNow() })
+    const tokenDefs = contentPlugins.flatMap((p) => p.tokens)
+    const blockLines = (text: string): ReadonlySet<number> => {
+      const lines = new Set<number>()
+      for (const block of buildDocument(text, contentPlugins).blocks) {
+        for (let i = block.startLine; i <= block.endLine; i++) lines.add(i)
+      }
+      return lines
+    }
+
+    const linkController = createLinkController({
+      ...commitDeps,
+      host: dom.toolbar,
+      defs: tokenDefs,
+      getLinkBase: () => wikiLinkBase(state.getCurrentPage(), options.homeSlug),
+      suggest: pageStore.suggest?.bind(pageStore),
+      onOpenChange: (open) => toolbar.setHidden(open),
+      onDropped: () =>
+        notifications.notify({ message: 'The page changed: link not added.', type: 'warning' }),
+    })
+
+    const keymap = createEditingKeymap({
+      ...commitDeps,
+      saveNow: () => void saveNow(),
+      blockLines,
+      openLink: () => linkController.open(),
+    })
+
+    const toolbar = createEditorToolbar({
+      host: dom.toolbar,
+      editorEl: dom.editorDiv,
+      defs: tokenDefs,
+      getCurrentPage: () => state.getCurrentPage(),
+      pageExists: (page) => buffers.hasPage(page),
+      getPageText: (page) => buffers.getPageText(page),
+      blockLines,
+      format: (action) => keymap.format(action),
+      openLink: () => linkController.open(),
+    })
 
     // ── Input handler ──────────────────────────────────────────────────────
 
@@ -594,6 +639,8 @@ export function createEditorLifecycle(
     return {
       destroy() {
         stopExistenceSync?.()
+        linkController.destroy()
+        toolbar.destroy()
         stopTitleSync?.()
         state.clearSaveTimer()
         notifications.destroy()

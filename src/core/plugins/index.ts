@@ -4,6 +4,7 @@ export { boldPlugin, italicPlugin, inlineCodePlugin, blockquotePlugin, hrPlugin 
 export { linkPlugin } from './link'
 export { imagePlugin } from './image'
 export { strikethroughPlugin } from './strikethrough'
+export { underlinePlugin } from './underline'
 export { listItemPlugin } from './listItem'
 export { codeBlockPlugin } from './codeBlock'
 export { tablePlugin } from './table'

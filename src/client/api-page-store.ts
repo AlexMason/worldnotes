@@ -6,7 +6,7 @@
 // saves and versions follow a page to its new address (a save to a former
 // slug is answered `409 {movedTo}` and retried there — never recreated).
 
-import type { PageMoveResult, PageStore } from '../core/types'
+import type { PageMoveResult, PageStore, PageSuggestion } from '../core/types'
 import { navTargetToSlug } from '../shared/slug'
 import { isBlankContent } from '../shared/content'
 
@@ -274,6 +274,21 @@ export function createApiPageStore(
     },
 
     canonicalOf: canonical,
+
+    // Link-field suggestions: pages NAMED like the query (`scope=name` — the
+    // default search also matches bodies). Best-effort: any failure is just
+    // "no suggestions", never an error toast for a typing aid.
+    async suggest(query, limit): Promise<PageSuggestion[]> {
+      try {
+        const params = new URLSearchParams({ q: query, scope: 'name', limit: String(limit) })
+        const res = await fetch(`/api/pages?${params}`)
+        if (!res.ok) return []
+        const body = (await res.json()) as { pages?: PageSuggestion[] }
+        return (body.pages ?? []).map(({ slug, title }) => ({ slug, title }))
+      } catch {
+        return []
+      }
+    },
 
     async load(rawPage) {
       const page = canonical(rawPage)

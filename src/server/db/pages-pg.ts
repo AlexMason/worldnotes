@@ -167,28 +167,23 @@ export function createPgPagesRepository(pool: SqlPool): PagesRepository {
 
     async list(opts = {}) {
       const limit = opts.limit ?? 500
+      const params: unknown[] = []
+      let where = ''
       if (opts.query) {
-        const pattern = `%${opts.query.replace(/[%_\\]/g, '\\$&')}%`
-        const res = await pool.query(
-          `SELECT slug, title, EXTRACT(EPOCH FROM updated_at) * 1000 AS updated_at_ms
-             FROM pages
-            WHERE slug ILIKE $1 OR title ILIKE $1 OR content ILIKE $1
-            ORDER BY updated_at DESC
-            LIMIT $2`,
-          [pattern, limit],
-        )
-        return res.rows.map(
-          (r: { slug: string; title: string; updated_at_ms: string | number }) => ({
-            slug: r.slug,
-            title: r.title,
-            updatedAt: Number(r.updated_at_ms),
-          }),
-        ) as PageListItem[]
+        // `scope: 'name'` leaves the body out: link suggestions want pages NAMED
+        // like the query, and body matches would crowd them out of the window.
+        const columns = opts.scope === 'name' ? ['slug', 'title'] : ['slug', 'title', 'content']
+        params.push(`%${opts.query.replace(/[%_\\]/g, '\\$&')}%`)
+        where = `WHERE ${columns.map((c) => `${c} ILIKE $1`).join(' OR ')}`
       }
+      params.push(limit)
       const res = await pool.query(
         `SELECT slug, title, EXTRACT(EPOCH FROM updated_at) * 1000 AS updated_at_ms
-           FROM pages ORDER BY updated_at DESC LIMIT $1`,
-        [limit],
+           FROM pages
+           ${where}
+          ORDER BY updated_at DESC
+          LIMIT $${params.length}`,
+        params,
       )
       return res.rows.map((r: { slug: string; title: string; updated_at_ms: string | number }) => ({
         slug: r.slug,

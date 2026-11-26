@@ -30,7 +30,8 @@ Cmd** throughout; Alt means **Alt/Option**.
 | --- | --- |
 | `Ctrl+B` | Toggle `**bold**` around the selection. Collapsed caret: inserts `****` with the caret between. Press again to unwrap |
 | `Ctrl+I` | Same for `*italic*` |
-| `Ctrl+K` | Wrap the selection as `[selection]()`, with the URL slot selected for type-over. An already-linked selection just gets its URL re-selected |
+| `Ctrl+U` | Same for `<u>underline</u>` (the exact `<u>…</u>` pair is grammar; other HTML stays literal text). Also stops the browser's native contenteditable underline and view-source chord |
+| `Ctrl+K` | Open the link field in the toolbar row (same as the toolbar **Link** button). Type a page name or a URL: URLs (a scheme, `www.`, or a dotted host like `example.com`) become `[selection](url)`, anything else a wiki link `[[page\|selection]]`; matching page names are suggested as you type (↑/↓ + Enter). Inside an existing link it edits that link's target and keeps its text. `Escape` or leaving the field cancels; invalid input (`javascript:` URLs, unfoldable page names, a multi-line selection) shows an inline error and writes nothing |
 
 Formatting chords are inert **inside fenced code and tables** (the key
 event is consumed, nothing changes) so markdown markers can never splice
@@ -78,7 +79,7 @@ precedent (not instrumented live — the hard list below is stable):
 | Chord | Status |
 | --- | --- |
 | `Ctrl+S` | Preventable in all major browsers ✓ |
-| `Ctrl+B` / `Ctrl+K` / `Ctrl+I` | Reach pages and `preventDefault` wins (Google Docs bold, GitHub command palette, MDN search all rely on this in Firefox AND Chrome). Chrome additionally toggles the bookmark bar with `Ctrl+B` only when focus is NOT in editable content |
+| `Ctrl+B` / `Ctrl+K` / `Ctrl+I` / `Ctrl+U` | Reach pages and `preventDefault` wins (Google Docs bold and underline, GitHub command palette, MDN search all rely on this in Firefox AND Chrome). `Ctrl+U` is also the browsers' view-source chord, and the native contenteditable underline: the editor consumes it. Chrome additionally toggles the bookmark bar with `Ctrl+B` only when focus is NOT in editable content |
 | `Ctrl+/` | Not browser-reserved ✓ |
 | `Alt+↑/↓` | Not browser-reserved in Firefox/Chrome ✓ |
 | `Alt+←/→` | Firefox/Chrome use Alt+←/→ for back/forward navigation; while focus is in the editor the page receives the event and `preventDefault` wins, so the alias only shadows navigation there. `Ctrl+←/→` stays the primary binding |
