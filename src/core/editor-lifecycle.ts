@@ -220,6 +220,18 @@ export function createEditorLifecycle(
       openLink: () => linkController.open(),
     })
 
+    // Photo upload context (paste/drop below, and the toolbar's Image
+    // button). Only built when the host supplied an uploader; without one
+    // every image handler falls through to the text behavior.
+    const imageCtx: ImageInsertContext | null = options.imageUploader
+      ? {
+          upload: options.imageUploader,
+          commit: commitDeps,
+          notify: (opts) => notifications.notify(opts),
+          dismiss: (id) => notifications.dismiss(id),
+        }
+      : null
+
     const toolbar = createEditorToolbar({
       host: dom.toolbar,
       editorEl: dom.editorDiv,
@@ -230,6 +242,7 @@ export function createEditorLifecycle(
       blockLines,
       format: (action) => keymap.format(action),
       openLink: () => linkController.open(),
+      insertImages: imageCtx ? (files) => insertImages(files, imageCtx) : undefined,
     })
 
     // ── Input handler ──────────────────────────────────────────────────────
@@ -360,17 +373,7 @@ export function createEditorLifecycle(
     })
 
     // ── Photos: paste / drop → upload → `![name](url)` ─────────────────
-    // Only wired when the host supplied an uploader; without one every
-    // handler below falls through to the text behavior.
-
-    const imageCtx: ImageInsertContext | null = options.imageUploader
-      ? {
-          upload: options.imageUploader,
-          commit: commitDeps,
-          notify: (opts) => notifications.notify(opts),
-          dismiss: (id) => notifications.dismiss(id),
-        }
-      : null
+    // (imageCtx is built above, next to the toolbar that shares it.)
 
     dom.editorDiv.addEventListener('dragover', (e: DragEvent) => {
       // A drop only fires when dragover is cancelled; files only (text drags

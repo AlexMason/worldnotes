@@ -157,7 +157,7 @@ export async function convertToPng(file: File, env?: ConvertEnv): Promise<Blob>
 - [x] 3. `POST /api/media/photos` route + tests (incl. pg bytea round-trip); `docs/api.md` (route, error table, `PHOTO_MAX_BYTES` in the env list); refresh the stale "editor images later" comments in `media.ts`/`media-types.ts`.
 - [x] 4. Client converter + uploader: `src/client/photo-convert.ts`, `src/client/media-upload.ts`, tests with stubbed browser APIs. Not wired yet.
 - [x] 5. Core insertion + wiring: `EditorOptions.imageUploader`, `src/core/editor-image.ts`, clipboard (Decision 10)/dragover/drop in `editor-lifecycle.ts`, `main.ts` passes `createMediaUploader()`; tests; `docs/architecture.md` (route in the diagram, module notes, Extension seam).
-- [ ] 6. Picker button (precondition: #20 merged, branch rebased onto `main`): `Image` button + hidden file input in `editor-toolbar.ts`, hidden when no uploader; tests; `docs/theming.md` only if a new class/token is introduced.
+- [x] 6. Picker button (precondition: #20 merged, branch rebased onto `main`): `Image` button + hidden file input in `editor-toolbar.ts`, hidden when no uploader; tests; `docs/theming.md` only if a new class/token is introduced.
 
 ## Risks & open questions
 
@@ -171,5 +171,7 @@ export async function convertToPng(file: File, env?: ConvertEnv): Promise<Blob>
 - *Accepted:* Step 6 is blocked on #20 merging; `editor-lifecycle.ts` will conflict-merge with #20's changes, resolved by rebasing before step 5 or step 6 (whichever comes after #20 lands).
 
 ## Implementation notes
+
+- 2026-11-26: #20 (toolbar) merged as `ac2c963` before step 6; the branch was rebased onto it. The only conflict was an import-list line in `src/core/index.ts` (kept both `PageSuggestion` and `ImageUploader`). Step 6 moved the `imageCtx` construction above the toolbar creation in `editor-lifecycle.ts` so the toolbar and the paste/drop handlers share it. The Image button is not a toggle, so it carries no `aria-pressed`; `docs/theming.md` only gained the `--image` modifier on `.wn-toolbar-btn`.
 
 ## Review
