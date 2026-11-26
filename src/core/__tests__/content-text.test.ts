@@ -160,7 +160,7 @@ describe('caret math through nested block wrappers', () => {
 
 describe('extractContentText round-trips the rendered corpus', () => {
   const CORPUS: string[] = [
-    '# Heading\n\ntext with **bold**, *it*, `code`, ~~struck~~',
+    '# Heading\n\ntext with **bold**, *it*, `code`, ~~struck~~, <u>under</u>',
     '- bullet\n  - nested\n1. ordered\niv. roman\n* plus? + star',
     '> quote [[Page]]\n\n---\n\nplain',
     'link [Example](https://x.test) mail [m](mailto:a@b.c)',

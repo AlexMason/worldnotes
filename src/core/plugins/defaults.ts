@@ -5,6 +5,7 @@ import { boldPlugin, italicPlugin, inlineCodePlugin, blockquotePlugin, hrPlugin 
 import { linkPlugin } from './link'
 import { imagePlugin } from './image'
 import { strikethroughPlugin } from './strikethrough'
+import { underlinePlugin } from './underline'
 import { listItemPlugin } from './listItem'
 import { codeBlockPlugin } from './codeBlock'
 import { tablePlugin } from './table'
@@ -32,6 +33,7 @@ export const defaultPlugins: ContentPlugin[] = [
   boldPlugin, // inline — ** before * to avoid partial match
   italicPlugin, // inline
   strikethroughPlugin, // inline — ~~text~~ (no conflict with * patterns)
+  underlinePlugin, // inline — <u>text</u>: exact tag pair only, never general HTML
   inlineCodePlugin, // inline
 ]
 

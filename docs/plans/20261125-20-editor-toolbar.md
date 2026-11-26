@@ -95,7 +95,7 @@ Collapsed caret + bold/italic/underline → empty marker pair with caret between
 
 ## Steps
 
-- [ ] 1. Underline grammar: `plugins/underline.ts` (+ `withPunct` asymmetric markers), defaults/exports, `.wn-underline` CSS, tests (plugins, static renderer, tokenizer, surface parity, content-text corpus), confirm the CM6 spike ignores the new token type; `docs/theming.md` class hook.
+- [x] 1. Underline grammar: `plugins/underline.ts` (+ `withPunct` asymmetric markers), defaults/exports, `.wn-underline` CSS, tests (plugins, static renderer, tokenizer, surface parity, content-text corpus), confirm the CM6 spike ignores the new token type; `docs/theming.md` class hook.
 - [ ] 2. Format ops + keymap: generalize `toggleWrap(open, close)`; add `toggleList` and `activeFormats`; `EditingKeymap.format()` + `blockLines` dep (wired in `editor-lifecycle.ts`); `Ctrl+U`; `SHORTCUT_BINDINGS` + `docs/shortcuts.md`; unit + `editor-shortcuts` tests.
 - [ ] 3. Link ops (pure): `src/core/link-input.ts` (`classifyLinkInput`, `suggestionTarget`, `findLinkAt`, `applyLink`) with full unit tests. No UI yet; `wrapLink` still serves `Ctrl+K`.
 - [ ] 4. Suggestions backend: `list({scope:'name'})` (pg + memory), `GET /api/pages?scope=name`, `PageStore.suggest?`, `ApiPageStore` + `MemoryPageStore` implementations; tests incl. pg integration; `docs/api.md`.

@@ -206,6 +206,7 @@ describe('DEFAULT_CSS (var(--wn-*) references)', () => {
     expect(text).toContain('.wn-hr')
     expect(text).toContain('.wn-wiki-link')
     expect(text).toContain('.wn-strikethrough')
+    expect(text).toContain('.wn-underline')
     expect(text).toContain('.wn-link')
     expect(text).toContain('.wn-header')
     expect(text).toContain('.wn-body')

@@ -25,7 +25,7 @@ const plugins: ContentPlugin[] = defaultPlugins
 const FIXTURE = [
   '# Heading one',
   '',
-  'Some **bold**, *italic*, ~~struck~~, and `code`.',
+  'Some **bold**, *italic*, ~~struck~~, <u>under</u>, and `code`.',
   '> a quoted **line**',
   '- plain item',
   '  - indented item with [[Some/Page]]',

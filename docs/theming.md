@@ -349,7 +349,7 @@ the stable hooks are the `.wn-*` classes:
 - **Article / editor content:** `.wn-article`, `.wn-editor`, `.wn-editor-col`,
   `.wn-editor-wrap`, `.wn-h1…h3`, `.wn-punct`, `.wn-bold`, `.wn-italic`,
   `.wn-inline-code`, `.wn-code-text`, `.wn-blockquote`, `.wn-list-item*`,
-  `.wn-hr`, `.wn-wiki-link`, `.wn-link`, `.wn-strikethrough`,
+  `.wn-hr`, `.wn-wiki-link`, `.wn-link`, `.wn-strikethrough`, `.wn-underline`,
   `.wn-code-block` / `.wn-code-fence` / `.wn-code-line`,
   `.wn-table` / `-row` / `-head` / `-sep` / `-cells` / `-cell` / `-edge`,
   `.wn-align-left|center|right`, `.wn-image` / `-img` / `-alt` / `-src`.

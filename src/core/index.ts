@@ -61,6 +61,7 @@ export {
   hrPlugin,
 } from './plugins/inline'
 export { strikethroughPlugin } from './plugins/strikethrough'
+export { underlinePlugin } from './plugins/underline'
 export { linkPlugin } from './plugins/link'
 export { imagePlugin } from './plugins/image'
 export { listItemPlugin } from './plugins/listItem'

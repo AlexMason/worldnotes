@@ -312,6 +312,9 @@ export const EDITOR_CONTENT_CSS = `
 /* Strikethrough */
 .wn-strikethrough { text-decoration: line-through; }
 
+/* Underline */
+.wn-underline { text-decoration: underline; }
+
 /* External link */
 .wn-link {
   color: var(--wn-color-link, #1a5fb4);
