@@ -159,6 +159,21 @@ export interface PageExistenceResolver {
   onChange(listener: () => void): () => void
 }
 
+/**
+ * Async source of stored page titles for breadcrumb crumbs of pages the
+ * editor has not loaded (ancestors). Loaded pages are named from their
+ * buffer. Same shape as {@link PageExistenceResolver}.
+ *
+ * @method title    - Cached title, or undefined while unknown (or missing page)
+ * @method request  - Ask for slugs' titles; idempotent, cheap to call on every repaint
+ * @method onChange - Subscribe to new answers; returns an unsubscribe function
+ */
+export interface PageTitleResolver {
+  title(slug: string): string | undefined
+  request(slugs: readonly string[]): void
+  onChange(listener: () => void): () => void
+}
+
 /** Existence lookup: `false` = missing, `true` = exists, `undefined` = unknown. */
 export type PageExists = (slug: string) => boolean | undefined
 
@@ -362,6 +377,12 @@ export interface EditorOptions {
    */
   pageExists?: PageExistenceResolver
   /**
+   * Source of stored titles for breadcrumb crumbs of pages not loaded in
+   * this editor. Optional: without it such crumbs show humanized slugs. See
+   * {@link PageTitleResolver}.
+   */
+  pageTitles?: PageTitleResolver
+  /**
    * The wiki's home page slug (server-configured), used as the breadcrumb
    * trail root. Defaults to 'home'. Navigation to any other page builds the
    * trail as [homeSlug, ...pathSegments] so the root crumb always points at
@@ -407,6 +428,12 @@ export interface EditorOptions {
    */
   themeAppend?: string
   onTrailChange?: (trail: string[]) => void
+  /**
+   * The current page's title (first H1, else humanized slug) changed — on
+   * mount, navigation, moves, and live as the H1 is edited. Fires after
+   * `onTrailChange`.
+   */
+  onTitleChange?: (title: string) => void
   onPageLoad?: (page: string, content: string) => void
   onSave?: (page: string, content: string) => void
   /**

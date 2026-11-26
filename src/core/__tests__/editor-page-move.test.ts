@@ -33,6 +33,7 @@ function setup(opts: {
     checkSelectChange: () => false,
     setMoveHandler: vi.fn(),
     openMoveField: vi.fn(),
+    refreshTitles: vi.fn(),
   }
   const notify = vi.fn(() => 'id')
   const notifications = {

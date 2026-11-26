@@ -8,6 +8,7 @@ import { buildApp } from './app'
 import { createRelyingParty, type OidcRelyingParty } from './auth/oidc'
 import { createPool } from './db/pool'
 import { runMigrations } from './db/migrate'
+import { backfillTitles } from './db/title-backfill'
 import { createPgPagesRepository } from './db/pages-pg'
 import { createPgSettingsRepository } from './db/settings-pg'
 import { createPgMediaRepository } from './db/media-pg'
@@ -23,6 +24,8 @@ async function main(): Promise<void> {
 
   const applied = await runMigrations(pool, migrationsDir)
   if (applied.length) console.warn(`applied migrations: ${applied.join(', ')}`)
+  const retitled = await backfillTitles(pool)
+  if (retitled) console.warn(`recomputed ${retitled} page title(s) from first H1`)
 
   let relyingParty: OidcRelyingParty | null = null
   if (!config.authDisabled && config.oidc) {

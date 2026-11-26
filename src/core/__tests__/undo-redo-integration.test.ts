@@ -115,6 +115,7 @@ function mockRender(state: EditorStateAPI, dom: EditorDOM): EditorRenderAPI {
     checkSelectChange: vi.fn(),
     setMoveHandler: vi.fn(),
     openMoveField: vi.fn(),
+    refreshTitles: vi.fn(),
   }
 }
 

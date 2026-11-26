@@ -28,6 +28,7 @@ export type {
   UIPlugin,
   PageStore,
   PageExistenceResolver,
+  PageTitleResolver,
   EditorContext,
   StaticRenderContext,
   EditorOptions,

@@ -586,12 +586,15 @@ export function createEditorLifecycle(
 
     const existence = options.pageExists
     const stopExistenceSync = existence?.onChange(() => syncLinkExistence(dom.editorDiv, existence))
+    // Crumb labels: repaint when stored-title answers arrive.
+    const stopTitleSync = options.pageTitles?.onChange(() => render.refreshTitles())
 
     // ── Public instance ────────────────────────────────────────────────────
 
     return {
       destroy() {
         stopExistenceSync?.()
+        stopTitleSync?.()
         state.clearSaveTimer()
         notifications.destroy()
         for (const plugin of contentPlugins) {

@@ -189,7 +189,7 @@ describe('SSR pages', () => {
   })
 
   it('serves the editor shell to authenticated users with branding title + config', async () => {
-    await repo.put('page2', { title: 'P', content: 'x' })
+    await repo.put('page2', { title: 'Second Page', content: '# Second Page' })
     await app.inject({
       method: 'PUT',
       url: '/api/settings',
@@ -197,7 +197,7 @@ describe('SSR pages', () => {
       payload: { siteName: 'Acme KB', headerHtml: '<b>hd</b>', footerHtml: '<i>ft</i>' },
     })
     const res = await app.inject({ method: 'GET', url: '/page2', headers: { cookie: auth } })
-    expect(res.body).toContain('<title>Page2 — Acme KB</title>')
+    expect(res.body).toContain('<title>Second Page — Acme KB</title>')
     // Bands are NOT server-rendered in the shell — they ride the embedded
     // config and the client inserts them around the content column
     // (reader-<main> parity inside the editor's scroll area).
@@ -217,6 +217,29 @@ describe('SSR pages', () => {
     expect(cfg.footerHtml).toBe('<i>ft</i>')
   })
 
+  it('editor shell embeds the stored titles of the page and its existing ancestors', async () => {
+    await repo.put('lore', { title: 'Lore of Ashfall', content: '# Lore of Ashfall' })
+    await repo.put('lore/gods/old', { title: 'Old Ones', content: '# Old Ones' })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/lore/gods/old',
+      headers: { cookie: auth },
+    })
+    expect(res.body).toContain('<title>Old Ones — WorldNotes</title>')
+    const embed = JSON.parse(
+      /<script id="wn-page" type="application\/json">(.+?)<\/script>/.exec(res.body)![1]!,
+    )
+    expect(embed.titles).toEqual({ lore: 'Lore of Ashfall', 'lore/gods/old': 'Old Ones' })
+
+    // A page that does not exist yet is named by its slug.
+    const fresh = await app.inject({
+      method: 'GET',
+      url: '/lore/new-thing',
+      headers: { cookie: auth },
+    })
+    expect(fresh.body).toContain('<title>New Thing — WorldNotes</title>')
+  })
+
   it('API writes invalidate the SSR cache for that slug and the index', async () => {
     await repo.put('fresh', { title: 'F', content: 'v1' })
     await app.inject({ method: 'GET', url: '/fresh' })
@@ -228,6 +251,73 @@ describe('SSR pages', () => {
     })
     const after = await app.inject({ method: 'GET', url: '/fresh' })
     expect(after.body).toContain('v2 edited')
+  })
+
+  it('labels breadcrumbs with each ancestor page title, else its humanized slug', async () => {
+    await repo.put('lore', { title: 'Lore of Ashfall', content: '# Lore of Ashfall' })
+    await repo.put('lore/gods/old-gods', { title: 'The Old Gods', content: '# The Old Gods' })
+    const res = await app.inject({ method: 'GET', url: '/lore/gods/old-gods' })
+    expect(res.body).toContain('<title>The Old Gods — WorldNotes</title>')
+    expect(res.body).toContain(
+      '<a href="/lore">Lore of Ashfall</a><span class="wn-crumb-sep" aria-hidden="true">/</span>' +
+        '<a href="/lore/gods">Gods</a><span class="wn-crumb-sep" aria-hidden="true">/</span>' +
+        '<span aria-current="page">The Old Gods</span>',
+    )
+
+    // The 404 trail names existing ancestors the same way.
+    const missing = await app.inject({ method: 'GET', url: '/lore/ghost-ship' })
+    expect(missing.statusCode).toBe(404)
+    expect(missing.body).toContain('<a href="/lore">Lore of Ashfall</a>')
+    expect(missing.body).toContain('<span aria-current="page">Ghost Ship</span>')
+  })
+
+  it('a parent retitle reaches a cached child breadcrumb and busts its ETag', async () => {
+    await repo.put('lore', { title: 'Lore of Ashfall', content: '# Lore of Ashfall' })
+    await repo.put('lore/kid', { title: 'Kid', content: '# Kid' })
+    const first = await app.inject({ method: 'GET', url: '/lore/kid' })
+    expect(first.body).toContain('<a href="/lore">Lore of Ashfall</a>')
+
+    const saved = await app.inject({
+      method: 'PUT',
+      url: '/api/pages/lore',
+      headers: { cookie: auth, 'if-match': '"1"' },
+      payload: { content: 'no heading any more' },
+    })
+    expect(saved.json().title).toBe('Lore')
+
+    const after = await app.inject({
+      method: 'GET',
+      url: '/lore/kid',
+      headers: { 'if-none-match': first.headers.etag as string },
+    })
+    expect(after.statusCode).toBe(200)
+    expect(after.body).toContain('<a href="/lore">Lore</a>')
+  })
+
+  it('a save that keeps the title leaves other cached pages alone', async () => {
+    await repo.put('lore', { title: 'Lore', content: '# Lore\n\nv1' })
+    await repo.put('lore/kid', { title: 'Kid', content: '# Kid' })
+    await app.inject({ method: 'GET', url: '/lore/kid' })
+    // Dropped behind the cache's back: only a cache hit can still serve it.
+    await repo.delete('lore/kid')
+
+    const sameTitle = await app.inject({
+      method: 'PUT',
+      url: '/api/pages/lore',
+      headers: { cookie: auth, 'if-match': '"1"' },
+      payload: { content: '# Lore\n\nv2 body edit' },
+    })
+    expect(sameTitle.statusCode).toBe(200)
+    expect((await app.inject({ method: 'GET', url: '/lore/kid' })).statusCode).toBe(200)
+
+    const newTitle = await app.inject({
+      method: 'PUT',
+      url: '/api/pages/lore',
+      headers: { cookie: auth, 'if-match': '"2"' },
+      payload: { content: '# Lore Renamed\n\nv3' },
+    })
+    expect(newTitle.statusCode).toBe(200)
+    expect((await app.inject({ method: 'GET', url: '/lore/kid' })).statusCode).toBe(404)
   })
 
   it('404s unknown slugs without create affordances — and never caches the 404', async () => {

@@ -63,9 +63,17 @@ export function createPgPagesRepository(pool: SqlPool): PagesRepository {
       return new Set<string>(res.rows.map((r: { slug: string }) => r.slug))
     },
 
+    async titles(slugs) {
+      if (slugs.length === 0) return new Map<string, string>()
+      const res = await pool.query('SELECT slug, title FROM pages WHERE slug = ANY($1::text[])', [
+        [...new Set(slugs)],
+      ])
+      return new Map(res.rows.map((r: { slug: string; title: string }) => [r.slug, r.title]))
+    },
+
     resolveAlias: (slug) => resolveAlias(slug),
 
-    async move({ from, to, by = null, validate, rewrite }): Promise<MoveResult> {
+    async move({ from, to, by = null, validate, rewrite, title }): Promise<MoveResult> {
       const client = await pool.connect()
       try {
         await client.query('BEGIN')
@@ -118,18 +126,13 @@ export function createPgPagesRepository(pool: SqlPool): PagesRepository {
         // whose link base changes) is locked until COMMIT: a concurrent save
         // waits, then fails its If-Match — never a partial move.
         const candidates = await client.query(
-          `SELECT id, slug, title, content FROM pages
+          `SELECT id, slug, content FROM pages
             WHERE content LIKE '%[%' OR id = ANY($1::bigint[])
             ORDER BY id FOR UPDATE`,
           [movedIds],
         )
-        const rows = candidates.rows as {
-          id: string
-          slug: string
-          title: string
-          content: string
-        }[]
-        const updates = computeRowUpdates(rows, plan.moved, rewrite)
+        const rows = candidates.rows as { id: string; slug: string; content: string }[]
+        const updates = computeRowUpdates(rows, plan.moved, rewrite, title)
         for (const u of updates) {
           await client.query(
             `UPDATE pages

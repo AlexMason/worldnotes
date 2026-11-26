@@ -37,7 +37,6 @@ export interface MovePageRow {
   slug: string
   /** Slug after the move (=== slug for pages outside the moved subtree). */
   newSlug: string
-  title: string
   content: string
 }
 
@@ -49,13 +48,12 @@ export interface MoveInput {
   validate(slug: string): string | null
   /**
    * Rewrite one page's links for the move (`moved`: old → new slug of every
-   * moved page). Return null when the content is unchanged. Must be pure and
-   * synchronous — it runs inside the move transaction.
+   * moved page). Return the new content, or null when it is unchanged. Must be
+   * pure and synchronous — it runs inside the move transaction.
    */
-  rewrite(
-    row: MovePageRow,
-    moved: ReadonlyMap<string, string>,
-  ): { title: string; content: string } | null
+  rewrite(row: MovePageRow, moved: ReadonlyMap<string, string>): string | null
+  /** Title to store for a row the move writes (its slug after the move). */
+  title(slug: string, content: string): string
 }
 
 export type MoveResult =
@@ -78,6 +76,12 @@ export interface PagesRepository {
    * (existing vs missing page) — never fetches page content.
    */
   existing(slugs: readonly string[]): Promise<Set<string>>
+  /**
+   * Stored titles of the pages among `slugs` (exact page slugs only — an
+   * alias has no title of its own). One round trip; empty input answers
+   * without touching the store. Backs breadcrumb labels.
+   */
+  titles(slugs: readonly string[]): Promise<Map<string, string>>
   /** Current slug of the page `slug` is a former slug (alias) of, or null. */
   resolveAlias(slug: string): Promise<string | null>
   /**

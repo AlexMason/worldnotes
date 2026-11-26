@@ -13,20 +13,20 @@ import { requireRole, requireSameOrigin } from '../auth/session'
 import { cacheControlFor, requireLoginJson } from '../auth/login-gate'
 import type { MoveInput, PagesRepository } from '../db/repository'
 import type { AppSettings, SettingsPatch } from '../settings'
-import { validateSlug, slugDisplayName, navTargetToSlug, wikiLinkBase } from '../../shared/slug'
+import { validateSlug, navTargetToSlug, wikiLinkBase } from '../../shared/slug'
 import { isBlankContent } from '../../shared/content'
-import { extractTitle } from '../render/title'
+import { pageTitle } from '../../core/page-title'
 import { rewriteLinks } from '../../core/link-rewrite'
 import { defaultPlugins } from '../../core/plugins/defaults'
 
 const MAX_CONTENT_BYTES = 1_000_000 // 1 MB
-const MAX_TITLE_LENGTH = 200
-const MAX_EXIST_SLUGS = 100
+/** Slugs per /api/pages-exist or /api/page-titles request. */
+const MAX_BATCH_SLUGS = 100
 
 /** Settings that name a page by slug — they follow the page when it moves. */
 const PAGE_SLUG_SETTINGS = ['homeSlug', 'navSlug', 'notFoundSlug', 'forbiddenSlug'] as const
 
-export type PageWriteChange = 'created' | 'updated' | 'deleted' | 'moved'
+export type PageWriteChange = 'created' | 'updated' | 'retitled' | 'deleted' | 'moved'
 
 export interface PageApiDeps {
   pages: PagesRepository
@@ -37,7 +37,8 @@ export interface PageApiDeps {
   /** Bump when any write succeeds — SSR cache keys off this (step 8).
    *  `change` says whether the write altered page EXISTENCE (created /
    *  deleted / moved) — reader HTML of every page linking to it is then
-   *  stale. */
+   *  stale — or the page's TITLE (retitled), which every descendant's
+   *  breadcrumb shows. */
   onWrite?: (slug: string, change: PageWriteChange) => void
 }
 
@@ -46,7 +47,6 @@ function apiPagePath(slug: string): string {
 }
 
 interface PageBody {
-  title?: unknown
   content?: unknown
   slug?: unknown
 }
@@ -94,34 +94,62 @@ export async function registerPageApiRoutes(
     return { pages: items }
   })
 
+  /** The valid slugs of a `?slugs=a,b/c` batch (invalid ones are omitted —
+   *  unknown, not an error), or null when the batch exceeds the cap. */
+  function batchSlugs(raw: unknown): Set<string> | null {
+    const requested = typeof raw === 'string' && raw !== '' ? raw.split(',') : []
+    if (requested.length > MAX_BATCH_SLUGS) return null
+    const slugs = new Set<string>()
+    for (const candidate of requested) {
+      const validated = validateSlug(candidate)
+      if (validated.ok) slugs.add(validated.slug)
+    }
+    return slugs
+  }
+
+  function batchCacheHeaders(reply: FastifyReply): void {
+    const gated = deps.getSettings().requireLogin
+    if (gated) reply.header('vary', 'Cookie')
+    reply.header(
+      'cache-control',
+      cacheControlFor(gated, 'public, max-age=30, stale-while-revalidate=60'),
+    )
+  }
+
   // Link-state lookup: which of a batch of slugs exist. Backs the editor's
   // missing-page link styling (the reader resolves existence server-side).
   // Lives OUTSIDE /api/pages/* — that wildcard would read "pages-exist" as a
-  // slug. Invalid slugs are omitted from the answer (unknown, not an error).
+  // slug.
   app.get<{ Querystring: { slugs?: unknown } }>(
     '/api/pages-exist',
     { preHandler: [readGate] },
     async (req, reply) => {
-      const raw = req.query.slugs
-      const requested = typeof raw === 'string' && raw !== '' ? raw.split(',') : []
-      if (requested.length > MAX_EXIST_SLUGS) {
-        return reply.code(400).send({ error: `at most ${MAX_EXIST_SLUGS} slugs per request` })
-      }
-      const slugs = new Set<string>()
-      for (const candidate of requested) {
-        const validated = validateSlug(candidate)
-        if (validated.ok) slugs.add(validated.slug)
+      const slugs = batchSlugs(req.query.slugs)
+      if (slugs === null) {
+        return reply.code(400).send({ error: `at most ${MAX_BATCH_SLUGS} slugs per request` })
       }
       const found = await deps.pages.existing([...slugs])
-      const gated = deps.getSettings().requireLogin
-      if (gated) reply.header('vary', 'Cookie')
-      reply.header(
-        'cache-control',
-        cacheControlFor(gated, 'public, max-age=30, stale-while-revalidate=60'),
-      )
+      batchCacheHeaders(reply)
       const exists: Record<string, boolean> = {}
       for (const slug of slugs) exists[slug] = found.has(slug)
       return { exists }
+    },
+  )
+
+  // Title lookup: stored titles of the existing pages in a batch. Backs the
+  // editor's breadcrumb labels for ancestors it has not loaded. Same gate,
+  // cap and placement rule as /api/pages-exist.
+  app.get<{ Querystring: { slugs?: unknown } }>(
+    '/api/page-titles',
+    { preHandler: [readGate] },
+    async (req, reply) => {
+      const slugs = batchSlugs(req.query.slugs)
+      if (slugs === null) {
+        return reply.code(400).send({ error: `at most ${MAX_BATCH_SLUGS} slugs per request` })
+      }
+      const found = await deps.pages.titles([...slugs])
+      batchCacheHeaders(reply)
+      return { titles: Object.fromEntries(found) }
     },
   )
 
@@ -184,11 +212,7 @@ export async function registerPageApiRoutes(
     if (Buffer.byteLength(content, 'utf8') > MAX_CONTENT_BYTES) {
       return reply.code(413).send({ error: 'content exceeds size limit' })
     }
-    const rawTitle = typeof body.title === 'string' ? body.title.trim() : ''
-    if (rawTitle.length > MAX_TITLE_LENGTH) {
-      return reply.code(400).send({ error: 'title too long' })
-    }
-    const title = rawTitle || extractTitle(content, slugDisplayName(validated.slug))
+    const title = pageTitle(content, validated.slug)
 
     const movedTo = await deps.pages.resolveAlias(validated.slug)
     if (movedTo !== null) return moved(reply, movedTo)
@@ -220,10 +244,6 @@ export async function registerPageApiRoutes(
     if (Buffer.byteLength(body.content, 'utf8') > MAX_CONTENT_BYTES) {
       return reply.code(413).send({ error: 'content exceeds size limit' })
     }
-    const rawTitle = typeof body.title === 'string' ? body.title.trim() : ''
-    if (rawTitle.length > MAX_TITLE_LENGTH) {
-      return reply.code(400).send({ error: 'title too long' })
-    }
 
     const ifMatch = parseIfMatch(req.headers['if-match'] as string | undefined)
     if (ifMatch === null) {
@@ -232,7 +252,7 @@ export async function registerPageApiRoutes(
 
     // Blank content means "all content deleted": the save REMOVES the page
     // (version-guarded, so a stale client can never destroy newer content).
-    // A blank PUT never recreates — hence before the title-derivation get().
+    // A blank PUT never recreates.
     if (isBlankContent(body.content)) {
       const deleted = await deps.pages.deleteIfMatch(validated.slug, ifMatch)
       if (deleted.ok === false) {
@@ -246,13 +266,11 @@ export async function registerPageApiRoutes(
       return reply.code(204).send()
     }
 
-    // Title: explicit > derived from new content > existing
-    let title = rawTitle
-    if (!title) {
-      const existing = await deps.pages.get(validated.slug)
-      if (!existing) return missingOrMoved(reply, validated.slug)
-      title = extractTitle(body.content, existing.title)
-    }
+    const title = pageTitle(body.content, validated.slug)
+    // The row this save replaces when the If-Match holds (versions grow, so a
+    // successful putIfMatch replaced this snapshot; a concurrent
+    // delete-and-recreate can at worst cost one cache clear too many/few).
+    const previous = await deps.pages.get(validated.slug)
 
     const result = await deps.pages.putIfMatch(
       validated.slug,
@@ -266,7 +284,7 @@ export async function registerPageApiRoutes(
         .header('etag', etagOf(result.current.version))
         .send({ error: 'version conflict', current: result.current })
     }
-    deps.onWrite?.(validated.slug, 'updated')
+    deps.onWrite?.(validated.slug, previous?.title === title ? 'updated' : 'retitled')
     return reply.header('etag', etagOf(result.record.version)).send({ ...result.record })
   })
 
@@ -309,6 +327,7 @@ export async function registerPageApiRoutes(
         return v.ok ? null : v.error
       },
       rewrite: moveRewriter(() => deps.getSettings().homeSlug),
+      title: (slug, content) => pageTitle(content, slug),
     })
 
     if (result.ok === false) {
@@ -390,8 +409,7 @@ function moveRewriter(getHomeSlug: () => string | null): MoveInput['rewrite'] {
       newBase: wikiLinkBase(row.newSlug, homeAfter),
       moved: (slug) => movedSlugs.get(slug),
     })
-    if (content === row.content) return null
-    return { content, title: extractTitle(content, row.title) }
+    return content === row.content ? null : content
   }
 }
 

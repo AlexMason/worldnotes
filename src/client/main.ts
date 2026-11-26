@@ -7,9 +7,10 @@ import type { EditorInstance } from '../core/types'
 import { insertSiteBands } from '../core/editor-dom'
 import { createApiPageStore } from './api-page-store'
 import { createLinkExistence } from './link-existence'
+import { createPageTitles } from './page-titles'
 import { mountHeaderActions, bindPopstate, createStoreEvents } from './chrome'
 import { slugFromPath, pageUrlPath } from '../shared/url-helpers'
-import { slugDisplayName, navTargetToSlug } from '../shared/slug'
+import { navTargetToSlug } from '../shared/slug'
 import { composeDocTitle } from '../shared/doc-title'
 import type { EditorShellConfig } from '../shared/dto'
 
@@ -22,6 +23,8 @@ interface PageEmbed {
   exists: boolean
   /** Existence of the pages this page links to (SSR-computed). */
   linkExists?: Record<string, boolean>
+  /** Stored titles of the page and its existing ancestors (SSR-computed). */
+  titles?: Record<string, string>
 }
 
 function readShellConfig(): ShellConfig {
@@ -83,11 +86,12 @@ async function main(): Promise<void> {
   // Link-state answers: seeded from the SSR embed (no first-paint flash),
   // then fetched on demand and updated by this editor's own saves/deletes.
   const linkExistence = createLinkExistence(embed?.linkExists)
+  // Breadcrumb labels of pages this editor has not loaded (ancestors).
+  const pageTitles = createPageTitles(embed?.titles)
 
   const store = createApiPageStore(
     createStoreEvents(() => instance, {
       onSaved: (page) => {
-        document.title = composeDocTitle(slugDisplayName(page), cfg.siteName)
         // A landed save means the page exists (it may have just been created).
         const slug = navTargetToSlug(page)
         if (slug !== null) linkExistence.set(slug, true)
@@ -108,6 +112,7 @@ async function main(): Promise<void> {
   const editor = createEditor(container, {
     pageStore: store,
     pageExists: linkExistence,
+    pageTitles,
     initialPage: cfg.slug,
     // Seed the buffer from the embed so first paint is synchronous.
     initialContent: seeded ? (embed.content ?? '') : undefined,
@@ -124,11 +129,14 @@ async function main(): Promise<void> {
       if (page !== currentSlug) {
         currentSlug = page
         window.history.pushState(null, '', pageUrlPath(page))
-        document.title = composeDocTitle(slugDisplayName(page), cfg.siteName)
       }
       // A navigation happened (any way) — do not leave an open menu hovering
       // over the new page on mobile.
       container.querySelector('details[open]')?.removeAttribute('open')
+    },
+    // The page's first H1 (else its slug label) — live while it is edited.
+    onTitleChange: (title) => {
+      document.title = composeDocTitle(title, cfg.siteName)
     },
     onPageMoved: (from, to, result) => {
       const pairs = result?.ok ? result.moved : [{ from, to }]
@@ -146,7 +154,6 @@ async function main(): Promise<void> {
       // Replace, never push: the old URL now redirects here.
       currentSlug = to
       window.history.replaceState(null, '', pageUrlPath(to))
-      document.title = composeDocTitle(slugDisplayName(to), cfg.siteName)
     },
   })
 
