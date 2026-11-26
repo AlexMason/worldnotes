@@ -162,6 +162,7 @@ export function openLinkField(host: HTMLElement, options: LinkFieldOptions): Lin
   const input = document.createElement('input')
   input.className = 'wn-link-field-input'
   input.type = 'text'
+  input.name = 'link-target'
   input.value = options.initial
   input.maxLength = MAX_INPUT_LENGTH
   input.placeholder = 'Page name or URL'
