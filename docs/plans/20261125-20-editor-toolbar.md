@@ -3,7 +3,7 @@ issue: 20
 title: Add an editor formatting toolbar (bold, italic, underline, list, link)
 type: feature
 branch: feature/20-editor-toolbar
-status: implementing
+status: implemented
 created: 2026-11-25
 pr: ""
 ---
@@ -113,4 +113,9 @@ Collapsed caret + bold/italic/underline → empty marker pair with caret between
 
 ## Implementation notes
 
+- 2026-11-26 — Small refinements inside the plan's design, no change to decisions or steps:
+  - `findLinkAt(text, start, end, defs)` takes the registry's token defs (so link precedence comes from the real grammar rather than a second regex); the shared single-line token scan is `coveringTokens` in `editor-format.ts`, reused by `activeFormats`.
+  - The selection-capture / stale-text guard lives in a small `editor-link.ts` controller; `link-field.ts` owns only the field DOM and typing/suggestion UX (Design had both in the field).
+  - Suggestion ranking is the pure `rankSuggestions` in `link-input.ts`, applied by the field (stores return the raw matches).
+  - The shared worktree was provisioned by copying `.env` and `node_modules` from the main checkout (as the #17 worktree was); pg integration tests ran against the existing local Postgres (`worldnotes_test`).
 ## Review
