@@ -3,7 +3,7 @@ issue: 26
 title: Toolbar Link button loses the text selection on mobile, so no link is inserted
 type: fix
 branch: fix/26-mobile-toolbar-link
-status: implementing
+status: in-review
 created: 2026-11-26
 pr: ""
 ---
@@ -95,4 +95,8 @@ Suspected causes, ranked (all **[INFERENCE]** — the soft-keyboard behaviour ca
 
 ## Implementation notes
 
+- 2026-11-26 — `main` gained an **Image** toolbar button (#21) after the plan was written. It rides the same press path (snapshot, freeze, restore, then `fileInput.click()` inside the click handler, so the picker still has its user activation); no design change.
+- The branch was rebased onto `origin/main` (also picks up #25).
 ## Review
+
+Mode: sub-agents
