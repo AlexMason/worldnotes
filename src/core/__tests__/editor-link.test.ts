@@ -162,15 +162,77 @@ describe('link field', () => {
     expect(t.field()).toBeNull()
   })
 
-  it('drops the pending link (no write) when the page text changed meanwhile', async () => {
+  it('closes the field and tells the user when the page text changes under it', async () => {
     const t = await mount(DOC)
     await select(t.editorDiv, 0, 5)
     key(t.editorDiv, { key: 'k', ctrlKey: true })
     type(t.input(), 'page')
     t.instance.setContent('something else entirely')
-    key(t.input(), { key: 'Enter' })
-    expect(t.instance.getContent()).toBe('something else entirely')
+    document.dispatchEvent(new Event('selectionchange'))
     expect(t.field()).toBeNull()
+    expect(t.group().hidden).toBe(false)
+    expect(t.instance.getContent()).toBe('something else entirely')
+    expect(t.container.textContent).toContain('link not added')
+  })
+
+  it('closes the field when the editor navigates to another page', async () => {
+    const t = await mount(DOC, { store: createMemoryPageStore({ home: DOC, other: '# Other' }) })
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    type(t.input(), 'page')
+    t.instance.navigate('other')
+    await vi.advanceTimersByTimeAsync(20)
+    document.dispatchEvent(new Event('selectionchange'))
+    expect(t.instance.getCurrentPage()).toBe('other')
+    expect(t.field()).toBeNull()
+    expect(t.group().hidden).toBe(false)
+    expect(t.instance.getContent()).toBe('# Other')
+  })
+
+  it('destroying the editor with the field open cleans up without writing', async () => {
+    const t = await mount(DOC)
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    type(t.input(), 'page')
+    t.instance.destroy()
+    expect(t.container.querySelector('.wn-link-field')).toBeNull()
+    document.dispatchEvent(new Event('selectionchange')) // no stale listener left to throw
+  })
+
+  it('with no selection inside the editor, Ctrl+K is consumed and opens nothing', async () => {
+    const t = await mount(DOC)
+    window.getSelection()!.removeAllRanges()
+    const e = key(t.editorDiv, { key: 'k', ctrlKey: true })
+    expect(e.defaultPrevented).toBe(true)
+    expect(t.field()).toBeNull()
+  })
+
+  it('refuses to link inside an image and writes nothing', async () => {
+    const text = '![alt](https://x.test/a.png) tail'
+    const t = await mount(text)
+    await select(t.editorDiv, 3)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    type(t.input(), 'page')
+    key(t.input(), { key: 'Enter' })
+    expect(t.msg()).toBe('Links cannot go inside an image')
+    expect(t.instance.getContent()).toBe(text)
+  })
+
+  it('Enter during IME composition is left to the IME', async () => {
+    const t = await mount(DOC)
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    type(t.input(), 'page')
+    key(t.input(), { key: 'Enter', isComposing: true })
+    expect(t.field()).not.toBeNull()
+    expect(t.instance.getContent()).toBe(DOC)
+  })
+
+  it('caps pasted input length', async () => {
+    const t = await mount(DOC)
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    expect(t.input().maxLength).toBe(2048)
   })
 })
 
@@ -188,7 +250,7 @@ describe('link field suggestions', () => {
     type(t.input(), 'old')
     expect(suggest).not.toHaveBeenCalled() // debounced
     await vi.advanceTimersByTimeAsync(150)
-    expect(suggest).toHaveBeenCalledWith('old', 8)
+    expect(suggest).toHaveBeenCalledWith('old', 30) // wider window than shown, then ranked
 
     // title/slug prefix matches rank first
     expect(
@@ -265,5 +327,33 @@ describe('link field suggestions', () => {
     type(t.input(), 'old')
     await vi.advanceTimersByTimeAsync(300)
     expect(t.options()).toHaveLength(0)
+  })
+
+  it('ranks from the wider fetch window: an exact match the server listed 15th still shows', async () => {
+    const many = Array.from({ length: 20 }, (_, i) => ({
+      slug: `misc/page-${i}`,
+      title: `Gold page ${i}`, // contains "old", never starts with it
+    }))
+    many[15] = { slug: 'lore/old', title: 'Old' }
+    const t = await mount(DOC, { store: storeWith(vi.fn(async () => many)) })
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    type(t.input(), 'old')
+    await vi.advanceTimersByTimeAsync(150)
+    expect(t.options()).toHaveLength(8)
+    expect(t.options()[0]!.querySelector('.wn-link-field-option-title')!.textContent).toBe('Old')
+  })
+
+  it('a malformed suggestion from the server is validated like typed text', async () => {
+    const suggest = vi.fn(async () => [{ slug: 'bad]slug', title: 'Bad' }])
+    const t = await mount(DOC, { store: storeWith(suggest) })
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    type(t.input(), 'bad')
+    await vi.advanceTimersByTimeAsync(150)
+    key(t.input(), { key: 'ArrowDown' })
+    key(t.input(), { key: 'Enter' })
+    expect(t.msg()).toBe('A page name cannot contain ] or |')
+    expect(t.instance.getContent()).toBe(DOC)
   })
 })

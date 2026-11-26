@@ -180,9 +180,21 @@ export function createEditorLifecycle(
       })
     }
 
-    // ── Link field (Link button + Ctrl+K) ──────────────────────────────
+    // ── Link field, editing keymap, formatting toolbar ─────────────────
+    // Declared together, before any listener exists: the controller hides the
+    // toolbar's buttons while its field is open, the keymap and the toolbar
+    // both call the controller (Ctrl+K / Link button), and the toolbar's
+    // buttons run the keymap's format actions.
 
     const tokenDefs = contentPlugins.flatMap((p) => p.tokens)
+    const blockLines = (text: string): ReadonlySet<number> => {
+      const lines = new Set<number>()
+      for (const block of buildDocument(text, contentPlugins).blocks) {
+        for (let i = block.startLine; i <= block.endLine; i++) lines.add(i)
+      }
+      return lines
+    }
+
     const linkController = createLinkController({
       ...commitDeps,
       host: dom.toolbar,
@@ -190,20 +202,26 @@ export function createEditorLifecycle(
       getLinkBase: () => wikiLinkBase(state.getCurrentPage(), options.homeSlug),
       suggest: pageStore.suggest?.bind(pageStore),
       onOpenChange: (open) => toolbar.setHidden(open),
+      onDropped: () =>
+        notifications.notify({ message: 'The page changed: link not added.', type: 'warning' }),
     })
-
-    // ── Editing keymap (line ops, word ops, formatting, Ctrl+S) ────────
 
     const keymap = createEditingKeymap({
       ...commitDeps,
       saveNow: () => void saveNow(),
-      blockLines: (text) => {
-        const lines = new Set<number>()
-        for (const block of buildDocument(text, contentPlugins).blocks) {
-          for (let i = block.startLine; i <= block.endLine; i++) lines.add(i)
-        }
-        return lines
-      },
+      blockLines,
+      openLink: () => linkController.open(),
+    })
+
+    const toolbar = createEditorToolbar({
+      host: dom.toolbar,
+      editorEl: dom.editorDiv,
+      defs: tokenDefs,
+      getCurrentPage: () => state.getCurrentPage(),
+      pageExists: (page) => buffers.hasPage(page),
+      getPageText: (page) => buffers.getPageText(page),
+      blockLines,
+      format: (action) => keymap.format(action),
       openLink: () => linkController.open(),
     })
 
@@ -608,19 +626,6 @@ export function createEditorLifecycle(
         }
       }
     }
-
-    // ── Formatting toolbar (first in the wn-toolbar row) ───────────────────
-
-    const toolbar = createEditorToolbar({
-      host: dom.toolbar,
-      editorEl: dom.editorDiv,
-      defs: tokenDefs,
-      getCurrentPage: () => state.getCurrentPage(),
-      pageExists: (page) => buffers.hasPage(page),
-      getPageText: (page) => buffers.getPageText(page),
-      format: (action) => keymap.format(action),
-      openLink: () => linkController.open(),
-    })
 
     // ── Link state: re-class links in place when existence answers arrive ──
 

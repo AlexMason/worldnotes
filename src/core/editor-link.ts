@@ -5,8 +5,10 @@
 // the model-commit path (one undo step, render, restore caret, autosave).
 //
 // The captured text is the contract: if the page or its text changed while the
-// field was open (autosave `setContent`, a navigation), the pending link is
-// dropped without writing rather than applied at stale offsets.
+// field was open (a navigation, autosave `setContent`, a move), the field
+// closes and the pending link is dropped — never applied at stale offsets.
+// Staleness is noticed on `selectionchange` (navigation and re-renders always
+// move the selection) and re-checked on submit.
 
 import type { PageSuggestion, TokenDef } from './types'
 import { commitModelEdit, type ModelCommitDeps } from './editor-commit'
@@ -22,6 +24,8 @@ export interface LinkControllerDeps extends ModelCommitDeps {
   suggest?(query: string, limit: number): Promise<PageSuggestion[]>
   /** The field opened/closed — the toolbar hides its buttons while it is open. */
   onOpenChange(open: boolean): void
+  /** A pending link was dropped because the page changed under the field. */
+  onDropped(): void
 }
 
 export interface LinkController {
@@ -37,6 +41,14 @@ export interface LinkController {
 
 export function createLinkController(deps: LinkControllerDeps): LinkController {
   let field: LinkField | null = null
+  let stopWatching: (() => void) | null = null
+
+  function teardown(): void {
+    stopWatching?.()
+    stopWatching = null
+    field = null
+    deps.onOpenChange(false)
+  }
 
   function open(): boolean {
     if (field) {
@@ -51,6 +63,7 @@ export function createLinkController(deps: LinkControllerDeps): LinkController {
 
     const text = deps.getPageText(page)
     const existing = findLinkAt(text, sel.start, sel.end, deps.defs)
+    const isStale = (): boolean => deps.getCurrentPage() !== page || deps.getPageText(page) !== text
 
     deps.onOpenChange(true)
     field = openLinkField(deps.host, {
@@ -58,21 +71,32 @@ export function createLinkController(deps: LinkControllerDeps): LinkController {
       linkBase: deps.getLinkBase(),
       suggest: deps.suggest,
       apply(input) {
-        if (deps.getCurrentPage() !== page || deps.getPageText(page) !== text) return null
+        if (isStale()) {
+          deps.onDropped()
+          return null
+        }
         const result = applyLink(text, sel.start, sel.end, input, deps.defs)
         if ('error' in result) return result.error
         commitModelEdit(deps, page, result)
         return null
       },
       close(reason) {
-        field = null
-        deps.onOpenChange(false)
+        teardown()
         if (reason === 'blur') return
         // Back to the document; a cancel restores the captured selection.
         if (reason === 'cancel') setSelectionOffsets(deps.editorEl, sel.start, sel.end)
         deps.editorEl.focus({ preventScroll: true })
       },
     })
+
+    const onSelectionChange = (): void => {
+      if (!isStale()) return
+      field?.destroy()
+      teardown()
+      deps.onDropped()
+    }
+    document.addEventListener('selectionchange', onSelectionChange)
+    stopWatching = () => document.removeEventListener('selectionchange', onSelectionChange)
     return true
   }
 
@@ -80,7 +104,7 @@ export function createLinkController(deps: LinkControllerDeps): LinkController {
     open,
     destroy() {
       field?.destroy()
-      field = null
+      if (field) teardown()
     },
   }
 }
