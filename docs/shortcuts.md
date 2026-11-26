@@ -79,7 +79,7 @@ precedent (not instrumented live — the hard list below is stable):
 | Chord | Status |
 | --- | --- |
 | `Ctrl+S` | Preventable in all major browsers ✓ |
-| `Ctrl+B` / `Ctrl+K` / `Ctrl+I` | Reach pages and `preventDefault` wins (Google Docs bold, GitHub command palette, MDN search all rely on this in Firefox AND Chrome). Chrome additionally toggles the bookmark bar with `Ctrl+B` only when focus is NOT in editable content |
+| `Ctrl+B` / `Ctrl+K` / `Ctrl+I` / `Ctrl+U` | Reach pages and `preventDefault` wins (Google Docs bold and underline, GitHub command palette, MDN search all rely on this in Firefox AND Chrome). `Ctrl+U` is also the browsers' view-source chord, and the native contenteditable underline: the editor consumes it. Chrome additionally toggles the bookmark bar with `Ctrl+B` only when focus is NOT in editable content |
 | `Ctrl+/` | Not browser-reserved ✓ |
 | `Alt+↑/↓` | Not browser-reserved in Firefox/Chrome ✓ |
 | `Alt+←/→` | Firefox/Chrome use Alt+←/→ for back/forward navigation; while focus is in the editor the page receives the event and `preventDefault` wins, so the alias only shadows navigation there. `Ctrl+←/→` stays the primary binding |

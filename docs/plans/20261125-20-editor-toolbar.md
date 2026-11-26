@@ -45,10 +45,10 @@ Authenticated users editing a page get a toolbar (in the editor's existing `wn-t
 | 2 | **One Link button** with auto-detect, opening an inline field **in the toolbar row** (replaces the buttons while open, restores on close). Not a popover. | Two buttons; floating popover. | User chose one button. Row-hosting needs no positioning logic, is full-width on mobile, and follows the move-field precedent. |
 | 3 | **Classification** (`classifyLinkInput`): URL when the trimmed input has a scheme, starts `www.` or `//`, or contains a `.` with no whitespace (slugs can never contain dots, so no ambiguity); otherwise wiki link. Bare hosts (`example.com`, `www.x.y`) get `https://`. | Always ask; separate buttons. | Zero extra clicks; the dot rule is unambiguous against slug policy. A live hint shows the outcome (`Wiki link → /a/b` / `URL`). |
 | 4 | **Output:** URL → `[selection](url)`, no selection → `[url](url)`. Wiki → `[[target\|selection]]`, or `[[target]]` when nothing selected or selection equals the target. Typed wiki targets are written as typed (relative semantics, the hint shows the resolved address via `wikiLinkAddress`); a **chosen suggestion** is written minimally: base-relative remainder when the slug is under the current page's link base, `/slug` when not, bare slug at root. | Always root-absolute; always slugified. | Matches how authors write links today and keeps relative links relative. |
-| 5 | **Rejection, never corruption:** `isSafeHref` fails (`javascript:` …), wiki target folds to no slug (`navTargetToSlug(wikiLinkAddress(...))` null), target contains `]` or `\|`, URL contains whitespace or `)` , selection contains `]` or a newline. Show an inline error in the field, insert nothing. | Silently encode/strip. | Patterns are `[^\]]+` / `[^)]+`; anything else breaks the token. |
+| 5 | **Rejection, never corruption:** `isSafeHref` fails (`javascript:` …), wiki target folds to no slug (`navTargetToSlug(wikiLinkAddress(...))` null), target contains `]` or `\|`, URL contains whitespace, selection contains `]` or a newline or sits inside an image. A `)` in a URL is **percent-encoded** (`%29`, an equivalent URL) rather than rejected. Show an inline error in the field, insert nothing. | Silently strip; reject `)` (amended in review). | Patterns are `[^\]]+` / `[^)]+`; anything else breaks the token. |
 | 6 | **Editing an existing link:** `findLinkAt(text, start, end)` finds the `[label](url)` or `[[target\|label]]` token whose range contains the selection. Present → field prefilled with the target; submit rebuilds the token with the same label (kind can switch wiki ↔ URL). Absent → new link around the selection. | Button only creates. | User decision, paired with Decision 7. |
 | 7 | **`Ctrl+K` opens the same field** (replaces the `[sel]()` type-over). `wrapLink` is deleted; `editor-shortcuts` and `editor-format` tests of it are rewritten against the new behavior; `docs/shortcuts.md` / `SHORTCUT_BINDINGS` updated. | Keep both. | User decision; one link UX. |
-| 8 | **Suggestions via a new server option `scope=name`** on `GET /api/pages` (slug/title only), `limit` ≤ 8 from the field, plus optional port **`PageStore.suggest?(query, limit): Promise<PageSuggestion[]>`** (`{slug, title}`) implemented by `ApiPageStore` and `MemoryPageStore`. When a store lacks `suggest`, the field works without the dropdown. Client debounces 150 ms, drops stale responses (sequence counter), ranks slug/title prefix matches first. | Filter `?q=` results client-side; call `fetch` from core. | `q` also matches page bodies, so name matches can be crowded out of the newest-N window; core must stay transport-agnostic (`move?` precedent). Additive and backwards-compatible API change. |
+| 8 | **Suggestions via a new server option `scope=name`** on `GET /api/pages` (slug/title only, `no-store`), plus optional port **`PageStore.suggest?(query, limit): Promise<PageSuggestion[]>`** (`{slug, title}`) implemented by `ApiPageStore` and `MemoryPageStore`. When a store lacks `suggest`, the field works without the dropdown. The field fetches 30, debounces 150 ms, drops stale responses (sequence counter), ranks exact/prefix matches first and shows 8. | Filter `?q=` results client-side; call `fetch` from core. | `q` also matches page bodies, so name matches can be crowded out of the newest-N window; core must stay transport-agnostic (`move?` precedent). Additive and backwards-compatible API change. |
 | 9 | Dropdown is an ARIA combobox: input `role=combobox` + `aria-controls` + `aria-activedescendant`, `ul role=listbox`. ArrowUp/Down move, Enter picks the highlighted suggestion else commits typed text, Escape cancels, blur cancels. A picked suggestion commits immediately as a wiki link (Decision 4). | Tab completes only. | Standard pattern; fewest keystrokes. |
 | 10 | **Selection survives the field:** buttons call `preventDefault` on `mousedown` so the editor keeps focus/selection; opening the field captures `{start,end}` raw offsets **and the page text**; on submit the edit is applied only if the page and its text are unchanged, else the field just closes (no write). Closing refocuses the editor and restores the selection through `commitModelEdit`. | Re-read the live selection on submit. | The input steals the DOM selection; text can change meanwhile (autosave `setContent`, navigation). |
 | 11 | **Architecture:** a core module `src/core/editor-toolbar.ts` created by `editor-lifecycle.ts` with the shared commit deps and mounted into `dom.toolbar`; not a `UIPlugin` (a plugin only receives its slot element, but buttons need the commit path). The slot stays open for third-party UI plugins. Format actions go through one `EditingKeymap.format(action)` so buttons and chords share code. | Built-in UIPlugin with a service back-reference. | No new plugin-context surface for a built-in. |
@@ -118,7 +118,45 @@ Collapsed caret + bold/italic/underline → empty marker pair with caret between
   - The selection-capture / stale-text guard lives in a small `editor-link.ts` controller; `link-field.ts` owns only the field DOM and typing/suggestion UX (Design had both in the field).
   - Suggestion ranking is the pure `rankSuggestions` in `link-input.ts`, applied by the field (stores return the raw matches).
   - The shared worktree was provisioned by copying `.env` and `node_modules` from the main checkout (as the #17 worktree was); pg integration tests ran against the existing local Postgres (`worldnotes_test`).
+- 2026-11-26 (review) — Deviations found by review, resolved as follows:
+  - **Decision 5 (`)` in a URL):** the code percent-encodes `)` as `%29` instead of rejecting (equivalent URL; Wikipedia-style `Foo_(bar)` links work). Kept; Decision 5 is amended accordingly. Whitespace in a URL is still rejected.
+  - **Decision 8 (suggestion limit):** the field fetches 30 and shows the best 8 after ranking, so exact/prefix matches are not crowded out of a newest-first window of 8. The server contract (`limit`) is unchanged.
+  - **Edge case "page switches while the field is open → closed":** implemented by `editor-link.ts` watching `selectionchange` (navigation and re-renders always move the selection) plus the submit-time check; either way the field closes, nothing is written, and a "link not added" toast is shown.
+  - **Decision 6 (existing link):** retargeting keeps the visible text for wiki links with no explicit label too (`[[a/b]]` → `[[c|b]]`), matching "same label"; an earlier build let such a label follow the new target.
+  - `scope=name` answers `Cache-Control: no-store` (a typing aid must see new pages immediately).
 
 ## Review
 
 Mode: sub-agents
+
+Three fresh-context reviewers (A conformance & correctness, B code quality, C security & scalability).
+
+**Related — fixed (each theme its own `fix:` commit):**
+
+- *major* (A): the link field corrupted an image token when the caret was inside `![alt](url)` (`a ![a[…](…)lt](u.png)`). `applyLink` now refuses inside an image.
+- *minor* (A, B, C): the plan's "page switch closes the field" was not implemented (a stale Enter silently dropped the link). The field now closes on page/text change with a toast; test for navigation, `setContent` and destroy-with-field-open added.
+- *minor* (C): `classifyLinkInput`'s host regex was quadratic on long dotted input with a space (runs per keystroke). URL detection now rejects whitespace first and uses linear patterns; input is capped at 2048 chars; regression test added. Also `../x` is no longer read as a host (A nit).
+- *minor* (B): the list button's pressed state ignored the fence-skip that the list action applies. `activeFormats` takes the same `skip` set via one shared `listTargets` helper; toolbar passes `blockLines`.
+- *minor* (C): the toolbar did O(document) work on every `selectionchange`, including while the link field is open. It now skips while hidden and when page/selection/text are unchanged, and `activeFormats` splits the document once.
+- *minor* (A): retargeting a wiki link without explicit label dropped its visible text (see Implementation notes).
+- *minor* (A): suggestion ranking only reordered the newest 8 matches (see Implementation notes).
+- *minor* (C): a picked suggestion skipped the validation typed input gets; it is now classified like typed text.
+- *nit* (C): Enter/arrows during IME composition acted on partial text; now ignored (`isComposing`).
+- *nit* (C): `scope=name` was publicly cacheable for 90 s; now `no-store`.
+- *minor* (A, B): theming docs lacked the `.wn-link-field*` hooks and `--link`; added. *nit* (B): `Ctrl+U` added to the browser-caveats table.
+- *minor* (B): the circular late-bound wiring between toolbar and link controller (and a theoretical TDZ for an early Ctrl+K) — the link controller, keymap and toolbar are now declared together before any listener exists.
+- *minor* (B): the 170-line `openLinkField` closure — the suggestion listbox and the debounced, sequence-guarded search are now separate helpers in `link-field.ts`.
+- *nit* (B): `ButtonSpec.flag` always equalled `action` and the aria-label was derived by regex — both removed.
+
+**Unrelated but important (not fixed here):**
+
+- *minor* (C): `GET /api/pages` takes `limit` unclamped (`?limit=-1` or `0.5` reaches Postgres `LIMIT` and errors) and a repeated `q` (`?q=a&q=b`) arrives as an array and throws. Both predate this branch (the `limit` and `q` handling are unchanged lines); `scope=name` shares the path. To be filed as an issue.
+
+**Dismissed:**
+
+- *nit* (B): `lineStartOffsets` duplicates `editor-text-ops`' private `lineStartAt`. Different shape: `lineStartAt(text, i)` rescans from the document start per call, so using it in a loop is O(n²); the array form is needed by `toggleList`/`coveringOnLine`.
+- *nit* (B): `suggest()` swallows failures silently. Deliberate (Decision 8: a typing aid must never toast); a log line per failed keystroke would be noise.
+- *nit* (C): no rate limit / trigram index on the public name search. Same exposure class as the existing list, and cheaper than the body search it replaces for suggestions; revisit if the page count grows.
+- *nit* (A): the toolbar test omits an "active state after commits" case — covered by the toggle-off test (`aria-pressed` flips after each press).
+- *nit* (A): `#frag` / `?q` inputs classify as URLs beyond Decision 3's list — intended (`[x](#frag)` is a valid same-document link and passes `isSafeHref`).
+- *minor* (B, C): "no test for navigation while the field is open / destroy path" — added, see above.
