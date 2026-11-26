@@ -126,9 +126,38 @@ One internal walker produces the kept byte ranges; `parseGif` ignores them, `san
 - *Accepted:* The exact clipboard flavors Brave puts on "Copy image" are inferred, not observed; step 4's manual check confirms them. If Brave also exposes the original GIF as a file, the fetch is simply unnecessary there and nothing breaks.
 - *Accepted:* Animated WebP/APNG and animated AVIF still flatten to a still PNG.
 - *Accepted:* GIFs that omit the trailer and end mid-block are rejected as invalid (rare, files are re-saveable).
+- *Accepted:* The Copy-image fetch can send an unauthenticated GET to any `https:` host named in clipboard HTML (including intranet addresses); the response is opaque to the page unless CORS allows it, and nothing is sent to our server (review finding C4).
+- *Accepted:* The client's remote-GIF cap (64 MiB, Decision 8) is larger than the default `PHOTO_MAX_BYTES` (15 MiB): a huge original costs the user a download before the server's 413 (review finding C3).
 
 ## Implementation notes
+
+Deviations from the plan as written (none changes a decision's intent; all found while implementing or in review):
+
+- 2026-11-26: **Over-dimension is reported after the walk**, not "before any frame" (Design, `shared/gif.ts`). Decision 6 needs the frame count of an oversize GIF to choose between the still-PNG fallback (animated) and the PNG path (static), so `GifOverDimension` carries `{ width, height, frames }` and oversize GIFs skip the frame/pixel caps; they must still be well-formed.
+- 2026-11-26: **The pixel budget charges each frame's own declared area**, not `frames × screen width × height` (Decision 4), and every frame side must be <= 2048. The screen-based figure let a 1x1 screen with 65535x65535 frames bypass the budget (review finding C1, major). Typical GIFs (frames equal the screen) are unaffected.
+- 2026-11-26: **The sanitizer keeps at most one `NETSCAPE2.0` block and one graphic control (block size 4) per image** (Decision 3), bounding the output and the walker's allocation against junk-extension amplification (review finding C2, major).
+- 2026-11-26: `clipboardImages(data, withOriginals)` takes a flag and attaches the URL only when at most one file is pasted (Decision 7/8: without a fetcher the old behavior must stay; several pasted files are not a "Copy image"). `gifUrlFromClipboardHtml` inspects only the **first** `<img>` (Decision 7 is ambiguous between "first img" and "first GIF img"; a leading non-GIF image makes the paste fall back to the still). The route's rejection mapping lives in one exhaustive record (`PHOTO_REJECTIONS`).
+- Known limitation: a graphic control extension that preceded a (dropped) plain-text extension attaches to the next image after sanitizing; only GIFs using plain-text extensions are affected (review finding A4).
 
 ## Review
 
 Mode: sub-agents
+
+Reviewed by three fresh-context sub-agents (A plan conformance & correctness, B code quality, C security & scalability). Their results were reconciled by reading the cited code; blockers: none.
+
+| # | Lens | Severity | Finding | Classification | Outcome |
+| - | ---- | -------- | ------- | -------------- | ------- |
+| C1 | C | major | GIF decode budget used the logical screen, not each frame's own rect (`gif.ts` image branch) | Related, verified | Fixed `c169ea2`: per-frame area budget, frame sides <= 2048, tests incl. 1x1 screen + 65535x65535 frame |
+| C2 | C | major | Kept graphic-control/NETSCAPE blocks unbounded (allocation + stored junk amplification) | Related, verified | Fixed `c169ea2`: one loop block, one size-4 GCE per image; tests with 2000 junk pairs |
+| B1 | B | minor | Route's PNG-then-GIF cascade lost exhaustiveness | Related | Fixed `302ead3`: `sanitizePhoto` + `Record<PhotoFailure, ...>` |
+| B5 | B | minor | Fetcher discarded the cause; nothing in the console for the CORS/timeout case | Related | Fixed `a376357`: `console.warn` with origin only (URLs carry tracking params), tested |
+| A1-A3 | A | minor/nit | First-`<img>` reading, over-dimension timing, `clipboardImages` flag undocumented | Related | Recorded under Implementation notes (deviations) |
+| A4 | A | nit | Graphic control before a dropped plain-text block shifts to the next frame | Related, rare | Accepted: known limitation noted above |
+| C3 | C | minor | 64 MiB client cap vs 15 MiB server cap | Dismissed | Plan Decision 8 chose the cap deliberately; client-only cost; recorded as accepted risk |
+| C4 | C | nit | Fetch may GET any `https:` host from clipboard HTML | Dismissed | Plan Decision 8 accepts the privacy/network cost; `credentials: 'omit'`, no referrer; recorded as accepted risk |
+| B2, B3, B4, B7, B8, B9 | B | minor/nit | `walk` complexity, GIF signature check repeated in 4 places, redundant `assertImageFile`/head reads in `preparePhoto`, wider `ImageInput` model, `insertImages` length, `kept` allocation for `parseGif` | Dismissed | Optional refactors with no behavior impact; not worth widening this fix. No issue opened (user did not ask) |
+| B6 | B | nit | GIF rejections not logged server-side | Dismissed | Matches existing PNG behavior |
+
+No unrelated pre-existing issues were found.
+
+Manual review: the user asked for review, file and merge in one go, so the manual-review pause was waived at their request. Before this review the Copy-image path (simulated paste with Giphy HTML), the CORS-failure path and stored-GIF integrity (75 frames, 239,321 bytes, identical to the original) were verified in Brave against a local dev server.
