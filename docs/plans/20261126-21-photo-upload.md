@@ -155,7 +155,7 @@ export async function convertToPng(file: File, env?: ConvertEnv): Promise<Blob>
 - [x] 1. `src/shared/media-policy.ts` (`PHOTO_MAX_SIDE`); `src/server/png-sanitize.ts` + `media-fixtures` chunk builder + `png-sanitize.test.ts` (full matrix above).
 - [x] 2. Config + refactor: `PHOTO_MAX_BYTES` in `config.ts`, `.env.example`, `config.test.ts`; extract `readUpload` in `routes/media.ts` (no behavior change; existing media tests pass); `MediaDeps.photoMaxBytes` wired from `app.ts`.
 - [x] 3. `POST /api/media/photos` route + tests (incl. pg bytea round-trip); `docs/api.md` (route, error table, `PHOTO_MAX_BYTES` in the env list); refresh the stale "editor images later" comments in `media.ts`/`media-types.ts`.
-- [ ] 4. Client converter + uploader: `src/client/photo-convert.ts`, `src/client/media-upload.ts`, tests with stubbed browser APIs. Not wired yet.
+- [x] 4. Client converter + uploader: `src/client/photo-convert.ts`, `src/client/media-upload.ts`, tests with stubbed browser APIs. Not wired yet.
 - [ ] 5. Core insertion + wiring: `EditorOptions.imageUploader`, `src/core/editor-image.ts`, clipboard (Decision 10)/dragover/drop in `editor-lifecycle.ts`, `main.ts` passes `createMediaUploader()`; tests; `docs/architecture.md` (route in the diagram, module notes, Extension seam).
 - [ ] 6. Picker button (precondition: #20 merged, branch rebased onto `main`): `Image` button + hidden file input in `editor-toolbar.ts`, hidden when no uploader; tests; `docs/theming.md` only if a new class/token is introduced.
 
