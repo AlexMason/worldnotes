@@ -30,6 +30,7 @@ Cmd** throughout; Alt means **Alt/Option**.
 | --- | --- |
 | `Ctrl+B` | Toggle `**bold**` around the selection. Collapsed caret: inserts `****` with the caret between. Press again to unwrap |
 | `Ctrl+I` | Same for `*italic*` |
+| `Ctrl+U` | Same for `<u>underline</u>` (the exact `<u>…</u>` pair is grammar; other HTML stays literal text). Also stops the browser's native contenteditable underline and view-source chord |
 | `Ctrl+K` | Wrap the selection as `[selection]()`, with the URL slot selected for type-over. An already-linked selection just gets its URL re-selected |
 
 Formatting chords are inert **inside fenced code and tables** (the key

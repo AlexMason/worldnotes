@@ -310,3 +310,35 @@ describe('autosave after shortcut ops', () => {
     expect(saves[0]!.content).toContain('beta two\nbeta two')
   })
 })
+
+describe('Ctrl+U — underline', () => {
+  it('wraps with <u>…</u>, keeps the content selected, second press unwraps', async () => {
+    const { instance, editorDiv } = await mount({ home: DOC })
+    select(editorDiv, 0, 5)
+    const e = key(editorDiv, { key: 'u', ctrlKey: true })
+    expect(e.defaultPrevented).toBe(true)
+    expect(instance.getContent()).toBe('<u>alpha</u> one\nbeta two\ngamma three')
+    const sel = getSelectionOffsets(editorDiv)!
+    expect(instance.getContent().slice(sel.start, sel.end)).toBe('alpha')
+
+    key(editorDiv, { key: 'u', ctrlKey: true })
+    expect(instance.getContent()).toBe(DOC)
+    expect(getSelectionOffsets(editorDiv)).toEqual({ start: 0, end: 5 })
+  })
+
+  it('is one undo step', async () => {
+    const { instance, editorDiv } = await mount({ home: DOC })
+    select(editorDiv, 0, 5)
+    key(editorDiv, { key: 'u', ctrlKey: true })
+    expect(instance.undo()).toBe(true)
+    expect(instance.getContent()).toBe(DOC)
+  })
+
+  it('is a consumed no-op inside fenced code', async () => {
+    const { instance, editorDiv } = await mount({ home: '```\ncode line here\n```' })
+    select(editorDiv, 10)
+    const e = key(editorDiv, { key: 'u', ctrlKey: true })
+    expect(e.defaultPrevented).toBe(true)
+    expect(instance.getContent()).toBe('```\ncode line here\n```')
+  })
+})

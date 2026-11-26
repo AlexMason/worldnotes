@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { toggleWrap, wrapLink } from '../editor-format'
+import { toggleWrap, toggleList, activeFormats, wrapLink } from '../editor-format'
+import { defaultPlugins } from '../plugins/defaults'
+
+const defs = defaultPlugins.flatMap((p) => p.tokens)
 
 describe('toggleWrap', () => {
   it('wraps a selection and selects the inner content', () => {
@@ -82,5 +85,138 @@ describe('wrapLink', () => {
     expect(r.text).toBe('[]()')
     expect(r.start).toBe(3)
     expect(r.end).toBe(3)
+  })
+})
+
+describe('toggleWrap with an asymmetric pair', () => {
+  const wrap = (t: string, s: number, e: number) => toggleWrap(t, s, e, '<u>', '</u>')
+
+  it('wraps and selects the inner content', () => {
+    expect(wrap('foo bar', 0, 3)).toEqual({ text: '<u>foo</u> bar', start: 3, end: 6 })
+  })
+
+  it('collapsed caret inserts the empty pair with the caret between', () => {
+    expect(wrap('xy', 1, 1)).toEqual({ text: 'x<u></u>y', start: 4, end: 4 })
+  })
+
+  it('second press unwraps with correct offsets (outside markers)', () => {
+    const a = wrap('foo bar', 0, 3)
+    expect(wrap(a.text, a.start, a.end)).toEqual({ text: 'foo bar', start: 0, end: 3 })
+  })
+
+  it('unwraps when the selection carries both markers', () => {
+    expect(wrap('<u>foo</u>', 0, 10)).toEqual({ text: 'foo', start: 0, end: 3 })
+  })
+
+  it('caret between the pair unwraps to nothing', () => {
+    expect(wrap('<u></u>', 3, 3)).toEqual({ text: '', start: 0, end: 0 })
+  })
+})
+
+describe('toggleList', () => {
+  it('adds a bullet to a plain line, collapsed caret keeps its place in the text', () => {
+    expect(toggleList('hello', 3, 3)).toEqual({ text: '- hello', start: 5, end: 5 })
+  })
+
+  it('removes the bullet when the line already is one', () => {
+    expect(toggleList('- hello', 5, 5)).toEqual({ text: 'hello', start: 3, end: 3 })
+  })
+
+  it('caret in the marker clamps to the start of the content on removal', () => {
+    expect(toggleList('- hello', 1, 1)).toEqual({ text: 'hello', start: 0, end: 0 })
+  })
+
+  it('keeps indentation on add and remove', () => {
+    const added = toggleList('  nested', 4, 4)!
+    expect(added.text).toBe('  - nested')
+    expect(toggleList(added.text, added.start, added.end)!.text).toBe('  nested')
+  })
+
+  it('a range over mixed lines turns every non-blank line into a bullet and selects the block', () => {
+    const text = 'a\n\nb\n* c'
+    const r = toggleList(text, 0, text.length)!
+    expect(r.text).toBe('- a\n\n- b\n* c')
+    expect(r.start).toBe(0)
+    expect(r.end).toBe(r.text.length)
+  })
+
+  it('removes bullets only when every target is a bullet (blank lines ignored)', () => {
+    const text = '- a\n\n+ b'
+    expect(toggleList(text, 0, text.length)!.text).toBe('a\n\nb')
+  })
+
+  it('swaps numbered markers for bullets instead of nesting them', () => {
+    expect(toggleList('1. one\n2. two', 0, 13)!.text).toBe('- one\n- two')
+  })
+
+  it('skips block-region lines and no-ops when nothing is left', () => {
+    const text = 'p\n```\ncode\n```'
+    const r = toggleList(text, 0, text.length, new Set([1, 2, 3]))!
+    expect(r.text).toBe('- p\n```\ncode\n```')
+    expect(toggleList('```\ncode\n```', 0, 12, new Set([0, 1, 2]))).toBeNull()
+  })
+
+  it('a selection ending at the next line start does not touch that line', () => {
+    const text = 'a\nb'
+    expect(toggleList(text, 0, 2)!.text).toBe('- a\nb')
+  })
+
+  it('blank caret line is a no-op', () => {
+    expect(toggleList('a\n\nb', 2, 2)).toBeNull()
+  })
+
+  it('round-trips: add then remove restores the text', () => {
+    const text = 'one\ntwo'
+    const a = toggleList(text, 0, text.length)!
+    expect(toggleList(a.text, a.start, a.end)!.text).toBe(text)
+  })
+})
+
+describe('activeFormats', () => {
+  const at = (text: string, s: number, e = s) => activeFormats(text, s, e, defs)
+
+  it('reports bold/italic/underline/link/wiki-link around a caret', () => {
+    expect(at('a **b** c', 5).bold).toBe(true)
+    expect(at('a *b* c', 4).italic).toBe(true)
+    expect(at('a <u>b</u> c', 6).underline).toBe(true)
+    expect(at('a [b](https://x.test) c', 5).link).toBe(true)
+    expect(at('a [[page|b]] c', 6).link).toBe(true)
+  })
+
+  it('outer edges of a token are outside; markers count as inside', () => {
+    expect(at('**b**', 0).bold).toBe(false)
+    expect(at('**b**', 5).bold).toBe(false)
+    expect(at('**b**', 1).bold).toBe(true)
+    expect(at('**b**', 4).bold).toBe(true)
+  })
+
+  it('a range inside, or exactly on, the token is active', () => {
+    expect(at('x **bold** y', 4, 8).bold).toBe(true) // the inner text
+    expect(at('x **bold** y', 2, 10).bold).toBe(true) // the whole token
+    expect(at('x **bold** y', 0, 6).bold).toBe(false) // straddles the start
+  })
+
+  it('plain text and other tokens leave the flags off', () => {
+    const r = at('plain **b** text', 2)
+    expect(r).toEqual({ bold: false, italic: false, underline: false, link: false, list: false })
+  })
+
+  it('list: bullet lines are active, numbered are not; content is re-scanned', () => {
+    expect(at('- item', 3).list).toBe(true)
+    expect(at('1. item', 4).list).toBe(false)
+    const r = at('- a **b** c', 7)
+    expect(r.list).toBe(true)
+    expect(r.bold).toBe(true)
+  })
+
+  it('multi-line selections report only the list state', () => {
+    const text = '- a\n- **b**'
+    const r = at(text, 0, text.length)
+    expect(r).toEqual({ bold: false, italic: false, underline: false, link: false, list: true })
+    expect(at('- a\nb', 0, 5).list).toBe(false)
+  })
+
+  it('tokens on other lines never leak', () => {
+    expect(at('**a**\nplain', 8).bold).toBe(false)
   })
 })

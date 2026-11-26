@@ -29,7 +29,7 @@ import {
   moveWord,
   wordExtend,
 } from './editor-text-ops'
-import { toggleWrap, wrapLink } from './editor-format'
+import { toggleWrap, toggleList, wrapLink } from './editor-format'
 import { commitModelEdit, type ModelCommitDeps, type TextEdit } from './editor-commit'
 
 // ─── Binding table — the SINGLE source for keymap, help overlay, and docs ──
@@ -49,6 +49,7 @@ export const SHORTCUT_BINDINGS: ShortcutBinding[] = [
   { group: 'Words', keys: 'Ctrl+Shift+← / →', action: 'Extend selection by word' },
   { group: 'Formatting', keys: 'Ctrl+B', action: 'Bold selection (toggle)' },
   { group: 'Formatting', keys: 'Ctrl+I', action: 'Italic selection (toggle)' },
+  { group: 'Formatting', keys: 'Ctrl+U', action: 'Underline selection (toggle)' },
   { group: 'Formatting', keys: 'Ctrl+K', action: 'Wrap selection as [link](url)' },
   { group: 'Document', keys: 'Ctrl+S', action: 'Save now' },
   { group: 'Document', keys: 'Ctrl+Click', action: 'Open an external link in a new tab' },
@@ -58,13 +59,23 @@ export const SHORTCUT_BINDINGS: ShortcutBinding[] = [
 
 // ─── Keymap ─────────────────────────────────────────────────────────────────
 
+export type FormatAction = 'bold' | 'italic' | 'underline' | 'list'
+
 export interface EditingKeymapDeps extends ModelCommitDeps {
   saveNow(): void
+  /** Line indices of `text` inside block regions (fences, tables). */
+  blockLines(text: string): ReadonlySet<number>
 }
 
 export interface EditingKeymap {
   /** True when the event was consumed (preventDefault already applied). */
   handle(event: KeyboardEvent): boolean
+  /**
+   * Run a formatting action on the live selection — the one path shared by
+   * the Ctrl chords and the toolbar buttons. True when the action was
+   * consumed (including inert-in-block no-ops); false when no page is loaded.
+   */
+  format(action: FormatAction): boolean
 }
 
 const ctrlCmd = (e: KeyboardEvent): boolean => e.ctrlKey || e.metaKey
@@ -117,8 +128,9 @@ export function createEditingKeymap(deps: EditingKeymapDeps): EditingKeymap {
       consumed = wordMotion(key === 'ArrowLeft' ? 'backward' : 'forward', e.shiftKey)
     } else if (ctrlCmd(e) && !e.altKey && !e.shiftKey) {
       const k = key.toLowerCase()
-      if (k === 'b') consumed = formatOp((t, s, en) => toggleWrap(t, s, en, '**'))
-      else if (k === 'i') consumed = formatOp((t, s, en) => toggleWrap(t, s, en, '*'))
+      if (k === 'b') consumed = format('bold')
+      else if (k === 'i') consumed = format('italic')
+      else if (k === 'u') consumed = format('underline')
       else if (k === 'k') consumed = formatOp((t, s, en) => wrapLink(t, s, en))
       else if (k === 'a') consumed = selectAll()
       else if (k === 's') {
@@ -170,10 +182,25 @@ export function createEditingKeymap(deps: EditingKeymapDeps): EditingKeymap {
   }
 
   /** Formatting: consume-and-noop inside block regions (fences, tables). */
-  function formatOp(compute: (text: string, start: number, end: number) => TextEdit): boolean {
+  function formatOp(
+    compute: (text: string, start: number, end: number) => TextEdit | null,
+  ): boolean {
     if (selectionInBlock(deps.editorEl)) return true
     return runTextOp(compute)
   }
 
-  return { handle }
+  function format(action: FormatAction): boolean {
+    switch (action) {
+      case 'bold':
+        return formatOp((t, s, en) => toggleWrap(t, s, en, '**'))
+      case 'italic':
+        return formatOp((t, s, en) => toggleWrap(t, s, en, '*'))
+      case 'underline':
+        return formatOp((t, s, en) => toggleWrap(t, s, en, '<u>', '</u>'))
+      case 'list':
+        return formatOp((t, s, en) => toggleList(t, s, en, deps.blockLines(t)))
+    }
+  }
+
+  return { handle, format }
 }

@@ -16,6 +16,7 @@ import { getSelectionOffsets } from './caret-offset'
 import { createEditingKeymap } from './editor-keymap'
 import { commitModelEdit, replaceSelection, type ModelCommitDeps } from './editor-commit'
 import { extractContentText } from './content-text'
+import { buildDocument } from './document'
 import { renderInlineContent } from './renderer'
 import type { NotificationSystem } from './notifications'
 import type { ToastOptions } from './types'
@@ -178,7 +179,17 @@ export function createEditorLifecycle(
 
     // ── Editing keymap (line ops, word ops, formatting, Ctrl+S) ────────
 
-    const keymap = createEditingKeymap({ ...commitDeps, saveNow: () => void saveNow() })
+    const keymap = createEditingKeymap({
+      ...commitDeps,
+      saveNow: () => void saveNow(),
+      blockLines: (text) => {
+        const lines = new Set<number>()
+        for (const block of buildDocument(text, contentPlugins).blocks) {
+          for (let i = block.startLine; i <= block.endLine; i++) lines.add(i)
+        }
+        return lines
+      },
+    })
 
     // ── Input handler ──────────────────────────────────────────────────────
 
