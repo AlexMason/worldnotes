@@ -3,7 +3,7 @@ issue: 21
 title: Allow editors to upload user photos (converted to PNG, stored in Postgres)
 type: feature
 branch: feature/21-photo-upload
-status: implemented
+status: filed
 created: 2026-11-26
 pr: ""
 ---
@@ -175,3 +175,5 @@ export async function convertToPng(file: File, env?: ConvertEnv): Promise<Blob>
 - 2026-11-26: #20 (toolbar) merged as `ac2c963` before step 6; the branch was rebased onto it. The only conflict was an import-list line in `src/core/index.ts` (kept both `PageSuggestion` and `ImageUploader`). Step 6 moved the `imageCtx` construction above the toolbar creation in `editor-lifecycle.ts` so the toolbar and the paste/drop handlers share it. The Image button is not a toggle, so it carries no `aria-pressed`; `docs/theming.md` only gained the `--image` modifier on `.wn-toolbar-btn`.
 
 ## Review
+
+Filed without review sign-off at user's request.
