@@ -113,7 +113,7 @@ One internal walker produces the kept byte ranges; `parseGif` ignores them, `san
 ## Steps
 
 - [x] 1. `src/shared/gif.ts` (`parseGif`, `sanitizeGif`) + caps in `media-policy.ts` + `gif.test.ts` with the GIF builder (full matrix above).
-- [ ] 2. Server: `POST /api/media/photos` accepts PNG or GIF (magic-byte dispatch, error mapping, `mediaType` in the response); `media.test.ts` updates/additions; `docs/api.md` (route table, error list, GIF validation paragraph).
+- [x] 2. Server: `POST /api/media/photos` accepts PNG or GIF (magic-byte dispatch, error mapping, `mediaType` in the response); `media.test.ts` updates/additions; `docs/api.md` (route table, error list, GIF validation paragraph).
 - [ ] 3. Client prepare step: `preparePhoto` with the GIF branch and `notice`, `createMediaUploader` returns `{ url, notice? }`, `ImageUploader` type change, `insertImages` shows `notice` as a warning toast; tests.
 - [ ] 4. Copy-image originals: `gifUrlFromClipboardHtml`, `clipboardImages`, `EditorOptions.imageFetcher`, `insertImages` original resolution and the Decision 9 error, `src/client/media-fetch.ts` wired in `main.ts`; tests; `docs/architecture.md` (photos paragraph: GIF path, fetch, privacy note).
 

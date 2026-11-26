@@ -1,8 +1,9 @@
 // ─── Media upload & serving ──────────────────────────────────────────────────
 // POST /api/media stores uploaded images as received (favicon overrides);
 // POST /api/media/photos stores editor photos: the browser has already
-// downscaled and converted them to PNG, and the server structurally validates
-// and metadata-strips that PNG (png-sanitize.ts) instead of trusting it. Rows
+// downscaled and converted them to PNG (or kept an animated GIF as is), and
+// the server structurally validates and metadata-strips either one
+// (png-sanitize.ts, shared/gif.ts) instead of trusting it. Rows
 // are immutable and addressed by id — /media/{id} is cacheable forever;
 // replacing an image is a new upload. The two blind-request routes
 // (/favicon.ico, /apple-touch-icon.png) resolve the current favicon at
@@ -20,6 +21,7 @@ import type { MediaRepository } from '../db/media-repository'
 import type { SettingsService } from '../settings'
 import { probeMedia } from '../media-types'
 import { sanitizePng } from '../png-sanitize'
+import { sanitizeGif } from '../../shared/gif'
 import { PHOTO_MAX_SIDE } from '../../shared/media-policy'
 
 export interface MediaDeps {
@@ -27,7 +29,7 @@ export interface MediaDeps {
   settings: SettingsService
   /** Directory holding the bundled default icon set; null = not present. */
   iconsDir: string | null
-  /** Raw-upload ceiling for POST /api/media/photos (the converted PNG). */
+  /** Raw-upload ceiling for POST /api/media/photos (the converted PNG/GIF). */
   photoMaxBytes: number
 }
 
@@ -182,10 +184,13 @@ export async function registerMediaRoutes(app: FastifyInstance, deps: MediaDeps)
     },
   )
 
-  // ── Photo upload: PNG only, sanitized, capped by PHOTO_MAX_BYTES ─────────
+  // ── Photo upload: PNG or GIF, sanitized, capped by PHOTO_MAX_BYTES ───────
   // Same guards as /api/media (auth + same-origin run at onRequest, before
   // the multipart parser). The size ceiling is per request, so the favicon
-  // route keeps its 2 MiB cap.
+  // route keeps its 2 MiB cap. The type comes from magic bytes only: a PNG
+  // signature -> sanitizePng, GIF87a/GIF89a -> sanitizeGif, else 415.
+
+  const tooLarge = `image is larger than ${PHOTO_MAX_SIDE} px on a side`
 
   app.post(
     '/api/media/photos',
@@ -194,34 +199,53 @@ export async function registerMediaRoutes(app: FastifyInstance, deps: MediaDeps)
       const buf = await readUpload(req, reply, photoMaxBytes)
       if (!buf) return reply
 
-      const sanitized = sanitizePng(buf)
-      if (!sanitized.ok) {
-        switch (sanitized.reason) {
-          case 'not-png':
-            return reply.code(415).send({ error: 'expected a PNG image' })
-          case 'over-dimension':
-            return reply
-              .code(422)
-              .send({ error: `image is larger than ${PHOTO_MAX_SIDE} px on a side` })
-          case 'invalid-png':
-            return reply.code(422).send({ error: 'invalid PNG' })
+      let mediaType: 'image/png' | 'image/gif'
+      let data: Buffer
+      let width: number
+      let height: number
+
+      const png = sanitizePng(buf)
+      if (png.ok) {
+        mediaType = 'image/png'
+        data = png.png
+        ;({ width, height } = png)
+      } else if (png.reason === 'over-dimension') {
+        return reply.code(422).send({ error: tooLarge })
+      } else if (png.reason === 'invalid-png') {
+        return reply.code(422).send({ error: 'invalid PNG' })
+      } else {
+        const gif = sanitizeGif(buf)
+        if (!gif.ok) {
+          switch (gif.reason) {
+            case 'not-gif':
+              return reply.code(415).send({ error: 'expected a PNG or GIF image' })
+            case 'over-dimension':
+              return reply.code(422).send({ error: tooLarge })
+            case 'too-many-frames':
+              return reply.code(422).send({ error: 'GIF has too many frames' })
+            case 'invalid-gif':
+              return reply.code(422).send({ error: 'invalid GIF' })
+          }
         }
+        mediaType = 'image/gif'
+        data = Buffer.from(gif.gif.buffer, gif.gif.byteOffset, gif.gif.byteLength)
+        ;({ width, height } = gif)
       }
 
       const { id } = await media.insert({
-        mediaType: 'image/png',
-        width: sanitized.width,
-        height: sanitized.height,
-        data: sanitized.png,
+        mediaType,
+        width,
+        height,
+        data,
         by: req.user?.sub ?? null,
       })
       return reply.code(201).send({
         id,
         url: `/media/${id}`,
-        mediaType: 'image/png',
-        sizeBytes: sanitized.png.byteLength,
-        width: sanitized.width,
-        height: sanitized.height,
+        mediaType,
+        sizeBytes: data.byteLength,
+        width,
+        height,
       })
     },
   )
