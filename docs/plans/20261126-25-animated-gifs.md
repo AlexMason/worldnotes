@@ -130,3 +130,5 @@ One internal walker produces the kept byte ranges; `parseGif` ignores them, `san
 ## Implementation notes
 
 ## Review
+
+Mode: sub-agents
