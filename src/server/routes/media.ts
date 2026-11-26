@@ -23,6 +23,8 @@ export interface MediaDeps {
   settings: SettingsService
   /** Directory holding the bundled default icon set; null = not present. */
   iconsDir: string | null
+  /** Raw-upload ceiling for POST /api/media/photos (the converted PNG). */
+  photoMaxBytes: number
 }
 
 const SECURITY_HEADERS: Record<string, string> = {
@@ -34,6 +36,12 @@ const SECURITY_HEADERS: Record<string, string> = {
 const BUNDLED_FILES: Record<string, { file: string; contentType: string }> = {
   '/favicon.ico': { file: 'favicon.ico', contentType: 'image/vnd.microsoft.icon' },
   '/apple-touch-icon.png': { file: 'apple-touch-icon.png', contentType: 'image/png' },
+}
+
+/** 413 text; a per-request ceiling is named so the browser can show it. */
+function tooLargeMessage(limit?: number): string {
+  if (limit === undefined) return 'file exceeds the upload size limit'
+  return `file exceeds the upload size limit (${Number((limit / 1_048_576).toFixed(1))} MiB)`
 }
 
 function sendBytes(
@@ -63,10 +71,12 @@ export async function registerMediaRoutes(app: FastifyInstance, deps: MediaDeps)
     InvalidMultipartContentTypeError,
   } = app.multipartErrors
 
-  /** Map multipart limit/format errors to 4xx; returns null when not one. */
-  function limitError(e: unknown): { code: number; message: string } | null {
-    if (e instanceof RequestFileTooLargeError)
-      return { code: 413, message: 'file exceeds the upload size limit' }
+  /** Map multipart limit/format errors to 4xx; returns null when not one.
+   *  `limit` (a per-request ceiling) is named in the 413 message. */
+  function limitError(e: unknown, limit?: number): { code: number; message: string } | null {
+    if (e instanceof RequestFileTooLargeError) {
+      return { code: 413, message: tooLargeMessage(limit) }
+    }
     if (e instanceof InvalidMultipartContentTypeError)
       return { code: 415, message: 'expected multipart/form-data' }
     if (e instanceof FilesLimitError)
@@ -77,6 +87,64 @@ export async function registerMediaRoutes(app: FastifyInstance, deps: MediaDeps)
     return null
   }
 
+  /**
+   * Read exactly one multipart file part into memory. On any limit/format
+   * problem the error reply is already sent and null is returned.
+   * `fileSizeLimit` overrides the global multipart ceiling for THIS request
+   * only (@fastify/multipart deep-merges per-call limits over the registered
+   * ones, so files/parts/fields stay capped).
+   */
+  async function readUpload(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    fileSizeLimit?: number,
+  ): Promise<Buffer | null> {
+    const fail = (code: number, error: string): null => {
+      void reply.code(code).send({ error })
+      return null
+    }
+
+    let part
+    try {
+      part = await req.file(
+        fileSizeLimit === undefined ? undefined : { limits: { fileSize: fileSizeLimit } },
+      )
+    } catch (e) {
+      const mapped = limitError(e, fileSizeLimit) ?? {
+        code: 400,
+        message: 'malformed multipart request',
+      }
+      if (mapped.code === 400 && !(e instanceof Error && /malformed/i.test(e.message))) {
+        req.log.warn({ err: e }, 'media upload rejected')
+      }
+      return fail(mapped.code, mapped.message)
+    }
+    if (!part) return fail(400, 'a file part is required')
+
+    let buf: Buffer
+    try {
+      buf = await part.toBuffer()
+    } catch (e) {
+      const mapped = limitError(e, fileSizeLimit) ?? {
+        code: 400,
+        message: 'could not read upload',
+      }
+      return fail(mapped.code, mapped.message)
+    }
+    if (part.file.truncated) return fail(413, tooLargeMessage(fileSizeLimit))
+    // Drain any extra parts so busboy can finish the request cleanly.
+    try {
+      while (true) {
+        const extra = await req.file()
+        if (!extra) break
+        await extra.toBuffer().catch(() => undefined)
+      }
+    } catch {
+      /* limit errors on extras are fine — the single-part rule below wins */
+    }
+    return buf
+  }
+
   // ── Upload (auth + same-origin BEFORE parsing: onRequest, not preHandler —
   //    an anonymous caller must not be able to drive busboy at all) ─────────
 
@@ -84,38 +152,8 @@ export async function registerMediaRoutes(app: FastifyInstance, deps: MediaDeps)
     '/api/media',
     { onRequest: [requireSameOrigin, requireRole('editor', 'admin')] },
     async (req, reply) => {
-      let part
-      try {
-        part = await req.file()
-      } catch (e) {
-        const mapped = limitError(e) ?? { code: 400, message: 'malformed multipart request' }
-        if (mapped.code === 400 && !(e instanceof Error && /malformed/i.test(e.message))) {
-          req.log.warn({ err: e }, 'media upload rejected')
-        }
-        return reply.code(mapped.code).send({ error: mapped.message })
-      }
-      if (!part) return reply.code(400).send({ error: 'a file part is required' })
-
-      let buf: Buffer
-      try {
-        buf = await part.toBuffer()
-      } catch (e) {
-        const mapped = limitError(e) ?? { code: 400, message: 'could not read upload' }
-        return reply.code(mapped.code).send({ error: mapped.message })
-      }
-      if (part.file.truncated) {
-        return reply.code(413).send({ error: 'file exceeds the upload size limit' })
-      }
-      // Drain any extra parts so busboy can finish the request cleanly.
-      try {
-        while (true) {
-          const extra = await req.file()
-          if (!extra) break
-          await extra.toBuffer().catch(() => undefined)
-        }
-      } catch {
-        /* limit errors on extras are fine — the single-part rule below wins */
-      }
+      const buf = await readUpload(req, reply)
+      if (!buf) return reply
 
       const probed = probeMedia(buf)
       if (!probed.ok) {

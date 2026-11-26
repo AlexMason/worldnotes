@@ -30,6 +30,13 @@ describe('loadConfig', () => {
     expect(config.env.CACHE_TTL_SECONDS).toBe(55)
     expect(config.env.AUTOSAVE_DEBOUNCE_MS).toBe(1500)
     expect(config.env.MEDIA_MAX_BYTES).toBe(2_097_152)
+    expect(config.env.PHOTO_MAX_BYTES).toBe(15_728_640)
+  })
+
+  it('lets PHOTO_MAX_BYTES be overridden independently of MEDIA_MAX_BYTES', () => {
+    const config = loadConfig({ ...baseEnv(), PHOTO_MAX_BYTES: '1048576' })
+    expect(config.env.PHOTO_MAX_BYTES).toBe(1_048_576)
+    expect(config.env.MEDIA_MAX_BYTES).toBe(2_097_152)
   })
 
   it('accepts a complete OIDC configuration', () => {
