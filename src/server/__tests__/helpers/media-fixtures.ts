@@ -11,7 +11,7 @@ function crc32(buf: Buffer): number {
   return ~c >>> 0
 }
 
-function pngChunk(type: string, data: Buffer): Buffer {
+export function pngChunk(type: string, data: Buffer): Buffer {
   const body = Buffer.concat([Buffer.from(type, 'ascii'), data])
   const len = Buffer.alloc(4)
   len.writeUInt32BE(body.length - 4)
@@ -19,6 +19,31 @@ function pngChunk(type: string, data: Buffer): Buffer {
   crc.writeUInt32BE(crc32(body))
   return Buffer.concat([len, body, crc])
 }
+
+export const PNG_SIGNATURE = Buffer.from('89504e470d0a1a0a', 'hex')
+
+/** IHDR payload (13 bytes) for arbitrary dims / depth / colour type. */
+export function ihdrData(
+  width = 1,
+  height = 1,
+  opts: { depth?: number; colorType?: number; interlace?: number } = {},
+): Buffer {
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(width, 0)
+  ihdr.writeUInt32BE(height, 4)
+  ihdr[8] = opts.depth ?? 8
+  ihdr[9] = opts.colorType ?? 6
+  ihdr[12] = opts.interlace ?? 0
+  return ihdr
+}
+
+/** Signature + the given chunks, verbatim (no validation) — for building both
+ *  valid and deliberately malformed PNGs. */
+export function buildPng(chunks: Buffer[]): Buffer {
+  return Buffer.concat([PNG_SIGNATURE, ...chunks])
+}
+
+export const IDAT_DATA = Buffer.from('e9030000000002', 'hex')
 
 /** 1x1 transparent PNG built with correct chunks; header dims = size x size. */
 export function pngBytes(width = 1, height = 1): Buffer {
