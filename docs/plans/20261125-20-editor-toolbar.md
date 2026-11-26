@@ -5,7 +5,7 @@ type: feature
 branch: feature/20-editor-toolbar
 status: filed
 created: 2026-11-25
-pr: ""
+pr: "https://github.com/AlexMason/worldnotes/pull/23"
 ---
 
 # Add an editor formatting toolbar (bold, italic, underline, list, link)
