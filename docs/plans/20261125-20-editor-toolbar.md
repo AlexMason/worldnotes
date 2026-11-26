@@ -3,7 +3,7 @@ issue: 20
 title: Add an editor formatting toolbar (bold, italic, underline, list, link)
 type: feature
 branch: feature/20-editor-toolbar
-status: implemented
+status: in-review
 created: 2026-11-25
 pr: ""
 ---
@@ -118,4 +118,7 @@ Collapsed caret + bold/italic/underline → empty marker pair with caret between
   - The selection-capture / stale-text guard lives in a small `editor-link.ts` controller; `link-field.ts` owns only the field DOM and typing/suggestion UX (Design had both in the field).
   - Suggestion ranking is the pure `rankSuggestions` in `link-input.ts`, applied by the field (stores return the raw matches).
   - The shared worktree was provisioned by copying `.env` and `node_modules` from the main checkout (as the #17 worktree was); pg integration tests ran against the existing local Postgres (`worldnotes_test`).
+
 ## Review
+
+Mode: sub-agents
