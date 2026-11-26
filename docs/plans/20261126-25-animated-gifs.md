@@ -3,7 +3,7 @@ issue: 25
 title: Keep animated GIFs animated when uploading photos (incl. Copy image from the web)
 type: fix
 branch: fix/25-animated-gifs
-status: reviewed
+status: filed
 created: 2026-11-26
 pr: ""
 ---
