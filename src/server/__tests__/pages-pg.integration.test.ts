@@ -102,6 +102,16 @@ describe.skipIf(!url)('PagesRepository on Postgres', () => {
     expect(pct).toEqual([])
   })
 
+  it("scope 'name' matches slug/title only and still honors limit and escaping", async () => {
+    await repo.put('lore/old-gods', { title: 'The Old Gods', content: 'plain' })
+    await repo.put('diary', { title: 'Diary', content: 'about the old gods' })
+    await repo.put('pct', { title: '100% sure', content: 'x' })
+    const named = await repo.list({ query: 'old gods', scope: 'name' })
+    expect(named.map((p) => p.slug)).toEqual(['lore/old-gods'])
+    expect((await repo.list({ query: 'o', scope: 'name', limit: 1 })).length).toBe(1)
+    expect((await repo.list({ query: '100%', scope: 'name' })).map((p) => p.slug)).toEqual(['pct'])
+  })
+
   it('delete removes rows', async () => {
     await repo.put('temp', { title: 'T', content: '' })
     expect(await repo.delete('temp')).toBe(true)

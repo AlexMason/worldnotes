@@ -126,12 +126,22 @@ export interface DocModel {
  * @method canonicalOf - Optional: the page a `load(page)` actually landed on
  *                       (a moved page's former slug resolves to its current
  *                       one); identity when unknown.
+ * @method suggest     - Optional: pages whose NAME (slug or title) contains
+ *                       `query`, for the link field's suggestions. Without it
+ *                       the field simply offers none.
  */
 export interface PageStore {
   load(page: string): Promise<string | null>
   save(page: string, content: string): Promise<void>
   move?(from: string, to: string): Promise<PageMoveResult>
   canonicalOf?(page: string): string
+  suggest?(query: string, limit: number): Promise<PageSuggestion[]>
+}
+
+/** One page offered as a link target: its slug and display title. */
+export interface PageSuggestion {
+  slug: string
+  title: string
 }
 
 /**

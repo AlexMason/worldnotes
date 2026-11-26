@@ -27,6 +27,7 @@ export type {
   ContentPlugin,
   UIPlugin,
   PageStore,
+  PageSuggestion,
   PageExistenceResolver,
   PageTitleResolver,
   EditorContext,

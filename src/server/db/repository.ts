@@ -90,8 +90,11 @@ export interface PagesRepository {
    * nothing. `version` increments only for rows whose content changed.
    */
   move(input: MoveInput): Promise<MoveResult>
-  /** All pages, newest first; optional ILIKE-free substring filter over slug/title/content. */
-  list(opts?: { query?: string; limit?: number }): Promise<PageListItem[]>
+  /**
+   * All pages, newest first; optional ILIKE-free substring filter over
+   * slug/title/content — or slug/title only with `scope: 'name'`.
+   */
+  list(opts?: { query?: string; limit?: number; scope?: 'name' }): Promise<PageListItem[]>
   /** Insert-or-update with optimistic concurrency. */
   put(
     slug: string,

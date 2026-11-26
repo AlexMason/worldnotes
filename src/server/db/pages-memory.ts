@@ -133,7 +133,7 @@ export function createMemoryPagesRepository(
     },
 
     async list(opts = {}) {
-      const { query, limit } = opts
+      const { query, limit, scope } = opts
       let items = [...pages.values()].sort((a, b) => b.updatedAt - a.updatedAt)
       if (query) {
         const needle = query.toLowerCase()
@@ -141,7 +141,7 @@ export function createMemoryPagesRepository(
           (p) =>
             p.slug.toLowerCase().includes(needle) ||
             p.title.toLowerCase().includes(needle) ||
-            p.content.toLowerCase().includes(needle),
+            (scope !== 'name' && p.content.toLowerCase().includes(needle)),
         )
       }
       const mapped: PageListItem[] = items.map((p) => ({

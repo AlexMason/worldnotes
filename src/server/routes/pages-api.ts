@@ -82,9 +82,16 @@ export async function registerPageApiRoutes(
   // ── Reads (public unless the instance is login-only) ─────────────────────────
 
   app.get('/api/pages', { preHandler: [readGate] }, async (req, reply) => {
-    const query = (req.query ?? {}) as { q?: string; limit?: string }
+    const query = (req.query ?? {}) as { q?: string; limit?: string; scope?: string }
+    if (query.scope !== undefined && query.scope !== 'name') {
+      return reply.code(400).send({ error: "scope must be 'name'" })
+    }
     const limit = Math.min(Number(query.limit) || 100, 500)
-    const items = await deps.pages.list({ query: query.q, limit })
+    const items = await deps.pages.list({
+      query: query.q,
+      limit,
+      scope: query.scope === 'name' ? 'name' : undefined,
+    })
     const gated = deps.getSettings().requireLogin
     if (gated) reply.header('vary', 'Cookie')
     reply.header(

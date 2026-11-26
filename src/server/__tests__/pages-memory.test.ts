@@ -73,6 +73,20 @@ describe('memory PagesRepository', () => {
     expect((await repo.list({ limit: 1 })).map((p) => p.slug)).toEqual(['two'])
   })
 
+  it("list scope 'name' matches slug and title but not the body", async () => {
+    const repo = createMemoryPagesRepository()
+    await repo.put('lore/old-gods', { title: 'The Old Gods', content: 'nothing relevant' })
+    await repo.put('diary', { title: 'Diary', content: 'I read about the old gods today' })
+
+    const body = await repo.list({ query: 'old gods' })
+    expect(body.map((p) => p.slug).sort()).toEqual(['diary', 'lore/old-gods'])
+    const named = await repo.list({ query: 'old gods', scope: 'name' })
+    expect(named.map((p) => p.slug)).toEqual(['lore/old-gods'])
+    expect(
+      (await repo.list({ query: 'LORE', scope: 'name', limit: 5 })).map((p) => p.slug),
+    ).toEqual(['lore/old-gods'])
+  })
+
   it('delete removes and reports whether a row went away', async () => {
     const repo = createMemoryPagesRepository([page('gone')])
     expect(await repo.delete('gone')).toBe(true)
