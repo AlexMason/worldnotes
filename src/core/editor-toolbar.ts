@@ -11,6 +11,13 @@
 // `mousedown` is cancelled (clicks and touch taps still fire), and keyboard
 // activation refocuses the editor before running the action.
 //
+// Touch: the compatibility `mousedown` arrives AFTER the tap, so it can be too
+// late — the browser may already have collapsed the selection, and a
+// `selectionchange` in between would disable the button under the finger (a
+// disabled button swallows its click). So `pointerdown` snapshots the editor
+// selection and freezes the state refresh; `click` restores the snapshot
+// when the live selection no longer matches it (text unchanged meanwhile).
+//
 // State is derived from the markdown SOURCE (`activeFormats`), recomputed on
 // `selectionchange` (rAF-coalesced; skipped while hidden or when nothing it
 // reads changed). Buttons disable when the selection is unmappable (outside
@@ -19,7 +26,7 @@
 import type { TokenDef } from './types'
 import { activeFormats, type ActiveFormats } from './editor-format'
 import type { FormatAction } from './editor-keymap'
-import { getSelectionOffsets, selectionInBlock } from './caret-offset'
+import { getSelectionOffsets, selectionInBlock, setSelectionOffsets } from './caret-offset'
 
 export interface EditorToolbarDeps {
   /** The `.wn-toolbar` row. */
@@ -47,6 +54,19 @@ export interface EditorToolbar {
   setHidden(hidden: boolean): void
   destroy(): void
 }
+
+/** The editor selection a button press started on. */
+interface SelectionSnapshot {
+  page: string
+  start: number
+  end: number
+  text: string
+}
+
+/** A press with no click or cancel is abandoned after this long (finger slid off, a very long press). */
+const PRESS_MAX_MS = 5000
+/** After pointerup the click follows within a frame or two; if it doesn't, stop waiting. */
+const RELEASE_GRACE_MS = 300
 
 /** `action` doubles as the ActiveFormats key: a button is pressed when the
  *  selection sits in the format it applies. */
@@ -116,21 +136,71 @@ export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
     if (e.target instanceof Element && e.target.closest('button')) e.preventDefault()
   })
 
+  /** The press in progress, or null. `snapshot` is null when the press began
+   *  without a usable editor selection (nothing to restore). */
+  let press: { snapshot: SelectionSnapshot | null } | null = null
+  let pressTimer: ReturnType<typeof setTimeout> | undefined
+
+  const endPress = (): void => {
+    press = null
+    clearTimeout(pressTimer)
+  }
+  const abandonPress = (): void => {
+    endPress()
+    refresh()
+  }
+
+  group.addEventListener(
+    'pointerdown',
+    (e) => {
+      if (!(e.target instanceof Element) || !e.target.closest('button')) return
+      const page = deps.getCurrentPage()
+      const sel = deps.pageExists(page) ? getSelectionOffsets(deps.editorEl) : null
+      press = { snapshot: sel ? { page, ...sel, text: deps.getPageText(page) } : null }
+      clearTimeout(pressTimer)
+      pressTimer = setTimeout(abandonPress, PRESS_MAX_MS)
+    },
+    true,
+  )
+  // The click follows the release at once; do not wait for it forever (a release off the button).
+  group.addEventListener('pointerup', () => {
+    if (!press) return
+    clearTimeout(pressTimer)
+    pressTimer = setTimeout(abandonPress, RELEASE_GRACE_MS)
+  })
+  // A scroll/drag took over the gesture: no click will follow.
+  group.addEventListener('pointercancel', abandonPress)
+  // Keyboard activation never involved a pointer: the editor kept its selection.
+  group.addEventListener('keydown', endPress)
+
   group.addEventListener('click', (e) => {
     const button = e.target instanceof Element ? e.target.closest('button') : null
     const action = button?.dataset.action as ButtonSpec['action'] | undefined
+    const snapshot = press?.snapshot ?? null
+    endPress()
     if (!button || button.disabled || !action) return
     if (document.activeElement !== deps.editorEl) deps.editorEl.focus({ preventScroll: true })
+    if (snapshot) restoreSelection(snapshot)
     if (action === 'link') deps.openLink()
     else if (action === 'image') fileInput?.click()
     else deps.format(action)
     refresh()
   })
 
+  /** Put the pointerdown selection back if the touch browser dropped it. */
+  function restoreSelection(snapshot: SelectionSnapshot): void {
+    const live = getSelectionOffsets(deps.editorEl)
+    if (live && live.start === snapshot.start && live.end === snapshot.end) return
+    if (deps.getCurrentPage() !== snapshot.page) return
+    if (deps.getPageText(snapshot.page) !== snapshot.text) return
+    setSelectionOffsets(deps.editorEl, snapshot.start, snapshot.end)
+  }
+
   // What the last refresh read; an identical read cannot change the buttons.
-  let seen: { page: string; start: number; end: number; text: string } | null = null
+  let seen: SelectionSnapshot | null = null
 
   function refresh(): void {
+    if (press) return // frozen: a finger is on a button
     const page = deps.getCurrentPage()
     const sel = deps.pageExists(page) ? getSelectionOffsets(deps.editorEl) : null
     const usable = sel !== null && !selectionInBlock(deps.editorEl)
@@ -178,6 +248,7 @@ export function createEditorToolbar(deps: EditorToolbarDeps): EditorToolbar {
     destroy() {
       document.removeEventListener('selectionchange', schedule)
       if (frame) cancelAnimationFrame(frame)
+      clearTimeout(pressTimer)
       group.remove()
     },
   }

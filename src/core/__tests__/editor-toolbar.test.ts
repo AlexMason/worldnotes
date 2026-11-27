@@ -245,3 +245,153 @@ describe('editor toolbar — Image button', () => {
     expect(button('image').disabled).toBe(true)
   })
 })
+
+describe('editor toolbar — touch press (selection lost before the click)', () => {
+  const down = (el: HTMLElement): void => {
+    el.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+  }
+  /** What a touch browser may do between the tap and the click. */
+  async function loseSelection(): Promise<void> {
+    window.getSelection()!.removeAllRanges()
+    document.dispatchEvent(new Event('selectionchange'))
+    await vi.advanceTimersByTimeAsync(40)
+  }
+
+  it.each([
+    ['bold', '**alpha** one'],
+    ['underline', '<u>alpha</u> one'],
+    ['list', '- alpha one'],
+  ])('%s still applies to the selection the finger went down on', async (action, firstLine) => {
+    const { instance, editorDiv, button } = await mount(DOC)
+    await select(editorDiv, 0, 5)
+    down(button(action))
+    await loseSelection()
+    expect(button(action).disabled).toBe(false) // never disabled under the finger
+    button(action).click()
+    expect(instance.getContent()).toBe(`${firstLine}\nbeta two\ngamma three`)
+    expect(getSelectionOffsets(editorDiv)).not.toBeNull()
+  })
+
+  it('does not restore a stale selection when the text changed meanwhile', async () => {
+    const { instance, editorDiv, button } = await mount(DOC)
+    await select(editorDiv, 0, 5)
+    down(button('bold'))
+    instance.setContent('something else entirely')
+    await loseSelection()
+    button('bold').click()
+    expect(instance.getContent()).toBe('something else entirely')
+  })
+
+  it('leaves a selection that is still intact alone (the desktop path)', async () => {
+    const { instance, editorDiv, button } = await mount(DOC)
+    await select(editorDiv, 0, 5)
+    down(button('italic'))
+    button('italic').click()
+    expect(instance.getContent()).toBe('*alpha* one\nbeta two\ngamma three')
+    const sel = getSelectionOffsets(editorDiv)!
+    expect(instance.getContent().slice(sel.start, sel.end)).toBe('alpha')
+  })
+
+  it('a press with no click is abandoned after the safety timeout', async () => {
+    const { editorDiv, button } = await mount(DOC)
+    await select(editorDiv, 0, 5)
+    down(button('bold'))
+    await loseSelection()
+    expect(button('bold').disabled).toBe(false) // frozen
+    await vi.advanceTimersByTimeAsync(5100)
+    expect(button('bold').disabled).toBe(true) // caught up with the lost selection
+  })
+
+  it('a long press still applies on release (no early expiry)', async () => {
+    const { instance, editorDiv, button } = await mount(DOC)
+    await select(editorDiv, 0, 5)
+    down(button('bold'))
+    await loseSelection()
+    await vi.advanceTimersByTimeAsync(3000) // held for three seconds
+    button('bold').dispatchEvent(new Event('pointerup', { bubbles: true }))
+    button('bold').click()
+    expect(instance.getContent()).toBe('**alpha** one\nbeta two\ngamma three')
+  })
+
+  it('a release that produces no click (finger slid off) unfreezes quickly', async () => {
+    const { editorDiv, button } = await mount(DOC)
+    await select(editorDiv, 0, 5)
+    down(button('bold'))
+    await loseSelection()
+    button('bold').dispatchEvent(new Event('pointerup', { bubbles: true }))
+    await vi.advanceTimersByTimeAsync(350)
+    expect(button('bold').disabled).toBe(true)
+  })
+
+  it('pointercancel (a scroll took the gesture) ends the freeze at once', async () => {
+    const { editorDiv, button } = await mount(DOC)
+    await select(editorDiv, 0, 5)
+    down(button('bold'))
+    await loseSelection()
+    button('bold').dispatchEvent(new Event('pointercancel', { bubbles: true }))
+    expect(button('bold').disabled).toBe(true)
+  })
+
+  it('the Image button restores the selection before opening the picker', async () => {
+    const uploader = vi.fn<ImageUploader>(async () => ({ url: '/media/5' }))
+    const { container, editorDiv, button } = await mount(DOC, 5, uploader)
+    await select(editorDiv, 6, 9)
+    const picker = container.querySelector('.wn-toolbar-file') as HTMLInputElement
+    const open = vi.spyOn(picker, 'click').mockImplementation(() => undefined)
+    down(button('image'))
+    await loseSelection()
+    button('image').click()
+    expect(open).toHaveBeenCalledTimes(1)
+    expect(getSelectionOffsets(editorDiv)).toEqual({ start: 6, end: 9 })
+  })
+
+  it('a press that began with no editor selection restores nothing and ends cleanly', async () => {
+    const { instance, editorDiv, button } = await mount(DOC)
+    await select(editorDiv, 0, 5)
+    window.getSelection()!.removeAllRanges() // selection gone before the finger lands
+    down(button('bold'))
+    button('bold').click()
+    expect(instance.getContent()).toBe(DOC) // nothing to act on, nothing invented
+    await select(editorDiv, 0, 5)
+    button('bold').click()
+    expect(instance.getContent()).toBe('**alpha** one\nbeta two\ngamma three') // not stuck frozen
+  })
+
+  it('does not restore when the page changed meanwhile', async () => {
+    const { instance, editorDiv, container, button } = await mount(DOC)
+    await select(editorDiv, 0, 5)
+    down(button('bold'))
+    instance.navigate('other')
+    await vi.advanceTimersByTimeAsync(20)
+    await loseSelection()
+    button('bold').click()
+    expect(container.querySelector('.wn-editor')!.textContent).not.toContain('**')
+  })
+
+  it('a pointerdown on the group but not on a button is ignored', async () => {
+    const { editorDiv, button } = await mount(DOC)
+    await select(editorDiv, 0, 5)
+    const group = button('bold').closest('.wn-toolbar-group') as HTMLElement
+    group.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    await loseSelection()
+    expect(button('bold').disabled).toBe(true) // not frozen: state followed the lost selection
+  })
+
+  it('keyboard activation drops a stale press so it cannot restore an old selection', async () => {
+    const { instance, editorDiv, button } = await mount(DOC)
+    await select(editorDiv, 0, 5)
+    down(button('bold')) // a press that never clicked …
+    await select(editorDiv, 10, 14) // … then the user moves on by other means
+    button('bold').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    button('bold').click()
+    expect(instance.getContent()).toBe('alpha one\n**beta** two\ngamma three')
+  })
+
+  it('destroying the editor mid-press leaves no timer that touches the removed toolbar', async () => {
+    const { instance, editorDiv, button } = await mount(DOC)
+    await select(editorDiv, 0, 5)
+    down(button('bold'))
+    instance.destroy()
+    await vi.advanceTimersByTimeAsync(6000) // would throw if the press timer survived
+  })
+})

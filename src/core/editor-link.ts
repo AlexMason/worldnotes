@@ -16,6 +16,9 @@ import { getSelectionOffsets, selectionInBlock, setSelectionOffsets } from './ca
 import { applyLink, findLinkAt } from './link-input'
 import { openLinkField, type LinkField } from './link-field'
 
+/** A selection longer than this is not offered as a link target (it is prose, not a name). */
+const MAX_PREFILL = 200
+
 export interface LinkControllerDeps extends ModelCommitDeps {
   /** The `.wn-toolbar` row the field mounts into. */
   host: HTMLElement
@@ -65,9 +68,16 @@ export function createLinkController(deps: LinkControllerDeps): LinkController {
     const existing = findLinkAt(text, sel.start, sel.end, deps.defs)
     const isStale = (): boolean => deps.getCurrentPage() !== page || deps.getPageText(page) !== text
 
+    // Prefill: an existing link's target, else the selected text — so "just
+    // press Link" links the selection to the page it names (or a URL it is),
+    // and typing replaces it (the field selects its content on open).
+    const picked = text.slice(sel.start, sel.end).trim()
+    const prefill =
+      existing?.target ?? (picked.includes('\n') || picked.length > MAX_PREFILL ? '' : picked)
+
     deps.onOpenChange(true)
     field = openLinkField(deps.host, {
-      initial: existing?.target ?? '',
+      initial: prefill,
       linkBase: deps.getLinkBase(),
       suggest: deps.suggest,
       apply(input) {

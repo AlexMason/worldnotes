@@ -262,6 +262,16 @@ its selection. Enabled/pressed state is derived from the markdown source
 (`activeFormats` in `editor-format.ts`) on `selectionchange`, never from DOM
 styling.
 
+On touch the compatibility `mousedown` comes after the tap, too late to stop
+the browser collapsing the selection, and a `selectionchange` in between would
+disable the button under the finger (a disabled button swallows its click). So
+`pointerdown` on a button snapshots the editor selection (page, offsets, text)
+and freezes the state refresh until the `click`, `pointercancel`, or — if no
+click follows — 300 ms after `pointerup` (5 s at most for a press never
+released); keyboard activation drops the snapshot. `click` restores the
+snapshot when the live selection differs and the text is unchanged, then runs
+the action.
+
 **Link field.** The toolbar's **Link** button and `Ctrl+K` both call
 `editor-link.ts` `open()`: it captures the selection offsets AND the page text,
 opens `link-field.ts` in the toolbar row (a combobox like the page-move field),
@@ -272,7 +282,18 @@ Input classification and link construction are the pure `link-input.ts`
 base, `findLinkAt` for editing an existing link). Page-name suggestions come
 from the optional `PageStore.suggest`, which `ApiPageStore` serves from
 `GET /api/pages?scope=name` (slug/title only, so body matches cannot crowd
-out pages named like the query).
+out pages named like the query). The field opens prefilled — with an existing
+link's target, else the single-line selected text (≤ 200 chars) — and fully
+selected, so typing replaces it and **Link** alone links the selection to the
+page it names.
+
+The field is a native `<form>` (`enterkeyhint="go"`): its `submit` event is
+the single commit path, so desktop Enter, a soft keyboard's Go/Enter key (which
+reports composition input, so `keydown` sniffing would swallow it) and the
+visible **Link** button all behave the same, and Enter mid-IME-composition
+never submits. The ✕ button cancels. Blur cancels only on fine-pointer devices
+and never when focus moves to the field's own controls; on touch the soft
+keyboard closing must not abandon the field.
 
 **Model commits.** `editor-commit.ts` is the ONE path for edits the editor
 defines itself: `commitModelEdit` = `setPageText` (one undo step) → forced

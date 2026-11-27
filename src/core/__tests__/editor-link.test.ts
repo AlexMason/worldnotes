@@ -39,6 +39,24 @@ function key(el: HTMLElement, init: KeyboardEventInit): KeyboardEvent {
   return event
 }
 
+/** What a browser does when Enter is pressed in a form's text input. */
+function enter(input: HTMLInputElement): void {
+  const down = key(input, { key: 'Enter' })
+  if (!down.defaultPrevented) submit(input)
+}
+
+/** Implicit submission without a keydown: a soft keyboard's Go key. */
+function submit(input: HTMLInputElement): void {
+  input.form!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+}
+
+/** Focus leaving `from` for `to` (null = nowhere, e.g. the soft keyboard closing). */
+function focusOut(from: HTMLElement, to: HTMLElement | null = null): void {
+  const event = new FocusEvent('focusout', { bubbles: true })
+  Object.defineProperty(event, 'relatedTarget', { value: to })
+  from.dispatchEvent(event)
+}
+
 function type(input: HTMLInputElement, value: string): void {
   input.value = value
   input.dispatchEvent(new Event('input', { bubbles: true }))
@@ -79,7 +97,7 @@ describe('link field', () => {
     key(t.editorDiv, { key: 'k', ctrlKey: true })
     type(t.input(), 'lore/old-gods')
     expect(t.msg()).toBe('Wiki link → /home/lore/old-gods')
-    key(t.input(), { key: 'Enter' })
+    enter(t.input())
 
     expect(t.instance.getContent()).toBe('[[lore/old-gods|alpha]] one\nbeta two\ngamma three')
     expect(getSelectionOffsets(t.editorDiv)).toEqual({ start: 23, end: 23 })
@@ -96,7 +114,7 @@ describe('link field', () => {
     key(t.editorDiv, { key: 'k', ctrlKey: true })
     type(t.input(), 'example.com')
     expect(t.msg()).toBe('URL')
-    key(t.input(), { key: 'Enter' })
+    enter(t.input())
     expect(t.instance.getContent()).toBe('[alpha](https://example.com) one\nbeta two\ngamma three')
   })
 
@@ -105,7 +123,7 @@ describe('link field', () => {
     await select(t.editorDiv, 0, 5)
     key(t.editorDiv, { key: 'k', ctrlKey: true })
     type(t.input(), 'javascript:alert(1)')
-    key(t.input(), { key: 'Enter' })
+    enter(t.input())
     expect(t.msg()).toBe('That kind of link is not allowed')
     expect(t.input().getAttribute('aria-invalid')).toBe('true')
     expect(t.field()).not.toBeNull()
@@ -117,7 +135,7 @@ describe('link field', () => {
     await select(t.editorDiv, 0, 15)
     key(t.editorDiv, { key: 'k', ctrlKey: true })
     type(t.input(), 'page')
-    key(t.input(), { key: 'Enter' })
+    enter(t.input())
     expect(t.msg()).toBe('Select text on a single line to turn it into a link')
     expect(t.instance.getContent()).toBe(DOC)
   })
@@ -135,13 +153,35 @@ describe('link field', () => {
     expect(getSelectionOffsets(t.editorDiv)).toEqual({ start: 0, end: 5 })
   })
 
-  it('leaving the field cancels it', async () => {
+  it('on a fine pointer, focus leaving the field cancels it', async () => {
     const t = await mount(DOC)
     await select(t.editorDiv, 0, 5)
     key(t.editorDiv, { key: 'k', ctrlKey: true })
-    t.input().dispatchEvent(new FocusEvent('blur'))
+    focusOut(t.input())
     expect(t.field()).toBeNull()
     expect(t.instance.getContent()).toBe(DOC)
+  })
+
+  it('Tab onto the field’s buttons keeps it open; Escape there still cancels', async () => {
+    const t = await mount(DOC)
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    const submitButton = t.container.querySelector('.wn-link-field-submit') as HTMLButtonElement
+    focusOut(t.input(), submitButton)
+    expect(t.field()).not.toBeNull()
+    const esc = key(submitButton, { key: 'Escape' })
+    expect(esc.defaultPrevented).toBe(true)
+    expect(t.field()).toBeNull()
+    expect(getSelectionOffsets(t.editorDiv)).toEqual({ start: 0, end: 5 })
+  })
+
+  it('Tab out of the field entirely (from a button) cancels it on a fine pointer', async () => {
+    const t = await mount(DOC)
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    const cancelButton = t.container.querySelector('.wn-link-field-cancel') as HTMLButtonElement
+    focusOut(cancelButton, t.editorDiv)
+    expect(t.field()).toBeNull()
   })
 
   it('inside an existing link it is prefilled and rewrites the target, keeping the text', async () => {
@@ -150,7 +190,7 @@ describe('link field', () => {
     key(t.editorDiv, { key: 'k', ctrlKey: true })
     expect(t.input().value).toBe('https://x.test')
     type(t.input(), 'lore')
-    key(t.input(), { key: 'Enter' })
+    enter(t.input())
     expect(t.instance.getContent()).toBe('see [[lore|t]] now')
   })
 
@@ -213,19 +253,94 @@ describe('link field', () => {
     await select(t.editorDiv, 3)
     key(t.editorDiv, { key: 'k', ctrlKey: true })
     type(t.input(), 'page')
-    key(t.input(), { key: 'Enter' })
+    enter(t.input())
     expect(t.msg()).toBe('Links cannot go inside an image')
     expect(t.instance.getContent()).toBe(text)
   })
 
-  it('Enter during IME composition is left to the IME', async () => {
+  it('the field is a form whose input asks for a Go key', async () => {
+    const t = await mount(DOC)
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    expect(t.field()!.tagName).toBe('FORM')
+    expect(t.input().getAttribute('enterkeyhint')).toBe('go')
+  })
+
+  it('a soft-keyboard Go (submit without a keydown) commits the link', async () => {
     const t = await mount(DOC)
     await select(t.editorDiv, 0, 5)
     key(t.editorDiv, { key: 'k', ctrlKey: true })
     type(t.input(), 'page')
-    key(t.input(), { key: 'Enter', isComposing: true })
+    submit(t.input())
+    expect(t.instance.getContent()).toBe('[[page|alpha]] one\nbeta two\ngamma three')
+  })
+
+  it('Enter keydown during IME composition does not submit on its own', async () => {
+    const t = await mount(DOC)
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    type(t.input(), 'page')
+    const e = key(t.input(), { key: 'Enter', isComposing: true })
+    expect(e.defaultPrevented).toBe(false) // left to the IME / the browser's own submit rules
     expect(t.field()).not.toBeNull()
     expect(t.instance.getContent()).toBe(DOC)
+  })
+
+  it('the visible Link button commits, the cancel button restores the selection', async () => {
+    const t = await mount(DOC)
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    type(t.input(), 'page')
+    ;(t.container.querySelector('.wn-link-field-submit') as HTMLButtonElement).click()
+    expect(t.instance.getContent()).toBe('[[page|alpha]] one\nbeta two\ngamma three')
+    expect(t.field()).toBeNull()
+
+    await select(t.editorDiv, 0, 3)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    type(t.input(), 'other')
+    ;(t.container.querySelector('.wn-link-field-cancel') as HTMLButtonElement).click()
+    expect(t.field()).toBeNull()
+    expect(t.group().hidden).toBe(false)
+    expect(t.instance.getContent()).toBe('[[page|alpha]] one\nbeta two\ngamma three')
+    expect(getSelectionOffsets(t.editorDiv)).toEqual({ start: 0, end: 3 })
+  })
+
+  it('pressing the field buttons does not blur the input (mousedown is cancelled)', async () => {
+    const t = await mount(DOC)
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    for (const cls of ['submit', 'cancel']) {
+      const down = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+      t.container.querySelector(`.wn-link-field-${cls}`)!.dispatchEvent(down)
+      expect(down.defaultPrevented).toBe(true)
+    }
+  })
+
+  it('focus moving between the field’s own controls does not cancel it', async () => {
+    const t = await mount(DOC)
+    await select(t.editorDiv, 0, 5)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+    const submitButton = t.container.querySelector('.wn-link-field-submit') as HTMLButtonElement
+    focusOut(t.input(), submitButton)
+    expect(t.field()).not.toBeNull()
+  })
+
+  it('on a touch device the soft keyboard closing (blur) does not cancel the field', async () => {
+    const coarse = vi
+      .spyOn(window, 'matchMedia')
+      .mockImplementation((q) => ({ matches: q === '(pointer: coarse)' }) as MediaQueryList)
+    try {
+      const t = await mount(DOC)
+      await select(t.editorDiv, 0, 5)
+      key(t.editorDiv, { key: 'k', ctrlKey: true })
+      type(t.input(), 'page')
+      focusOut(t.input())
+      expect(t.field()).not.toBeNull()
+      submit(t.input()) // still completes afterwards
+      expect(t.instance.getContent()).toBe('[[page|alpha]] one\nbeta two\ngamma three')
+    } finally {
+      coarse.mockRestore()
+    }
   })
 
   it('caps pasted input length', async () => {
@@ -261,7 +376,7 @@ describe('link field suggestions', () => {
     key(t.input(), { key: 'ArrowDown' })
     expect(t.input().getAttribute('aria-activedescendant')).toBe(t.options()[0]!.id)
     expect(t.options()[0]!.getAttribute('aria-selected')).toBe('true')
-    key(t.input(), { key: 'Enter' })
+    enter(t.input())
 
     // site-root link base → the bare slug
     expect(t.instance.getContent()).toBe('[[lore/old-gods|alpha]] one\nbeta two\ngamma three')
@@ -276,7 +391,7 @@ describe('link field suggestions', () => {
     type(t.input(), 'old')
     await vi.advanceTimersByTimeAsync(150)
     key(t.input(), { key: 'ArrowDown' })
-    key(t.input(), { key: 'Enter' })
+    enter(t.input())
     expect(t.instance.getContent()).toBe('[[/lore/old-gods|alpha]] one\nbeta two\ngamma three')
   })
 
@@ -316,7 +431,7 @@ describe('link field suggestions', () => {
     await vi.advanceTimersByTimeAsync(150)
     expect(suggest).toHaveBeenCalledTimes(1)
     expect(t.options()).toHaveLength(0)
-    key(t.input(), { key: 'Enter' }) // typed text still commits
+    enter(t.input()) // typed text still commits
     expect(t.instance.getContent()).toBe('[[old|alpha]] one\nbeta two\ngamma three')
   })
 
@@ -352,8 +467,101 @@ describe('link field suggestions', () => {
     type(t.input(), 'bad')
     await vi.advanceTimersByTimeAsync(150)
     key(t.input(), { key: 'ArrowDown' })
-    key(t.input(), { key: 'Enter' })
+    enter(t.input())
     expect(t.msg()).toBe('A page name cannot contain ] or |')
     expect(t.instance.getContent()).toBe(DOC)
+  })
+})
+
+describe('Link button on touch (selection lost before the click)', () => {
+  it('opens the field for the selection the finger went down on, and links around it', async () => {
+    const t = await mount(DOC)
+    await select(t.editorDiv, 0, 5)
+    const link = t.container.querySelector('[data-action="link"]') as HTMLButtonElement
+    link.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    window.getSelection()!.removeAllRanges()
+    document.dispatchEvent(new Event('selectionchange'))
+    await vi.advanceTimersByTimeAsync(40)
+    link.click()
+    expect(t.field()).not.toBeNull()
+    type(t.input(), 'page')
+    submit(t.input())
+    expect(t.instance.getContent()).toBe('[[page|alpha]] one\nbeta two\ngamma three')
+  })
+})
+
+describe('link field prefill from the selection', () => {
+  const open = async (t: Awaited<ReturnType<typeof mount>>, start: number, end: number) => {
+    await select(t.editorDiv, start, end)
+    key(t.editorDiv, { key: 'k', ctrlKey: true })
+  }
+
+  it('is filled with the selected text, fully selected so typing replaces it', async () => {
+    const t = await mount(DOC)
+    await open(t, 0, 5)
+    expect(t.input().value).toBe('alpha')
+    expect(t.input().selectionStart).toBe(0)
+    expect(t.input().selectionEnd).toBe(5)
+    expect(t.msg()).toBe('Wiki link → /home/alpha')
+  })
+
+  it('pressing Link right away links the selection to the page it names', async () => {
+    const t = await mount(DOC)
+    await open(t, 0, 5)
+    submit(t.input())
+    expect(t.instance.getContent()).toBe('[[alpha]] one\nbeta two\ngamma three')
+  })
+
+  it('a selection that is a URL becomes a URL link', async () => {
+    const t = await mount('see example.com now')
+    await open(t, 4, 15)
+    expect(t.input().value).toBe('example.com')
+    expect(t.msg()).toBe('URL')
+    submit(t.input())
+    expect(t.instance.getContent()).toBe('see [example.com](https://example.com) now')
+  })
+
+  it('typing over the prefill links the selection as the label of what was typed', async () => {
+    const t = await mount(DOC)
+    await open(t, 0, 5)
+    type(t.input(), 'lore/old-gods')
+    submit(t.input())
+    expect(t.instance.getContent()).toBe('[[lore/old-gods|alpha]] one\nbeta two\ngamma three')
+  })
+
+  it('surrounding whitespace in the selection is not prefilled', async () => {
+    const t = await mount('a  alpha  b')
+    await open(t, 1, 10)
+    expect(t.input().value).toBe('alpha')
+  })
+
+  it.each([
+    ['a collapsed caret', 2, 2],
+    ['a multi-line selection', 0, 15],
+  ])('%s leaves the field empty', async (_name, start, end) => {
+    const t = await mount(DOC)
+    await open(t, start, end)
+    expect(t.input().value).toBe('')
+  })
+
+  it('a long selection (prose, not a name) leaves the field empty', async () => {
+    const prose = 'word '.repeat(60).trim() // 299 chars
+    const t = await mount(prose)
+    await open(t, 0, prose.length)
+    expect(t.input().value).toBe('')
+  })
+
+  it('an existing link still prefills its target, not the selected text', async () => {
+    const t = await mount('see [the docs](https://x.test) now')
+    await open(t, 6, 14)
+    expect(t.input().value).toBe('https://x.test')
+  })
+
+  it('searches for suggestions matching the prefilled text straight away', async () => {
+    const suggest = vi.fn(async () => [])
+    const t = await mount(DOC, { store: { ...createMemoryPageStore({ home: DOC }), suggest } })
+    await open(t, 0, 5)
+    await vi.advanceTimersByTimeAsync(150)
+    expect(suggest).toHaveBeenCalledWith('alpha', 30)
   })
 })
