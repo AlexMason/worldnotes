@@ -3,7 +3,7 @@ issue: 26
 title: Toolbar Link button loses the text selection on mobile, so no link is inserted
 type: fix
 branch: fix/26-mobile-toolbar-link
-status: in-review
+status: filed
 created: 2026-11-26
 pr: ""
 ---
@@ -124,3 +124,5 @@ Three fresh-context reviewers (conformance & correctness, quality, security & sc
 - *nit* (B): a silently ignored restore (text/page changed) gives no feedback. Consistent with the stale-text policy elsewhere; the user's tap then acts on whatever is current.
 
 **Unrelated but important:** none found.
+
+Filed without review sign-off at user's request. The three-lens review covered everything up to commit `7e1d441`; the later prefill change (`965fec5`, see Implementation notes) was manually tested by the user on the phone and gets no further review.
