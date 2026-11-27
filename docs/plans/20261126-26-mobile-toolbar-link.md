@@ -5,7 +5,7 @@ type: fix
 branch: fix/26-mobile-toolbar-link
 status: filed
 created: 2026-11-26
-pr: ""
+pr: "https://github.com/AlexMason/worldnotes/pull/28"
 ---
 
 # Toolbar Link button loses the text selection on mobile, so no link is inserted
